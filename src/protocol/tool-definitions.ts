@@ -180,3 +180,14 @@ export const CloseTool = z.object({
 });
 
 export type CloseTool = z.infer<typeof CloseTool>;
+
+// Evaluate tool - execute JavaScript in browser context
+export const EvaluateTool = z.object({
+  name: z.literal("browser_evaluate"),
+  description: z.literal("Evaluate JavaScript in the browser context and return the result"),
+  arguments: z.object({
+    script: z.string().describe("JavaScript code to execute in the browser context"),
+  }),
+});
+
+export type EvaluateTool = z.infer<typeof EvaluateTool>;
