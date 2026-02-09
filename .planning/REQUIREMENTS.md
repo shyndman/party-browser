@@ -65,28 +65,28 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| RUNT-01 | TBD | Pending |
-| RUNT-02 | TBD | Pending |
-| AUTO-01 | TBD | Pending |
-| AUTO-02 | TBD | Pending |
-| AUTO-03 | TBD | Pending |
-| AUTO-04 | TBD | Pending |
-| AUTO-05 | TBD | Pending |
-| AUTO-06 | TBD | Pending |
-| AUTO-07 | TBD | Pending |
-| DISC-01 | TBD | Pending |
-| DISC-02 | TBD | Pending |
-| DISC-03 | TBD | Pending |
-| DISC-04 | TBD | Pending |
-| DISC-05 | TBD | Pending |
-| FLOW-01 | TBD | Pending |
-| FLOW-02 | TBD | Pending |
+| RUNT-01 | Phase 1 | Pending |
+| RUNT-02 | Phase 1 | Pending |
+| AUTO-01 | Phase 1 | Pending |
+| AUTO-02 | Phase 1 | Pending |
+| AUTO-03 | Phase 2 | Pending |
+| AUTO-04 | Phase 2 | Pending |
+| AUTO-05 | Phase 2 | Pending |
+| AUTO-06 | Phase 2 | Pending |
+| AUTO-07 | Phase 1 | Pending |
+| DISC-01 | Phase 1 | Pending |
+| DISC-02 | Phase 2 | Pending |
+| DISC-03 | Phase 3 | Pending |
+| DISC-04 | Phase 3 | Pending |
+| DISC-05 | Phase 2 | Pending |
+| FLOW-01 | Phase 2 | Pending |
+| FLOW-02 | Phase 3 | Pending |
 
 **Coverage:**
 - v1 requirements: 16 total
-- Mapped to phases: 0
-- Unmapped: 16 ⚠️
+- Mapped to phases: 16
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-02-09*
-*Last updated: 2026-02-09 after initial definition*
+*Last updated: 2026-02-09 after roadmap mapping*

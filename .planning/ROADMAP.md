@@ -1,8 +1,8 @@
-# Roadmap: Browser MCP Core
+# Roadmap: Browser MCP Pre-Scraping Interface
 
 ## Overview
 
-This roadmap delivers Browser MCP Core as a reliability-first local automation server that remains compatible with MCP clients and the Browser MCP extension. The sequence starts by locking down lifecycle, local-execution guarantees, and MCP SDK baseline safety, then hardens connection/error behavior, and then protects behavior with automated quality gates.
+This roadmap delivers a selector-first pre-scraping workflow where an LLM performs discovery and a procedural stage executes repeatable extraction. The phases are organized by dependency: first establish a reliable runtime and deterministic core primitives, then complete discovery interactions, then finalize handoff and repeatable execution readiness. Each phase is scoped to observable user outcomes so planning and verification can be done against concrete behaviors.
 
 ## Phases
 
@@ -10,68 +10,60 @@ This roadmap delivers Browser MCP Core as a reliability-first local automation s
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-Decimal phases appear between their surrounding integers in numeric order.
-
-- [ ] **Phase 1: Lifecycle Safety, Local Guarantees, and SDK Baseline** - Local-first execution, shutdown behavior, and MCP SDK baseline are reliable and safe.
-- [ ] **Phase 2: Connection Reliability and Error Contracts** - Connection state, retry behavior, and error surfaces are explicit and resilient.
-- [ ] **Phase 3: Automated Quality and CI Confidence** - Core behavior is protected by repeatable tests and enforced gates.
+- [ ] **Phase 1: Runtime and Deterministic Core** - Local operability plus stable navigation, waiting, snapshot, and session closure.
+- [ ] **Phase 2: Interactive Selector Discovery** - Discovery-time interactions and LLM-guided selector generation.
+- [ ] **Phase 3: Handoff and Repeatable Execution Readiness** - Inspection visibility and exportable handoff for no-LLM procedural execution.
 
 ## Phase Details
 
-### Phase 1: Lifecycle Safety, Local Guarantees, and SDK Baseline
-**Goal**: Users can trust that automation stays local, uses their existing browser profile, starts/stops cleanly, and runs on a current safe MCP SDK baseline.
+### Phase 1: Runtime and Deterministic Core
+**Goal**: Operators and users can run the server locally and perform deterministic baseline page control for discovery setup.
 **Depends on**: Nothing (first phase)
-**Requirements**: STACK-01, RELY-05, CORE-01, CORE-02, CORE-03, CORE-04
+**Requirements**: RUNT-01, RUNT-02, AUTO-01, AUTO-02, AUTO-07, DISC-01
 **Success Criteria** (what must be TRUE):
-  1. User can run automation workflows entirely on their machine without requiring remote browser execution.
-  2. User can automate authenticated sites using their existing browser profile without re-authenticating through a separate session store.
-  3. User can stop the server and restart it without recursive close failures or orphaned server/bridge resources.
-  4. Maintainer can run the server on `@modelcontextprotocol/sdk` `^1.26.x` and validate existing tool/resource flows without compatibility regression.
-  5. User-observed automation continues to behave as real-browser interaction (navigation/input timing and profile context) needed for baseline bot-friction reduction.
-**Plans**: 5 plans across 4 waves
+  1. Operator can install dependencies and complete a successful local build from this repository.
+  2. Operator can start the MCP server locally and confirm the pre-scraping toolset is registered.
+  3. User can navigate to a URL, wait for required conditions, and get deterministic wait outcomes on repeated runs.
+  4. User can capture a structured accessibility snapshot and close the active browser session cleanly.
+**Plans**: TBD
 
 Plans:
-- [ ] 01-01: Upgrade MCP SDK to ^1.26.x — Update package.json, install dependencies, verify typecheck, verify server starts (Wave 1)
-- [ ] 01-02: Fix recursive close bug and create shutdown coordinator — Fix server.ts close bug using bind pattern, create ShutdownCoordinator utility (Wave 2)
-- [ ] 01-05: Replace aggressive process cleanup with graceful termination — Update port.ts to use SIGTERM with SIGKILL fallback (Wave 2)
-- [ ] 01-03: Integrate shutdown coordinator with signal handlers — Update index.ts with SIGINT/SIGTERM handlers, enhance WebSocket graceful close (Wave 3)
-- [ ] 01-04: Validate local execution guarantees and MCP runtime compatibility — Verify CORE-01/CORE-02/CORE-03/CORE-04, remediate violations if needed, run MCP smoke tests (Wave 4)
+- [ ] 01-01: TBD during `/gsd-plan-phase 1`
 
-### Phase 2: Connection Reliability and Error Contracts
-**Goal**: Users can observe connection health and receive predictable failure handling during bridge/tool operations.
+### Phase 2: Interactive Selector Discovery
+**Goal**: Users can perform full discovery interactions and complete an LLM-guided pass that yields actionable selectors.
 **Depends on**: Phase 1
-**Requirements**: RELY-01, RELY-02, RELY-03, RELY-04, ERR-01, ERR-02, ERR-03, ERR-04, DX-05
+**Requirements**: AUTO-03, AUTO-04, AUTO-05, AUTO-06, DISC-02, DISC-05, FLOW-01
 **Success Criteria** (what must be TRUE):
-  1. User can observe current connection state transitions (`disconnected`, `connecting`, `connected`, `reconnecting`) during normal operation and recovery.
-  2. User sees automatic reconnect attempts with bounded exponential backoff after transient disconnects, and fail-fast behavior for non-transient failures.
-  3. User receives structured MCP errors with actionable messages, including timeout-driven failure outcomes when operations exceed configured limits.
-  4. User can inspect health/debug signals (last successful operation, failure streak, basic latency, and lifecycle/bridge debug logs) to diagnose issues.
+  1. User can click, type, select dropdown options, and send keyboard input against live targets during discovery.
+  2. User can run controlled page/element inspection via evaluate and receive usable inspection output.
+  3. User can capture screenshots during discovery for visual verification of page state.
+  4. User can run an LLM-guided discovery pass that outputs selectors suitable for procedural extraction.
 **Plans**: TBD
 
 Plans:
-- [ ] 02-01: TBD during phase planning
+- [ ] 02-01: TBD during `/gsd-plan-phase 2`
 
-### Phase 3: Automated Quality and CI Confidence
-**Goal**: Maintainers can trust changes because critical workflows are covered by automated tests and CI enforcement.
+### Phase 3: Handoff and Repeatable Execution Readiness
+**Goal**: Discovery results can be inspected, packaged, and handed off for procedural scraping without LLM involvement.
 **Depends on**: Phase 2
-**Requirements**: TEST-01, TEST-02, TEST-03, TEST-04, TEST-05
+**Requirements**: DISC-03, DISC-04, FLOW-02
 **Success Criteria** (what must be TRUE):
-  1. Contributor can run automated unit tests that verify tool handlers across success and representative failure paths.
-  2. Contributor can run integration tests that validate extension-bridge behavior with mocked WebSocket/extension responses.
-  3. Contributor can execute browser-backed tests for critical end-to-end automation workflows and get deterministic pass/fail feedback.
-  4. Pull requests fail automatically when typecheck, test, coverage, or build gates are not met.
+  1. User can inspect captured network activity from discovery sessions to debug selector and timing behavior.
+  2. User can inspect browser console output from discovery sessions to diagnose failures.
+  3. User can persist or export a selector handoff artifact that a procedural scraping stage can execute without LLM involvement.
 **Plans**: TBD
 
 Plans:
-- [ ] 03-01: TBD during phase planning
+- [ ] 03-01: TBD during `/gsd-plan-phase 3`
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 1.1 -> 1.2 -> 2 -> 2.1 -> 3
+Phases execute in numeric order: 1 -> 2 -> 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Lifecycle Safety, Local Guarantees, and SDK Baseline | 0/TBD | Not started | - |
-| 2. Connection Reliability and Error Contracts | 0/TBD | Not started | - |
-| 3. Automated Quality and CI Confidence | 0/TBD | Not started | - |
+| 1. Runtime and Deterministic Core | 0/TBD | Not started | - |
+| 2. Interactive Selector Discovery | 0/TBD | Not started | - |
+| 3. Handoff and Repeatable Execution Readiness | 0/TBD | Not started | - |
