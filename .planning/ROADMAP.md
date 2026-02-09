@@ -41,13 +41,14 @@ Plans:
   2. User can run controlled page/element inspection via evaluate and receive usable inspection output.
   3. User can capture screenshots during discovery for visual verification of page state.
   4. User can run an LLM-guided discovery pass that outputs selectors suitable for procedural extraction.
-**Plans**: 4 plans in 2 waves
+**Plans**: 5 plans in 2 waves (includes 1 gap closure)
 
 Plans:
 - [ ] 02-01-PLAN.md — Implement browser_evaluate tool for JavaScript execution in page context
 - [ ] 02-02-PLAN.md — Verify and enhance browser_screenshot tool with proper error handling
 - [ ] 02-03-PLAN.md — Verify and refine all interactive tools (click, type, select, keyboard)
 - [ ] 02-04-PLAN.md — Create LLM-guided selector discovery workflow documentation
+- [ ] 02-05-PLAN.md — Gap closure: Add browser_take_screenshot alias for DISC-05 compliance
 
 ### Phase 3: Handoff and Repeatable Execution Readiness
 **Goal**: Discovery results can be inspected, packaged, and handed off for procedural scraping without LLM involvement.
@@ -70,5 +71,5 @@ Phases execute in numeric order: 1 -> 2 -> 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Runtime and Deterministic Core | 3/3 | ✓ Complete | 2026-02-09 |
-| 2. Interactive Selector Discovery | 0/4 | ◆ Planned | - |
+| 2. Interactive Selector Discovery | 0/5 | ◆ Planned | - |
 | 3. Handoff and Repeatable Execution Readiness | 0/TBD | ○ Not started | - |
