@@ -1,53 +1,50 @@
-# Browser MCP Core
+# Browser MCP Pre-Scraping Interface
 
 ## What This Is
 
-Browser MCP Core is the MCP server package that powers browser automation through the Browser MCP Chrome extension. It lets AI tools invoke browser actions through MCP while keeping execution local and tied to the user's existing browser profile. This repository currently contains the core server logic and tool surface, with known monorepo dependency constraints.
+This project evolves `browser-mcp` into a reliable pre-scraping system that can be driven by an LLM. The goal is to let an LLM inspect real pages, determine robust selectors, and hand those selectors to a procedural scraping stage for repeatable extraction. The initial scope focuses on getting the current repo running cleanly and shipping a critical Playwright-MCP-like tool interface for this selector-discovery workflow.
 
 ## Core Value
 
-AI clients can reliably automate a real, logged-in local browser session through a simple MCP interface.
+An LLM can consistently derive actionable selectors from live page context so downstream procedural scraping is reliable.
 
 ## Requirements
 
 ### Validated
 
-- ✓ MCP server exposes browser automation tools over stdio transport and MCP tool schemas — existing
-- ✓ Server bridges MCP tool calls to the Browser MCP extension via local WebSocket messaging — existing
-- ✓ Core browser interaction tools exist (navigation, click/hover/type/select/key, wait, screenshot, snapshot, URL/title, console logs) — existing
-- ✓ Automation runs against the user's real browser profile to preserve logged-in sessions and reduce bot-detection friction — existing
+(None yet — ship to validate)
 
 ### Active
 
-- [ ] Server shutdown and connection lifecycle are reliable under normal start/stop and reconnect scenarios
-- [ ] MCP server dependency baseline includes `@modelcontextprotocol/sdk` `^1.26.x` with compatibility validated
-- [ ] Core behavior is protected by automated tests for tool execution and error paths
+- [ ] Get this repository running locally in a reproducible way despite current dependency/friction points.
+- [ ] Expose a critical pre-scraping MCP toolset compatible with Playwright-MCP-style usage (`navigate`, `wait_for`, `snapshot`, `click`, `type`, `select_option`, `press_key`, `evaluate`, `network_requests`, `take_screenshot`, `console_messages`, `close`).
+- [ ] Enable a practical two-stage scraping workflow: LLM selector discovery first, procedural extraction second.
+- [ ] Keep tool semantics deterministic and automation-safe for repeated scraping runs.
 
 ### Out of Scope
 
-- Cloud-hosted/browser-farm orchestration — local-first architecture is core to product value
-- Multi-user tenancy and remote account/session management — this package is a local MCP server, not a hosted platform
+- CDP/DevTools-protocol-dependent dialog handling — explicitly excluded due detectability and user preference.
+- Arbitrary code execution tooling equivalent to `browser_run_code` — deferred for safety and scope control.
+- Coordinate/vision-first interaction tools (`*_xy`, wheel/drag-by-coordinates) — deferred because they are brittle for selector-centric scraping.
 
 ## Context
 
-- Existing brownfield codebase with established TypeScript Node.js MCP server architecture
-- Existing documented codebase map in `.planning/codebase/` used as initialization context
-- README confirms product positioning: local, private, logged-in browser automation via extension
-- Current concerns include lifecycle reliability risks, zero test coverage, and monorepo-only dependency assumptions
+This codebase already contains an MCP server architecture with WebSocket-based browser interaction and several existing browser tools. The immediate product direction is to prioritize pre-scraping capabilities instead of broad test automation parity. A critical design input from the user is avoiding CDP-based mechanisms; this affects which Playwright-like features are feasible in v1.
 
 ## Constraints
 
-- **Tech stack**: Node.js + TypeScript + MCP SDK + WebSocket bridge — existing architecture should be evolved, not replaced
-- **Product**: Local-first operation only — browser activity should remain on-device
-- **Compatibility**: Must continue to interoperate with Browser MCP extension protocol and MCP clients
+- **Detection/Security**: No CDP/DevTools Protocol usage for core features — avoid detectable debugger attachment patterns.
+- **Scope**: Focus on pre-scraping selector discovery, not full browser testing parity.
+- **Architecture**: Build on existing MCP + WebSocket tool architecture already in this repository.
+- **Safety**: Avoid introducing unconstrained arbitrary-code browser execution in initial scope.
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Use `README.md` plus `.planning/codebase/*.md` as initialization source | `--auto` was requested without a separate idea document, and these are the authoritative in-repo sources | — Pending |
-| Initialize as brownfield with inferred validated requirements | Existing code already delivers core capabilities that should be treated as baseline, not new scope | — Pending |
-| Prioritize 3-phase v1 scope (lifecycle, connection/error contracts, testing/CI) | Keep v1 focused on reliability and quality gates before contributor-workflow expansion | — Pending |
+| Prioritize a critical first tool set for pre-scraping | Fastest path to selector-discovery value with minimal surface area | — Pending |
+| Exclude CDP-based dialog handling | User explicitly rejects CDP due detectability concerns | — Pending |
+| Defer coordinate-only and arbitrary code execution tools | Not critical for selector-first workflow and increases risk/complexity | — Pending |
 
 ---
 *Last updated: 2026-02-09 after initialization*
