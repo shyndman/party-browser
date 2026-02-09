@@ -141,3 +141,42 @@ export const ScreenshotTool = z.object({
 });
 
 export type ScreenshotTool = z.infer<typeof ScreenshotTool>;
+
+// WaitFor tool - deterministic wait with multiple condition modes
+export const WaitForTool = z.object({
+  name: z.literal("browser_wait_for"),
+  description: z.literal(
+    "Wait for a condition to be met: time duration, text to appear, or text to disappear"
+  ),
+  arguments: z.discriminatedUnion("mode", [
+    // Time-based wait
+    z.object({
+      mode: z.literal("time"),
+      value: z.number().describe("Time to wait in seconds"),
+      timeout: z.number().optional().describe("Maximum wait time in seconds (defaults to value)"),
+    }),
+    // Text appearance wait
+    z.object({
+      mode: z.literal("text"),
+      value: z.string().describe("Text to wait for (appears in page content)"),
+      timeout: z.number().describe("Maximum wait time in seconds"),
+    }),
+    // Text disappearance wait
+    z.object({
+      mode: z.literal("text_gone"),
+      value: z.string().describe("Text to wait for (disappears from page content)"),
+      timeout: z.number().describe("Maximum wait time in seconds"),
+    }),
+  ]),
+});
+
+export type WaitForTool = z.infer<typeof WaitForTool>;
+
+// Close tool - close the browser session
+export const CloseTool = z.object({
+  name: z.literal("browser_close"),
+  description: z.literal("Close the active browser session and clean up resources"),
+  arguments: z.object({}),
+});
+
+export type CloseTool = z.infer<typeof CloseTool>;

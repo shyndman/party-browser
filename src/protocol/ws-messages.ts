@@ -27,6 +27,15 @@ export interface SocketMessageMap {
   browser_screenshot: Record<string, never>;
   browser_get_console_logs: Record<string, never>;
 
+  // Deterministic wait messages
+  browser_wait_for:
+    | { mode: "time"; value: number; timeout?: number }
+    | { mode: "text"; value: string; timeout: number }
+    | { mode: "text_gone"; value: string; timeout: number };
+
+  // Session management messages
+  browser_close: Record<string, never>;
+
   // Page state messages
   getUrl: undefined;
   getTitle: undefined;
