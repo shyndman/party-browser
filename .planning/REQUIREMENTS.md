@@ -15,6 +15,10 @@ Requirements for the next delivery roadmap. These combine all researched table-s
 - [ ] **RELY-04**: Server exposes connection health signals (last successful operation, failure streak, and basic latency)
 - [ ] **RELY-05**: Server performs clean shutdown without recursive close failure or orphaned runtime resources
 
+### Platform & Dependency Baseline
+
+- [ ] **STACK-01**: Server runs on `@modelcontextprotocol/sdk` `^1.26.x` with validated compatibility for current tool/resource flows
+
 ### Error Handling & Recovery
 
 - [ ] **ERR-01**: Tool failures return structured, categorized MCP errors with actionable messages
@@ -32,12 +36,7 @@ Requirements for the next delivery roadmap. These combine all researched table-s
 
 ### Contributor Experience
 
-- [ ] **DX-01**: Repository includes contributor guidelines for setup, conventions, and PR workflow
-- [ ] **DX-02**: Repository includes developer setup guide for running, testing, and debugging locally
-- [ ] **DX-03**: Architecture documentation is published and cross-referenced from contributor docs
-- [ ] **DX-04**: Tool API documentation is available for tool inputs, outputs, and behavior expectations
 - [ ] **DX-05**: Debug logging is instrumented consistently across lifecycle and bridge operations
-- [ ] **DX-06**: Contributors can build and validate this repository without hidden monorepo-only coupling
 
 ### Product Guarantees (From README)
 
@@ -60,6 +59,14 @@ Deferred differentiators not explicitly requested in the provided idea document.
 - **ADV-06**: Developer can run interactive step-through debugging for automation sequences
 - **ADV-07**: Extension exposes visual connection and activity indicator for live troubleshooting
 
+### Contributor Experience (Deferred)
+
+- **DX-01**: Repository includes contributor guidelines for setup, conventions, and PR workflow
+- **DX-02**: Repository includes developer setup guide for running, testing, and debugging locally
+- **DX-03**: Architecture documentation is published and cross-referenced from contributor docs
+- **DX-04**: Tool API documentation is available for tool inputs, outputs, and behavior expectations
+- **DX-06**: Contributors can build and validate this repository without hidden monorepo-only coupling
+
 ## Out of Scope
 
 Explicitly excluded to prevent scope creep and preserve local-first product direction.
@@ -79,36 +86,32 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| RELY-01 | TBD | Pending |
-| RELY-02 | TBD | Pending |
-| RELY-03 | TBD | Pending |
-| RELY-04 | TBD | Pending |
-| RELY-05 | TBD | Pending |
-| ERR-01 | TBD | Pending |
-| ERR-02 | TBD | Pending |
-| ERR-03 | TBD | Pending |
-| ERR-04 | TBD | Pending |
-| TEST-01 | TBD | Pending |
-| TEST-02 | TBD | Pending |
-| TEST-03 | TBD | Pending |
-| TEST-04 | TBD | Pending |
-| TEST-05 | TBD | Pending |
-| DX-01 | TBD | Pending |
-| DX-02 | TBD | Pending |
-| DX-03 | TBD | Pending |
-| DX-04 | TBD | Pending |
-| DX-05 | TBD | Pending |
-| DX-06 | TBD | Pending |
-| CORE-01 | TBD | Pending |
-| CORE-02 | TBD | Pending |
-| CORE-03 | TBD | Pending |
-| CORE-04 | TBD | Pending |
+| STACK-01 | Phase 1 | Pending |
+| RELY-01 | Phase 2 | Pending |
+| RELY-02 | Phase 2 | Pending |
+| RELY-03 | Phase 2 | Pending |
+| RELY-04 | Phase 2 | Pending |
+| RELY-05 | Phase 1 | Pending |
+| ERR-01 | Phase 2 | Pending |
+| ERR-02 | Phase 2 | Pending |
+| ERR-03 | Phase 2 | Pending |
+| ERR-04 | Phase 2 | Pending |
+| TEST-01 | Phase 3 | Pending |
+| TEST-02 | Phase 3 | Pending |
+| TEST-03 | Phase 3 | Pending |
+| TEST-04 | Phase 3 | Pending |
+| TEST-05 | Phase 3 | Pending |
+| DX-05 | Phase 2 | Pending |
+| CORE-01 | Phase 1 | Pending |
+| CORE-02 | Phase 1 | Pending |
+| CORE-03 | Phase 1 | Pending |
+| CORE-04 | Phase 1 | Pending |
 
 **Coverage:**
-- v1 requirements: 24 total
-- Mapped to phases: 0
-- Unmapped: 24 ⚠
+- v1 requirements: 20 total
+- Mapped to phases: 20
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-02-09*
-*Last updated: 2026-02-09 after initial definition*
+*Last updated: 2026-02-09 after reducing to 3-phase v1 and adding MCP SDK upgrade requirement*

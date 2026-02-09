@@ -20,8 +20,8 @@ AI clients can reliably automate a real, logged-in local browser session through
 ### Active
 
 - [ ] Server shutdown and connection lifecycle are reliable under normal start/stop and reconnect scenarios
+- [ ] MCP server dependency baseline includes `@modelcontextprotocol/sdk` `^1.26.x` with compatibility validated
 - [ ] Core behavior is protected by automated tests for tool execution and error paths
-- [ ] Repository can be built and validated in a standalone contributor workflow (without hidden monorepo coupling)
 
 ### Out of Scope
 
@@ -47,7 +47,7 @@ AI clients can reliably automate a real, logged-in local browser session through
 |----------|-----------|---------|
 | Use `README.md` plus `.planning/codebase/*.md` as initialization source | `--auto` was requested without a separate idea document, and these are the authoritative in-repo sources | — Pending |
 | Initialize as brownfield with inferred validated requirements | Existing code already delivers core capabilities that should be treated as baseline, not new scope | — Pending |
-| Prioritize reliability, testability, and standalone contributor flow in active scope | These directly affect maintainability and contributor velocity for future feature work | — Pending |
+| Prioritize 3-phase v1 scope (lifecycle, connection/error contracts, testing/CI) | Keep v1 focused on reliability and quality gates before contributor-workflow expansion | — Pending |
 
 ---
 *Last updated: 2026-02-09 after initialization*
