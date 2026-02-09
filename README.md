@@ -23,6 +23,35 @@ Browser MCP is an MCP server + Chrome extension that allows you to automate your
 - 👤 Logged In: Uses your existing browser profile, keeping you logged into all your services.
 - 🥷🏼 Stealth: Avoids basic bot detection and CAPTCHAs by using your real browser fingerprint.
 
+## Usage
+
+### Selector Discovery Workflow
+
+The Browser MCP enables LLM-guided selector discovery for web scraping and automation. Instead of manually inspecting HTML and writing selectors, you can guide an LLM through an interactive discovery process:
+
+1. **Explore** — Navigate to the target page and capture snapshots
+2. **Identify** — Use `browser_evaluate` to inspect page structure  
+3. **Generate** — LLM proposes selector candidates with rationale
+4. **Validate** — Test selectors against the live page
+5. **Export** — Save validated selectors for procedural extraction
+
+See the complete [Selector Discovery Workflow Guide](.planning/guides/selector-discovery-workflow.md) for detailed instructions, examples, and best practices.
+
+### Available Tools
+
+Key tools for selector discovery and browser automation:
+
+| Tool | Purpose |
+|------|---------|
+| `browser_navigate` | Navigate to URLs |
+| `browser_snapshot` | Get accessibility tree of current page |
+| `browser_screenshot` | Capture visual screenshot |
+| `browser_evaluate` | Execute JavaScript for inspection |
+| `browser_click` | Click elements |
+| `browser_type` | Type text into inputs |
+| `browser_select_option` | Select dropdown options |
+| `browser_wait_for` | Wait for conditions (time, text appear/disappear) |
+
 ## Local Development
 
 ### Prerequisites
