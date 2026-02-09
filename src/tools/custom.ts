@@ -31,6 +31,7 @@ export const screenshot: Tool = {
     inputSchema: zodToJsonSchema(ScreenshotTool.shape.arguments),
   },
   handle: async (context, _params) => {
+    // Extension contract: returns base64-encoded PNG string (not Data URL)
     const screenshot = await context.sendSocketMessage(
       "browser_screenshot",
       {},
