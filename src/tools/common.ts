@@ -1,10 +1,12 @@
 import { zodToJsonSchema } from "zod-to-json-schema";
 
 import {
+  CloseTool,
   GoBackTool,
   GoForwardTool,
   NavigateTool,
   PressKeyTool,
+  WaitForTool,
   WaitTool,
 } from "@/protocol/tool-definitions";
 
@@ -113,6 +115,64 @@ export const pressKey: Tool = {
         {
           type: "text",
           text: `Pressed key ${key}`,
+        },
+      ],
+    };
+  },
+};
+
+export const waitFor: Tool = {
+  schema: {
+    name: WaitForTool.shape.name.value,
+    description: WaitForTool.shape.description.value,
+    inputSchema: zodToJsonSchema(WaitForTool.shape.arguments),
+  },
+  handle: async (context, params) => {
+    const args = WaitForTool.shape.arguments.parse(params);
+    const { mode, value, timeout } = args;
+
+    await context.sendSocketMessage("browser_wait_for", { mode, value, timeout } as any);
+
+    // Generate deterministic, parseable response based on mode
+    let resultText: string;
+    switch (mode) {
+      case "time":
+        resultText = `Waited for ${value} seconds`;
+        break;
+      case "text":
+        resultText = `Waited for text to appear: "${value}"`;
+        break;
+      case "text_gone":
+        resultText = `Waited for text to disappear: "${value}"`;
+        break;
+      default:
+        resultText = `Waited for condition: ${mode}`;
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: resultText,
+        },
+      ],
+    };
+  },
+};
+
+export const close: Tool = {
+  schema: {
+    name: CloseTool.shape.name.value,
+    description: CloseTool.shape.description.value,
+    inputSchema: zodToJsonSchema(CloseTool.shape.arguments),
+  },
+  handle: async (context) => {
+    await context.sendSocketMessage("browser_close", {});
+    return {
+      content: [
+        {
+          type: "text",
+          text: "Browser session closed successfully",
         },
       ],
     };
