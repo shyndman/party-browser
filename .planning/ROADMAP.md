@@ -25,10 +25,12 @@ This roadmap delivers a selector-first pre-scraping workflow where an LLM perfor
   2. Operator can start the MCP server locally and confirm the pre-scraping toolset is registered.
   3. User can navigate to a URL, wait for required conditions, and get deterministic wait outcomes on repeated runs.
   4. User can capture a structured accessibility snapshot and close the active browser session cleanly.
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 01-01: TBD during `/gsd-plan-phase 1`
+- [ ] 01-01-PLAN.md - Remove monorepo-only imports and restore standalone local build.
+- [ ] 01-02-PLAN.md - Implement deterministic wait-for and explicit close tools in MCP runtime.
+- [ ] 01-03-PLAN.md - Add local startup/tool-registration smoke checks and operator runbook updates.
 
 ### Phase 2: Interactive Selector Discovery
 **Goal**: Users can perform full discovery interactions and complete an LLM-guided pass that yields actionable selectors.
@@ -39,10 +41,13 @@ Plans:
   2. User can run controlled page/element inspection via evaluate and receive usable inspection output.
   3. User can capture screenshots during discovery for visual verification of page state.
   4. User can run an LLM-guided discovery pass that outputs selectors suitable for procedural extraction.
-**Plans**: TBD
+**Plans**: 4 plans in 2 waves
 
 Plans:
-- [ ] 02-01: TBD during `/gsd-plan-phase 2`
+- [ ] 02-01-PLAN.md — Implement browser_evaluate tool for JavaScript execution in page context
+- [ ] 02-02-PLAN.md — Verify and enhance browser_screenshot tool with proper error handling
+- [ ] 02-03-PLAN.md — Verify and refine all interactive tools (click, type, select, keyboard)
+- [ ] 02-04-PLAN.md — Create LLM-guided selector discovery workflow documentation
 
 ### Phase 3: Handoff and Repeatable Execution Readiness
 **Goal**: Discovery results can be inspected, packaged, and handed off for procedural scraping without LLM involvement.
