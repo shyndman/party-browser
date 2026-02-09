@@ -9,6 +9,7 @@ import type { Resource } from "@/resources/resource";
 import { createServerWithTools } from "@/server";
 import * as common from "@/tools/common";
 import * as custom from "@/tools/custom";
+import { evaluate } from "@/tools/evaluate";
 import * as snapshot from "@/tools/snapshot";
 import type { Tool } from "@/tools/tool";
 
@@ -24,7 +25,11 @@ function setupExitWatchdog(server: Server) {
 
 const commonTools: Tool[] = [common.pressKey, common.wait, common.waitFor, common.close];
 
-const customTools: Tool[] = [custom.getConsoleLogs, custom.screenshot];
+const customTools: Tool[] = [
+  custom.getConsoleLogs,
+  custom.screenshot,
+  evaluate,
+];
 
 const snapshotTools: Tool[] = [
   common.navigate(true),
