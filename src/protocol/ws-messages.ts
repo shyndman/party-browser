@@ -26,6 +26,7 @@ export interface SocketMessageMap {
   browser_snapshot: Record<string, never>;
   browser_screenshot: Record<string, never>;
   browser_get_console_logs: Record<string, never>;
+  browser_evaluate: { script: string };
 
   // Deterministic wait messages
   browser_wait_for:
