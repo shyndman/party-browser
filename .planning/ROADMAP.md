@@ -28,10 +28,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. User can stop the server and restart it without recursive close failures or orphaned server/bridge resources.
   4. Maintainer can run the server on `@modelcontextprotocol/sdk` `^1.26.x` and validate existing tool/resource flows without compatibility regression.
   5. User-observed automation continues to behave as real-browser interaction (navigation/input timing and profile context) needed for baseline bot-friction reduction.
-**Plans**: TBD
+**Plans**: 3 plans across 2 waves
 
 Plans:
-- [ ] 01-01: TBD during phase planning
+- [ ] 01-01: Upgrade MCP SDK to ^1.26.x — Update package.json, install dependencies, verify typecheck (Wave 1)
+- [ ] 01-02: Fix recursive close and implement graceful shutdown — Fix server.ts close bug, create shutdown coordinator, add SIGINT/SIGTERM handlers, enhance WebSocket close (Wave 2)
+- [ ] 01-03: Replace aggressive process cleanup with graceful termination — Update port.ts to use SIGTERM with SIGKILL fallback (Wave 2)
 
 ### Phase 2: Connection Reliability and Error Contracts
 **Goal**: Users can observe connection health and receive predictable failure handling during bridge/tool operations.
