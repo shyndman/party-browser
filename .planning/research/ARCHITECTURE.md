@@ -1,936 +1,401 @@
-# Architecture Patterns: Browser MCP Core
+# Architecture Patterns
 
-**Project:** Browser MCP Core  
-**Domain:** Local MCP server + browser extension bridge for browser automation  
-**Researched:** 2025-02-09  
-**Overall Confidence:** HIGH (based on MCP SDK docs, WebSocket patterns, and TypeScript best practices)
+**Domain:** Browser Pre-Scraping MCP Server  
+**Researched:** February 2026  
+**Confidence:** HIGH
 
----
+## Standard Architecture
 
-## Executive Summary
+### System Overview
 
-The Browser MCP Core sits at a critical intersection: it's a local MCP server using stdio transport to communicate with AI clients, while maintaining WebSocket connections to browser extension tabs. This dual-transport architecture creates unique lifecycle challenges—particularly the **shutdown recursion bug risk** identified in the current codebase where `server.close()` calls itself.
-
-Key architectural insight: This is fundamentally a **connection broker** pattern. The MCP server brokers between AI client requests (via stdio) and browser tab capabilities (via WebSocket). Success depends on clear failure boundaries between these two domains and a testable design that allows mocking the browser connection.
-
----
-
-## Current Architecture Analysis
-
-### Existing Layered Structure
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Entry (index.ts)                                           │
-│  - CLI setup, stdio transport, exit watchdog                │
-├─────────────────────────────────────────────────────────────┤
-│  Server (server.ts)                                         │
-│  - MCP Server instance, request handlers                    │
-│  - WebSocket server creation                                │
-│  - ⚠️ BUG: Recursive close() override (line 85-89)          │
-├─────────────────────────────────────────────────────────────┤
-│  Context (context.ts)                                       │
-│  - WebSocket state management                               │
-│  - Message sending abstraction                              │
-│  - Single-connection model (closes existing on new)         │
-├─────────────────────────────────────────────────────────────┤
-│  Tools (tools/*.ts)                                         │
-│  - Tool definitions with schema + handler                   │
-│  - Context injection for browser communication              │
-├─────────────────────────────────────────────────────────────┤
-│  Utils (utils/*.ts)                                         │
-│  - Port management, logging, aria snapshots                 │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Critical Issues Identified
-
-#### 1. Shutdown Recursion Bug (HIGH SEVERITY)
-
-**Location:** `src/server.ts:85-89`
-
-```typescript
-server.close = async () => {
-  await server.close();  // ← Infinite recursion!
-  await wss.close();
-  await context.close();
-};
-```
-
-**Why this happens:** The code overrides `server.close` but calls the same method recursively. This will cause a stack overflow on shutdown.
-
-**Fix pattern:** Store original close, call it last:
-
-```typescript
-const originalClose = server.close.bind(server);
-server.close = async () => {
-  await context.close();
-  await wss.close();
-  await originalClose();
-};
-```
-
-#### 2. Single-Connection Fragility
-
-**Location:** `src/server.ts:36-40`
-
-The current implementation forcefully closes existing WebSocket connections when new ones arrive. This "last-one-wins" approach is acceptable for single-tab local use but creates race conditions:
-
-- Tool execution in progress when connection swaps
-- No graceful handoff or queue draining
-- Extension state becomes orphaned
-
-#### 3. No Test Harness
-
-The architecture lacks dependency injection points. The `Context` class directly instantiates WebSocket dependencies, making unit testing impossible without network calls.
-
----
-
-## Recommended Architecture
-
-### Pattern: Layered Broker with Clear Failure Domains
+MCP-style browser pre-scraping systems follow a layered architecture that separates the LLM-driven discovery phase from the procedural extraction phase. This separation is critical for reliability, maintainability, and scaling.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        ENTRY LAYER                               │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐   │
-│  │ CLI Parser   │  │ Transport    │  │ Lifecycle Manager    │   │
-│  │ (commander)  │  │ (stdio)      │  │ (shutdown sequence)  │   │
-│  └──────────────┘  └──────────────┘  └──────────────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                       MCP SERVER LAYER                           │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │  MCP Server (@modelcontextprotocol/sdk)                  │   │
-│  │  - Capability negotiation                                │   │
-│  │  - Request routing                                       │   │
-│  │  - Protocol compliance                                   │   │
-│  └──────────────────────────────────────────────────────────┘   │
-├─────────────────────────────────────────────────────────────────┤
-│                      BRIDGE/ADAPTER LAYER                        │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐   │
-│  │ Tool Router  │  │ Connection   │  │ Message Serializer   │   │
-│  │              │  │ Manager      │  │                      │   │
-│  └──────────────┘  └──────────────┘  └──────────────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     CONNECTION LAYER                             │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │          Connection Manager (WebSocket)                  │   │
-│  │  ┌────────────┐  ┌────────────┐  ┌──────────────────┐   │   │
-│  │  │ Connection │  │ Connection │  │ Connection       │   │   │
-│  │  │ Pool       │  │ State      │  │ Health Monitor   │   │   │
-│  │  └────────────┘  └────────────┘  └──────────────────┘   │   │
-│  └──────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      EXTENSION LAYER                             │
-│                    (Browser Extension)                           │
+│                    MCP Host (LLM/Agent)                          │
+│              ┌──────────────┐    ┌──────────────┐              │
+│              │ Discovery    │    │ Extraction   │              │
+│              │ Client       │    │ Client       │              │
+│              └──────┬───────┘    └──────┬───────┘              │
+├─────────────────────┴────────────────────┴──────────────────────┤
+│                    MCP Server (browser-mcp)                      │
+│  ┌─────────────────┐  ┌─────────────┐  ┌─────────────────────┐ │
+│  │ Session Manager │  │ Page Controller │  │ Selector Store  │ │
+│  │                 │  │             │  │                     │ │
+│  │ - Context mgmt  │  │ - Navigation │  │ - Persistent refs   │ │
+│  │ - Tab lifecycle │  │ - Actions    │  │ - Confidence scores │ │
+│  │ - State sync    │  │ - Evaluation │  │ - Version history   │ │
+│  └────────┬────────┘  └──────┬──────┘  └──────────┬──────────┘ │
+│           │                  │                     │            │
+│           └──────────────────┼─────────────────────┘            │
+│                              ▼                                  │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │               Browser Engine (Playwright)                  │ │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │ │
+│  │  │ Context  │  │  Page    │  │ Accessibility│  │ Console  │   │ │
+│  │  │ Manager  │  │  Controller  │  │   Tree     │  │  Monitor │   │ │
+│  │  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │ │
+│  └───────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Component Boundaries
+### Component Responsibilities
 
-#### 1. Entry Layer
+| Component | Responsibility | Typical Implementation |
+|-----------|----------------|----------------------|
+| **Session Manager** | Manages browser contexts, tab lifecycle, and state persistence | Playwright BrowserContext, storage state management |
+| **Page Controller** | Handles page navigation, element interaction, and action execution | Playwright Page API, action queue |
+| **Selector Store** | Persists discovered selectors with metadata for reliable extraction | JSON/Database with versioning and confidence scores |
+| **Accessibility Tree** | Provides LLM-friendly DOM representation for discovery | Playwright accessibility snapshot |
+| **Action Executor** | Executes procedural extraction scripts using stored selectors | Playwright locator API, retry logic |
+| **Handoff Manager** | Coordinates the transition from LLM discovery to procedural extraction | State machine, validation layer |
 
-**Responsibility:** Process lifecycle, signal handling, transport setup
+## Data Flow
 
-**Key Pattern:** Lifecycle Manager with ordered shutdown
+### Discovery Phase (LLM-Driven)
 
+```
+User Request ("Extract product data from site.com")
+    ↓
+MCP Host → tools/list → Discovery Tools (browser_navigate, browser_snapshot)
+    ↓
+Page loads → Accessibility tree captured → Serialized snapshot
+    ↓
+LLM analyzes snapshot → Identifies extraction targets
+    ↓
+LLM generates selectors → Selector Store (with confidence metadata)
+```
+
+### Handoff Phase
+
+```
+Discovery Complete → Validate selectors against page
+    ↓
+Generate extraction plan → Store with selectors
+    ↓
+Return extraction handle → LLM/Host confirms handoff
+    ↓
+Mark as "ready for procedural execution"
+```
+
+### Extraction Phase (Procedural)
+
+```
+Stored extraction handle → Retrieve selectors
+    ↓
+Procedural executor → Navigate to page
+    ↓
+Apply selectors → Extract data (retry on failure)
+    ↓
+Return structured data → No LLM involvement
+```
+
+## Key Data Flows
+
+1. **Discovery Flow:** LLM uses `browser_snapshot` (accessibility tree) → analyzes → generates selectors via `browser_evaluate` or action sequences
+2. **Validation Flow:** Selectors tested against live page → confidence scores assigned → invalid selectors flagged
+3. **Handoff Flow:** Valid selectors + extraction instructions → serialized plan → stored for later execution
+4. **Extraction Flow:** Procedural executor reads plan → executes without LLM → returns structured data
+
+## Architectural Patterns
+
+### Pattern 1: Selector-Centric Separation
+
+**What:** The system maintains a clear boundary between selector discovery (LLM-driven) and selector execution (procedural).
+
+**When to use:** When you need reliable repeated extraction from the same site structure, but discovery requires semantic understanding.
+
+**Trade-offs:**
+- ✅ Reliable, fast repeated extractions
+- ✅ Token-efficient for batch operations
+- ⚠️ Requires validation layer to catch selector drift
+- ⚠️ Adds complexity for handling dynamic site changes
+
+**Example:**
 ```typescript
-class LifecycleManager {
-  private disposables: Array<() => Promise<void>> = [];
-  private isShuttingDown = false;
-
-  register(name: string, dispose: () => Promise<void>) {
-    this.disposables.push(dispose);
-  }
-
-  async shutdown(signal: string): Promise<void> {
-    if (this.isShuttingDown) return;
-    this.isShuttingDown = true;
-
-    console.error(`Shutting down: ${signal}`);
-
-    // Reverse order: last registered = first cleaned up
-    for (const dispose of [...this.disposables].reverse()) {
-      try {
-        await dispose();
-      } catch (e) {
-        console.error('Shutdown error:', e);
-      }
-    }
-
-    process.exit(0);
-  }
-}
-```
-
-**Why:** Prevents recursion, ensures deterministic cleanup order, handles concurrent shutdown signals.
-
-#### 2. MCP Server Layer
-
-**Responsibility:** Protocol compliance, capability advertisement, request dispatch
-
-**Key Pattern:** Thin wrapper around SDK, delegates to Bridge Layer
-
-```typescript
-// server.ts - Keep minimal, delegate to bridge
-export async function createServer(bridge: Bridge): Promise<Server> {
-  const server = new Server(
-    { name, version },
-    { capabilities: { tools: {}, resources: {} } }
-  );
-
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    // Delegate to bridge - no business logic here
-    return bridge.handleToolCall(request);
-  });
-
-  return server;
-}
-```
-
-**Why:** Separation of concerns—protocol handling vs. business logic. Makes testing easier (mock the bridge).
-
-#### 3. Bridge/Adapter Layer
-
-**Responsibility:** Translate between MCP protocol and browser extension messages
-
-**Key Pattern:** Adapter with connection state awareness
-
-```typescript
-interface Bridge {
-  handleToolCall(request: CallToolRequest): Promise<ToolResult>;
-  getConnectionState(): ConnectionState;
-}
-
-class BrowserBridge implements Bridge {
-  constructor(
-    private connectionManager: ConnectionManager,
-    private toolRegistry: ToolRegistry
-  ) {}
-
-  async handleToolCall(request: CallToolRequest): Promise<ToolResult> {
-    const connection = this.connectionManager.getActiveConnection();
-    if (!connection) {
-      return {
-        content: [{ type: 'text', text: 'No browser tab connected' }],
-        isError: true
-      };
-    }
-
-    const tool = this.toolRegistry.get(request.params.name);
-    return tool.execute(connection, request.params.arguments);
-  }
-}
-```
-
-**Why:** Clear boundary between "what the AI wants" and "what the browser can do." Allows mocking for tests.
-
-#### 4. Connection Layer
-
-**Responsibility:** WebSocket lifecycle, connection pooling, health monitoring
-
-**Key Pattern:** Connection Manager with state machine
-
-```typescript
-type ConnectionState = 
-  | 'connecting' 
-  | 'connected' 
-  | 'disconnecting' 
-  | 'disconnected';
-
-interface ManagedConnection {
-  id: string;
-  ws: WebSocket;
-  state: ConnectionState;
-  connectedAt: Date;
-  lastActivity: Date;
-}
-
-class ConnectionManager {
-  private connections = new Map<string, ManagedConnection>();
-  private activeConnectionId: string | null = null;
-
-  // For single-tab mode: new connection replaces old
-  // For multi-tab mode: connections coexist, routing by tab ID
-  async handleNewConnection(ws: WebSocket): Promise<string> {
-    const id = generateId();
-
-    // Single-tab: clean up existing
-    if (this.activeConnectionId) {
-      await this.disconnect(this.activeConnectionId);
-    }
-
-    this.connections.set(id, {
-      id,
-      ws,
-      state: 'connecting',
-      connectedAt: new Date(),
-      lastActivity: new Date()
-    });
-
-    this.activeConnectionId = id;
-    this.setupConnectionHandlers(id, ws);
-
-    return id;
-  }
-
-  async sendMessage<T>(
-    connectionId: string, 
-    type: string, 
-    payload: unknown,
-    options?: { timeoutMs?: number }
-  ): Promise<T> {
-    const conn = this.connections.get(connectionId);
-    if (!conn || conn.state !== 'connected') {
-      throw new ConnectionError('Not connected');
-    }
-
-    // Use injected message sender for testability
-    return this.messageSender.send(conn.ws, type, payload, options);
-  }
-}
-```
-
-**Why:** Isolates WebSocket complexity. Supports both single-tab (current) and multi-tab (future) modes. Testable via message sender injection.
-
----
-
-## Data Flow and Failure Boundaries
-
-### Normal Operation Flow
-
-```
-┌──────────┐     ┌──────────────┐     ┌──────────────┐     ┌────────────┐
-│  AI      │────▶│  MCP Server  │────▶│   Bridge     │────▶│ Connection │
-│  Client  │     │  (stdio)     │     │  (translate) │     │  Manager   │
-└──────────┘     └──────────────┘     └──────────────┘     └─────┬──────┘
-                                                                  │
-                                                                  ▼
-┌──────────┐     ┌──────────────┐     ┌──────────────┐     ┌────────────┐
-│  AI      │◀────│  MCP Server  │◀────│   Bridge     │◀────│ Connection │
-│  Client  │     │  (stdio)     │     │  (translate) │     │  Manager   │
-└──────────┘     └──────────────┘     └──────────────┘     └────────────┘
-```
-
-### Failure Scenarios and Boundaries
-
-#### Scenario 1: Browser Extension Disconnected Mid-Request
-
-**Failure boundary:** Bridge Layer
-
-```typescript
-async handleToolCall(request): Promise<ToolResult> {
-  try {
-    const result = await this.connectionManager.sendMessage(...);
-    return { content: [{ type: 'text', text: result }] };
-  } catch (e) {
-    // Boundary: Convert connection errors to MCP errors
-    if (e instanceof ConnectionError) {
-      return {
-        content: [{ 
-          type: 'text', 
-          text: 'Browser disconnected. Please reconnect via the extension.' 
-        }],
-        isError: true
-      };
-    }
-    throw e; // Let MCP Server handle unexpected errors
-  }
-}
-```
-
-**Why:** AI client gets actionable error, not a crash.
-
-#### Scenario 2: WebSocket Server Crashes
-
-**Failure boundary:** Connection Layer with graceful degradation
-
-```typescript
-class ConnectionManager {
-  private reconnectAttempts = 0;
-  private readonly maxReconnects = 3;
-
-  async startServer(): Promise<void> {
-    try {
-      this.wss = new WebSocketServer({ port: this.port });
-      this.setupWssHandlers();
-      this.reconnectAttempts = 0;
-    } catch (e) {
-      if (this.reconnectAttempts < this.maxReconnects) {
-        this.reconnectAttempts++;
-        await delay(1000 * this.reconnectAttempts);
-        return this.startServer();
-      }
-      throw e;
-    }
-  }
-}
-```
-
-**Why:** Retry transient failures, escalate persistent ones.
-
-#### Scenario 3: MCP Server Shutdown
-
-**Failure boundary:** Lifecycle Manager with ordered cleanup
-
-```typescript
-// Shutdown order (reverse of startup):
-// 1. Stop accepting new MCP requests
-// 2. Wait for in-flight requests to complete (with timeout)
-// 3. Close WebSocket connections
-// 4. Close WebSocket server
-// 5. Close MCP server transport
-// 6. Exit process
-
-async shutdown(): Promise<void> {
-  // Signal: no new requests
-  this.state = 'shutting_down';
-
-  // Wait for in-flight with timeout
-  await Promise.race([
-    this.waitForInflight(),
-    delay(5000) // 5s timeout
-  ]);
-
-  // Close connections (graceful)
-  await this.connectionManager.closeAll();
-
-  // Close servers
-  await this.wss.close();
-  await this.mcpServer.close();
-}
-```
-
-**Why:** No orphaned connections, no lost state, no recursion.
-
----
-
-## Patterns to Follow
-
-### Pattern 1: Dependency Injection for Testability
-
-**Current:**
-```typescript
-// Hard to test - requires actual WebSocket
-class Context {
-  async sendSocketMessage(...) {
-    const { sendSocketMessage } = createSocketMessageSender(this.ws);
-    return sendSocketMessage(...);
-  }
-}
-```
-
-**Improved:**
-```typescript
-interface MessageSender {
-  send<T>(type: string, payload: unknown, options?: { timeoutMs?: number }): Promise<T>;
-}
-
-class Context {
-  constructor(
-    private connectionManager: ConnectionManager,
-    private messageSenderFactory: (ws: WebSocket) => MessageSender
-  ) {}
-
-  async sendMessage<T>(...): Promise<T> {
-    const connection = this.connectionManager.getActiveConnection();
-    const sender = this.messageSenderFactory(connection.ws);
-    return sender.send(...);
-  }
-}
-
-// Test with mock
-const mockSender: MessageSender = {
-  send: jest.fn().mockResolvedValue({ result: 'mocked' })
-};
-const context = new Context(mockConnectionManager, () => mockSender);
-```
-
-**Why:** Test without network, mock responses, verify behavior.
-
-### Pattern 2: State Machine for Connection Lifecycle
-
-```typescript
-type ConnectionState = 
-  | { type: 'idle' }
-  | { type: 'connecting'; since: Date }
-  | { type: 'connected'; ws: WebSocket; since: Date }
-  | { type: 'disconnecting'; reason: string }
-  | { type: 'disconnected'; error?: Error };
-
-class Connection {
-  private state: ConnectionState = { type: 'idle' };
-
-  transition(newState: ConnectionState): void {
-    const validTransitions: Record<string, string[]> = {
-      'idle': ['connecting'],
-      'connecting': ['connected', 'disconnected'],
-      'connected': ['disconnecting', 'disconnected'],
-      'disconnecting': ['disconnected'],
-      'disconnected': ['connecting']
+// Discovery phase (LLM-driven)
+const selectors = await mcpClient.callTool('browser_evaluate', {
+  function: () => {
+    // LLM generates this code
+    return {
+      productName: '[data-testid="product-title"]',
+      price: '.price-display > span:first-child'
     };
-
-    const allowed = validTransitions[this.state.type];
-    if (!allowed.includes(newState.type)) {
-      throw new Error(
-        `Invalid transition: ${this.state.type} → ${newState.type}`
-      );
-    }
-
-    this.state = newState;
   }
-}
-```
-
-**Why:** Prevents invalid state transitions, makes behavior predictable.
-
-### Pattern 3: Circuit Breaker for External Calls
-
-```typescript
-class CircuitBreaker {
-  private state: 'closed' | 'open' | 'half-open' = 'closed';
-  private failures = 0;
-  private readonly threshold = 5;
-  private readonly timeout = 30000;
-
-  async execute<T>(fn: () => Promise<T>): Promise<T> {
-    if (this.state === 'open') {
-      throw new Error('Circuit breaker is open');
-    }
-
-    try {
-      const result = await fn();
-      this.onSuccess();
-      return result;
-    } catch (e) {
-      this.onFailure();
-      throw e;
-    }
-  }
-
-  private onFailure(): void {
-    this.failures++;
-    if (this.failures >= this.threshold) {
-      this.state = 'open';
-      setTimeout(() => this.state = 'half-open', this.timeout);
-    }
-  }
-
-  private onSuccess(): void {
-    this.failures = 0;
-    this.state = 'closed';
-  }
-}
-```
-
-**Why:** Prevents cascading failures when browser extension becomes unresponsive.
-
-### Pattern 4: Structured Logging with Context
-
-```typescript
-import { createLogger, format } from '@repo/utils';
-
-const logger = createLogger({
-  service: 'browser-mcp',
-  format: format.json()
 });
 
-class ToolExecutor {
-  async execute(toolName: string, args: unknown, context: RequestContext) {
-    const log = logger.child({
-      tool: toolName,
-      requestId: context.requestId,
-      connectionId: context.connectionId
-    });
+// Store with metadata
+await selectorStore.save({
+  url: 'site.com/products',
+  selectors,
+  confidence: 0.95,
+  discoveredAt: Date.now()
+});
 
-    log.info('Tool execution started', { args });
-
-    try {
-      const result = await this.doExecute(toolName, args);
-      log.info('Tool execution completed', { duration: context.elapsed });
-      return result;
-    } catch (e) {
-      log.error('Tool execution failed', { error: e.message, stack: e.stack });
-      throw e;
-    }
-  }
-}
+// Extraction phase (procedural - no LLM)
+const data = await proceduralExtractor.extract({
+  url: 'site.com/products',
+  selectorHandle: selectorId
+});
 ```
 
-**Why:** Trace requests across components, debug production issues.
+### Pattern 2: Snapshot-Based Interaction
 
----
+**What:** Uses accessibility tree snapshots instead of screenshots for LLM interaction. Playwright's accessibility tree provides a serialized representation of interactive elements that's token-efficient and LLM-friendly.
+
+**When to use:** For all LLM-driven discovery phases. Avoids vision model costs and provides semantic element descriptions.
+
+**Trade-offs:**
+- ✅ Much more token-efficient than screenshots
+- ✅ Provides semantic element descriptions
+- ✅ No vision model needed
+- ⚠️ Loses visual layout context
+- ⚠️ Some dynamic content may not be captured
+
+**Example:**
+```typescript
+// Capture accessibility snapshot
+const snapshot = await page.accessibility.snapshot({
+  interestingOnly: true  // Only interactive elements
+});
+
+// LLM receives structured data like:
+// - role: "button", name: "Add to Cart", ref: "e42"
+// - role: "link", name: "Product Details", ref: "e43"
+```
+
+### Pattern 3: Capability-Based Tool Exposure
+
+**What:** MCP server exposes tools based on configured capabilities (core, vision, pdf, devtools). Host negotiates capabilities during initialization.
+
+**When to use:** For security and feature control. Different use cases need different tool sets.
+
+**Trade-offs:**
+- ✅ Fine-grained security control
+- ✅ Clear contract between host and server
+- ⚠️ Requires capability negotiation logic
+- ⚠️ Feature discovery complexity
+
+**Example:**
+```typescript
+// Server configuration
+const server = new McpServer({
+  capabilities: {
+    tools: {
+      listChanged: true
+    },
+    // Only expose core + vision tools
+    enabledTools: ['core', 'vision']
+  }
+});
+
+// Host discovers available tools
+const tools = await session.listTools();
+// Only receives tools matching enabled capabilities
+```
+
+### Pattern 4: Non-CDP Browser Control
+
+**What:** Uses Playwright's high-level APIs rather than Chrome DevTools Protocol directly. Provides cross-browser support and cleaner abstraction.
+
+**When to use:** For all browser automation unless you specifically need low-level CDP features.
+
+**Trade-offs:**
+- ✅ Cross-browser support (Chromium, Firefox, WebKit)
+- ✅ More stable API surface
+- ✅ Automatic waiting and retry logic
+- ⚠️ Less control over low-level browser behavior
+- ⚠️ May miss some CDP-specific features
+
+**Example:**
+```typescript
+// Playwright high-level approach (recommended)
+const element = await page.locator('[data-testid="submit"]').first();
+await element.click();  // Auto-waits, auto-retries
+
+// CDP approach (avoid unless necessary)
+// await client.send('Input.dispatchMouseEvent', {...});
+```
+
+## Recommended Project Structure
+
+```
+src/
+├── mcp/                      # MCP protocol layer
+│   ├── server.ts             # Main MCP server setup
+│   ├── tools/                # Tool implementations
+│   │   ├── navigation.ts     # browser_navigate, etc.
+│   │   ├── interaction.ts    # browser_click, browser_fill, etc.
+│   │   ├── extraction.ts     # browser_evaluate, browser_snapshot
+│   │   └── extraction-plan.ts # Procedural extraction tools
+│   └── resources/            # MCP resources (if any)
+├── browser/                  # Browser automation layer
+│   ├── session-manager.ts    # Context and tab lifecycle
+│   ├── page-controller.ts    # Page-level operations
+│   ├── snapshot-manager.ts   # Accessibility tree handling
+│   └── action-executor.ts    # Procedural action execution
+├── selectors/                # Selector management
+│   ├── store.ts              # Selector persistence
+│   ├── validator.ts          # Selector validation
+│   └── resolver.ts           # Dynamic selector resolution
+├── extraction/               # Procedural extraction
+│   ├── planner.ts            # Extraction plan generation
+│   ├── executor.ts           # Procedural execution engine
+│   └── scheduler.ts          # Batch extraction scheduling
+└── types/                    # Shared type definitions
+```
+
+### Structure Rationale
+
+- **mcp/:** Contains MCP-specific protocol handling. Separation allows testing transport layer independently.
+- **browser/:** Encapsulates Playwright interactions. Can be swapped for other automation frameworks.
+- **selectors/:** Centralizes selector lifecycle management. Critical for handoff reliability.
+- **extraction/:** Pure procedural execution. No LLM dependencies, enabling fast batch operations.
+
+## Build Order and Dependencies
+
+### Phase 1: Foundation (Weeks 1-2)
+**Build order:**
+1. **MCP Server skeleton** - Basic server setup, transport layer
+2. **Browser session manager** - Context creation, tab management
+3. **Core navigation tools** - browser_navigate, browser_close
+4. **Basic snapshot tool** - browser_snapshot returning accessibility tree
+
+**Dependencies:** None (external). 
+**Enables:** Discovery phase functionality.
+
+### Phase 2: Discovery Tools (Weeks 3-4)
+**Build order:**
+1. **Interaction tools** - browser_click, browser_fill, browser_type
+2. **Evaluation tool** - browser_evaluate for custom scripts
+3. **Selector capture** - Tooling to record and store selectors
+4. **Selector store** - Persistence layer
+
+**Dependencies:** Phase 1 complete.
+**Enables:** Full LLM-driven discovery workflow.
+
+### Phase 3: Handoff Layer (Weeks 5-6)
+**Build order:**
+1. **Selector validator** - Validate selectors against live page
+2. **Extraction planner** - Generate extraction plans from validated selectors
+3. **Plan store** - Persist extraction plans
+4. **Handoff API** - Tools for LLM to confirm and trigger handoff
+
+**Dependencies:** Phase 2 complete, Selector store operational.
+**Enables:** Discovery-to-extraction transition.
+
+### Phase 4: Procedural Extraction (Weeks 7-8)
+**Build order:**
+1. **Procedural executor** - Execute stored plans without LLM
+2. **Batch scheduler** - Handle multiple extractions
+3. **Retry logic** - Handle transient failures and selector drift
+4. **Result formatter** - Structured output
+
+**Dependencies:** Phase 3 complete.
+**Enables:** Production extraction workflows.
+
+### Phase 5: Production Hardening (Weeks 9-10)
+**Build order:**
+1. **Error recovery** - Handle partial failures
+2. **Monitoring** - Track success rates, selector drift
+3. **Rate limiting** - Respect target sites
+4. **Documentation** - API docs, usage patterns
+
+**Dependencies:** All previous phases.
+**Enables:** Production deployment.
+
+## Critical Implementation Path
+
+The core architectural dependency chain is:
+
+```
+MCP Transport Layer
+        ↓
+Browser Session Management
+        ↓
+Snapshot/Discovery Tools ←─ Can test standalone
+        ↓
+Selector Store + Validation
+        ↓
+Handoff Manager
+        ↓
+Procedural Executor ←─ Independent of LLM
+```
+
+**Critical path:** Transport → Session → Discovery → Handoff → Executor
+
+Each layer must be functional before the next can be properly tested.
 
 ## Anti-Patterns to Avoid
 
-### Anti-Pattern 1: Recursive Close Override
+### Anti-Pattern 1: CDP-First Implementation
 
-**Don't:**
-```typescript
-server.close = async () => {
-  await server.close(); // Stack overflow!
-  await cleanup();
-};
-```
+**What people do:** Implement browser control using Chrome DevTools Protocol directly.
 
-**Do:**
-```typescript
-const originalClose = server.close.bind(server);
-server.close = async () => {
-  await cleanup();
-  await originalClose();
-};
-```
+**Why it's wrong:** 
+- Ties you to Chromium
+- Loses Playwright's automatic waiting and retry logic
+- More brittle, requires handling low-level browser quirks
 
-### Anti-Pattern 2: Direct WebSocket Access in Tools
+**Instead:** Use Playwright's high-level APIs. Only use CDP for specific features not exposed in Playwright.
 
-**Don't:**
-```typescript
-export const navigate: Tool = {
-  handle: async (context, params) => {
-    context.ws.send(...); // Direct access, hard to test
-  }
-};
-```
+### Anti-Pattern 2: Screenshot-Based Discovery
 
-**Do:**
-```typescript
-export const navigate: Tool = {
-  handle: async (bridge, params) => {
-    await bridge.sendBrowserCommand('navigate', params);
-  }
-};
-```
+**What people do:** Use `browser_take_screenshot` for LLM analysis instead of accessibility snapshots.
 
-### Anti-Pattern 3: Silent Connection Replacement
+**Why it's wrong:**
+- Massive token costs
+- Requires vision model (more expensive, slower)
+- Loses semantic element information
 
-**Don't:**
-```typescript
-wss.on('connection', (ws) => {
-  if (context.hasWs()) {
-    context.ws.close(); // Silent, might interrupt operation
-  }
-  context.ws = ws;
-});
-```
+**Instead:** Use `browser_snapshot` with accessibility tree. Only use screenshots for visual validation.
 
-**Do:**
-```typescript
-wss.on('connection', async (ws) => {
-  if (connectionManager.hasActiveConnection()) {
-    logger.warn('New connection replacing active connection');
-    await connectionManager.gracefullyReplaceConnection(ws);
-  } else {
-    await connectionManager.acceptConnection(ws);
-  }
-});
-```
+### Anti-Pattern 3: Tight Coupling of Discovery and Extraction
 
-### Anti-Pattern 4: Monolithic Context Class
+**What people do:** LLM directly controls extraction in production, or extraction logic embedded in discovery code.
 
-**Don't:**
-```typescript
-class Context {
-  ws: WebSocket;
-  async sendSocketMessage(...) { ... }
-  async captureSnapshot() { ... }
-  async getConsoleLogs() { ... }
-  // Everything in one class
-}
-```
+**Why it's wrong:**
+- Unreliable for batch operations
+- Expensive (LLM tokens for every extraction)
+- Slow (LLM latency per extraction)
 
-**Do:**
-```typescript
-class Context {
-  constructor(
-    private connectionManager: ConnectionManager,
-    private snapshotService: SnapshotService,
-    private consoleService: ConsoleService
-  ) {}
-  // Delegate to specialized services
-}
-```
+**Instead:** Explicit handoff. Discovery produces a declarative plan. Extraction executes procedurally.
 
----
+### Anti-Pattern 4: Storing Selectors Without Metadata
 
-## Suggested Build Order and Dependencies
+**What people do:** Store just the selector strings without context.
 
-### Phase 1: Foundation (Critical Path)
+**Why it's wrong:**
+- Can't detect selector drift
+- Can't rank selectors by reliability
+- Can't retry with alternatives
 
-**Goal:** Fix shutdown bug, establish test harness
+**Instead:** Store with confidence scores, discovery timestamp, page context, alternative selectors.
 
-1. **Lifecycle Manager** (1-2 days)
-   - Ordered shutdown sequence
-   - Signal handling
-   - No dependencies
+## Integration Points
 
-2. **Test Infrastructure** (2-3 days)
-   - Dependency injection container
-   - Mock message sender
-   - Basic unit test harness
-   - Depends on: Lifecycle Manager (for integration tests)
+### External Services
 
-3. **Fix Shutdown Recursion** (1 day)
-   - Apply fix to server.ts
-   - Add regression test
-   - Depends on: Test Infrastructure
+| Service | Integration Pattern | Notes |
+|---------|---------------------|-------|
+| **Playwright** | Direct library use | Core browser automation |
+| **MCP SDK** | Server/Client SDK | Protocol implementation |
+| **Browser CDP** | Avoid direct use | Use via Playwright unless absolutely necessary |
 
-**Parallel safe:** Yes, each can be worked independently after Lifecycle Manager
+### Internal Boundaries
 
-### Phase 2: Connection Reliability
-
-**Goal:** Eliminate single-connection fragility
-
-4. **Connection Manager** (3-4 days)
-   - State machine implementation
-   - Connection pooling (prep for multi-tab)
-   - Health monitoring
-   - Depends on: Lifecycle Manager, Test Infrastructure
-
-5. **Bridge Layer** (2-3 days)
-   - Abstract browser communication
-   - Error translation
-   - Depends on: Connection Manager
-
-6. **Refactor Server.ts** (1-2 days)
-   - Thin wrapper using Bridge
-   - Remove business logic
-   - Depends on: Bridge Layer
-
-**Parallel safe:** Connection Manager and Bridge can be developed in parallel with clear interface contract
-
-### Phase 3: Robustness
-
-**Goal:** Production-ready error handling
-
-7. **Circuit Breaker** (1-2 days)
-   - Failure detection
-   - Recovery logic
-   - Depends on: Connection Manager
-
-8. **Structured Logging** (1-2 days)
-   - Request tracing
-   - Context propagation
-   - Can be done in parallel with Circuit Breaker
-
-9. **Multi-Tab Support** (3-5 days)
-   - Tab identification
-   - Connection routing
-   - Depends on: Connection Manager
-
-**Parallel safe:** Circuit Breaker and Logging are independent
-
-### Dependency Graph
-
-```
-┌─────────────────┐
-│ Lifecycle       │
-│ Manager         │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐     ┌─────────────────┐
-│ Test            │     │ Connection      │
-│ Infrastructure  │◀────│ Manager         │
-└────────┬────────┘     └────────┬────────┘
-         │                       │
-         │              ┌────────┴────────┐
-         │              │                 │
-         │              ▼                 ▼
-         │       ┌─────────────┐  ┌─────────────┐
-         │       │ Circuit     │  │ Multi-Tab   │
-         │       │ Breaker     │  │ Support     │
-         │       └─────────────┘  └─────────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Bridge Layer    │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Refactor        │
-│ Server.ts       │
-└─────────────────┘
-```
-
----
-
-## Scalability Considerations
-
-### At Current Scale (Single User, Single Tab)
-
-Current architecture is sufficient with bug fixes. Focus on:
-- Shutdown reliability
-- Basic error handling
-- Test coverage
-
-### At 10x Scale (Multiple Tabs, Concurrent Operations)
-
-Need:
-- Connection Manager with proper pooling
-- Request queueing per tab
-- Resource limits (max concurrent operations)
-
-### At 100x Scale (Multiple Users, Cloud Deployment)
-
-Architecture shift required:
-- Separate transport layer (HTTP instead of stdio)
-- Session management
-- Horizontal scaling with load balancer
-- Database for session persistence
-
-**Note:** This conflicts with "local-first" constraint. For local-only deployment, 10x scale is the practical limit.
-
----
-
-## MCP-Specific Considerations
-
-### Transport Choice: stdio (Correct for Local)
-
-The current stdio transport is appropriate for local MCP servers:
-- AI client spawns server as subprocess
-- stdin/stdout for JSON-RPC messages
-- Automatic cleanup on client exit
-
-**Alternative (HTTP/SSE):** Only needed for remote deployments where client and server are separate processes on different machines.
-
-### Capability Negotiation
-
-Current implementation advertises tools statically. Future enhancement:
-
-```typescript
-// Dynamic capability discovery based on browser state
-server.setRequestHandler(ListToolsRequestSchema, async () => {
-  const baseTools = [...snapshotTools, ...commonTools];
-
-  // Add browser-specific tools only if connected
-  if (connectionManager.hasActiveConnection()) {
-    const capabilities = await connectionManager.getBrowserCapabilities();
-    if (capabilities.supportsConsole) {
-      baseTools.push(custom.getConsoleLogs);
-    }
-  }
-
-  return { tools: baseTools.map(t => t.schema) };
-});
-```
-
-### Error Code Mapping
-
-MCP SDK v1.8+ uses structured error codes:
-
-```typescript
-import { ProtocolError, ProtocolErrorCode } from '@modelcontextprotocol/sdk';
-
-// Map internal errors to protocol errors
-function mapError(error: Error): ProtocolError {
-  if (error instanceof ConnectionError) {
-    return new ProtocolError(
-      ProtocolErrorCode.InternalError,
-      'Browser not connected'
-    );
-  }
-  if (error instanceof ValidationError) {
-    return new ProtocolError(
-      ProtocolErrorCode.InvalidParams,
-      error.message
-    );
-  }
-  return new ProtocolError(
-    ProtocolErrorCode.InternalError,
-    'Internal server error'
-  );
-}
-```
-
----
+| Boundary | Communication | Notes |
+|----------|---------------|-------|
+| **MCP Layer ↔ Browser Layer** | Direct function calls | Keep thin, delegate to browser layer |
+| **Browser Layer ↔ Selector Store** | Async I/O | Could be database or file system |
+| **Selector Store ↔ Executor** | Read-only after handoff | Executor should not write to store |
+| **Discovery Tools ↔ Extraction Tools** | Handoff via stored plan | Explicit state transition |
 
 ## Sources
 
-### Primary Sources (HIGH Confidence)
-
-1. **MCP TypeScript SDK Documentation** (Context7)
-   - `/modelcontextprotocol/typescript-sdk`
-   - Error handling patterns, transport architecture
-   - Version: 1.8.0+
-
-2. **MCP Best Practices Guide** (Official)
-   - https://modelcontextprotocol.info/docs/best-practices/
-   - Architectural principles, production operations
-   - Accessed: 2025-02-09
-
-3. **WebSocket Graceful Shutdown** (OneUptime)
-   - https://oneuptime.com/blog/post/2026-02-02-websocket-graceful-shutdown/view
-   - Connection lifecycle management patterns
-   - Published: 2026-02-02
-
-### Secondary Sources (MEDIUM Confidence)
-
-4. **WebSocket Reconnection Logic** (OneUptime)
-   - https://oneuptime.com/blog/post/2026-01-27-websocket-reconnection-logic/view
-   - Exponential backoff, state management
-   - Published: 2026-01-27
-
-5. **Browser Automation Best Practices** (Nadim Tuhin)
-   - https://nadimtuhin.com/blog/browser-automation-best-practices
-   - Connection management, cleanup patterns
-   - Published: 2025-12-03
-
-6. **TypeScript Dependency Injection Patterns** (Snow Lynx)
-   - https://www.snowlynxsoftware.net/blog/modern-typescript-patterns.html
-   - DI patterns for testability
-   - Published: 2025-03-15
-
-### Code Analysis (HIGH Confidence)
-
-7. **Current codebase analysis**
-   - `src/server.ts` - Recursive close bug identified at line 85-89
-   - `src/context.ts` - Single-connection fragility
-   - `src/index.ts` - Basic exit watchdog
-
----
-
-## Confidence Assessment
-
-| Area | Confidence | Notes |
-|------|------------|-------|
-| Shutdown patterns | HIGH | MCP SDK docs + WebSocket best practices well-established |
-| Component boundaries | HIGH | Standard layered architecture pattern |
-| Connection management | HIGH | WebSocket patterns documented extensively |
-| Testability patterns | MEDIUM-HIGH | TypeScript DI well-understood, specific MCP patterns emerging |
-| MCP protocol specifics | HIGH | SDK documentation comprehensive |
-| Multi-tab scaling | MEDIUM | Theoretical—no MCP browser automation precedents found |
-
----
-
-## Research Flags for Roadmap
-
-| Phase | Flag | Reason |
-|-------|------|--------|
-| Connection Manager | YELLOW | Multi-tab connection routing needs validation with extension architecture |
-| Bridge Layer | YELLOW | Message protocol with extension not documented, interface assumptions may change |
-| Circuit Breaker | GREEN | Standard pattern, well-understood implementation |
-| Multi-Tab Support | RED | Needs deeper research on extension capabilities and tab identification |
-| HTTP Transport | RED | Out of scope for local-first constraint, but may be needed for some use cases |
-
----
-
-## Recommendations Summary
-
-1. **Immediate:** Fix shutdown recursion bug using stored reference pattern
-2. **Phase 1:** Implement Lifecycle Manager and test infrastructure
-3. **Phase 2:** Extract Connection Manager with state machine
-4. **Phase 3:** Add Bridge Layer for clean protocol translation
-5. **Future:** Consider multi-tab support only after validating extension architecture
-
-The recommended architecture preserves the local-first model while adding the reliability and testability needed for production use.
+- [MCP Architecture Overview](https://modelcontextprotocol.io/docs/learn/architecture) - Official MCP architecture docs
+- [MCP TypeScript SDK](https://context7.com/modelcontextprotocol/typescript-sdk/llms.txt) - SDK implementation patterns
+- [Microsoft Playwright MCP](https://github.com/microsoft/playwright-mcp) - Reference implementation
+- [Browser Automation MCP Servers Guide](https://www.skyvern.com/blog/browser-automation-mcp-servers-guide/) - Ecosystem overview
+- [Stagehand Breakdown](https://memo.d.foundation/breakdown/stagehand) - Accessibility tree processing patterns
+- [DOM Downsampling for LLM-Based Web Agents](https://www.webfuse.com/blog/dom-downsampling-for-llm-based-web-agents) - Snapshot optimization

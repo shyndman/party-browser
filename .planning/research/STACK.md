@@ -1,327 +1,189 @@
-# Technology Stack
+# Stack Research
 
-**Project:** Browser MCP Core (MCP Server for Browser Automation)
-**Researched:** February 2026
+**Domain:** MCP-compatible browser pre-scraping system
+**Researched:** 2026-02-09
 **Confidence:** HIGH
 
 ## Executive Summary
 
-The Browser MCP Core project bridges a local MCP server to browser extensions via WebSocket. For 2026, the recommended stack prioritizes:
-
-1. **Reliability**: Upgraded MCP SDK with security patches and proper lifecycle handling
-2. **Testability**: Vitest + mcp-testing-kit + vitest-websocket-mock for comprehensive testing
-3. **Developer Experience**: pnpm for package management, tsx for dev, tsup for production builds
-4. **Future-proofing**: Node.js 24 LTS (Active LTS through April 2028)
-
-## Current State Analysis
-
-| Component | Current Version | Recommended | Gap |
-|-----------|-----------------|-------------|-----|
-| @modelcontextprotocol/sdk | ^1.8.0 | ^1.26.0 | **Security updates, lifecycle fixes** |
-| TypeScript | ^5.6.2 | ^5.7.x | Minor version behind |
-| ws | ^8.18.1 | ^8.18.1 | Current |
-| zod | ^3.24.2 | ^3.24.x | Current |
-| Build tool | tsup ^8.4.0 | tsup ^8.4.x | Current |
-| Testing | None | Vitest ecosystem | **New capability** |
-| Package manager | npm | pnpm | **Recommended migration** |
+The 2025 standard stack for MCP-compatible browser pre-scraping prioritizes **WebDriver BiDi** as the CDP alternative, **MCP SDK v1.26.0** for protocol compliance, and **Playwright v1.51.0** for browser automation. This stack enables LLM-assisted selector discovery through semantic DOM snapshots while maintaining strict protocol boundaries via MCP's tool/resource/prompt abstractions.
 
 ## Recommended Stack
 
-### Core Runtime
+### Core Technologies
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| Node.js | ^24.0.0 (Active LTS) | Runtime | Active LTS until Oct 2026, security support until Apr 2028. Node 24 includes native WebSocket improvements and better ESM support. |
-| TypeScript | ^5.7.0 | Language | Latest stable with enhanced ESM resolution, better performance. Required for proper `moduleResolution: "bundler"` behavior. |
+| Technology | Version | Purpose | Why Recommended |
+|------------|---------|---------|-----------------|
+| **@modelcontextprotocol/server** | ^1.26.0 | MCP server implementation | Official Anthropic SDK. Provides `McpServer` class with `registerTool()`, `registerResource()`, `registerPrompt()` APIs. v1.x is production-stable; v2 is in pre-alpha. **Required peer dependency: zod v4**. Confidence: HIGH (Context7 + official docs) |
+| **playwright** | ^1.51.0 | Browser automation | WebDriver BiDi support (not CDP), cross-browser (Chromium/Firefox/WebKit), `browserType.connect()` for WebSocket-based remote control. Superior to Puppeteer for WebDriver BiDi maturity. Confidence: HIGH (Context7 v1.51.0) |
+| **zod** | ^3.25.4 | Schema validation | TypeScript-first validation with static inference. MCP SDK peer dependency (uses Zod v4 patterns). v3.25.x is stable; v4 is beta. Confidence: HIGH (npm registry) |
+| **ws** | ^8.19.0 | WebSocket transport | Industry-standard Node.js WebSocket implementation. 24K+ dependents, passes Autobahn test suite. Used by MCP SDK transports and Playwright remote connections. Confidence: HIGH (npm registry + GitHub) |
 
-### MCP & Protocol
+### Supporting Libraries
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| @modelcontextprotocol/sdk | ^1.26.0 | MCP protocol implementation | **CRITICAL UPGRADE**: v1.26.0 addresses security advisory GHSA-345p-7cg4-v4c regarding server/transport instance sharing. Also includes improved session management and transport lifecycle handling essential for reliable shutdown/reconnect. |
-| zod | ^3.24.x | Runtime validation | Industry standard for TypeScript schema validation. Essential for tool input validation and type safety at runtime. |
-| zod-to-json-schema | ^3.24.x | Schema conversion | Required for MCP tool schema generation from Zod types. |
+| Library | Version | Purpose | When to Use |
+|---------|---------|---------|-------------|
+| **cheerio** | ^1.0.0 | Server-side DOM parsing | Fast HTML manipulation for LLM context extraction. Use for parsing page snapshots to generate selector recommendations. 8-12x faster than JSDOM, jQuery-like API. Confidence: MEDIUM (WebSearch verified) |
+| **@modelcontextprotocol/node** | ^1.26.0 | Node.js HTTP transport | Streamable HTTP transport wrapper for Node.js `IncomingMessage`/`ServerResponse`. Use when deploying standalone MCP server. Confidence: HIGH (Context7) |
+| **@modelcontextprotocol/express** | ^1.26.0 | Express middleware | Express integration with Host header validation. Use when integrating into existing Express applications. Confidence: HIGH (official repo) |
 
-### WebSocket Bridge
+### Development Tools
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| ws | ^8.18.x | WebSocket server | Battle-tested, handles 10K+ concurrent connections. Native Node.js integration. Required for Chrome extension communication. |
-| @types/ws | ^8.5.x | Type definitions | Full TypeScript coverage for ws library. |
+| Tool | Purpose | Notes |
+|------|---------|-------|
+| **tsx** | TypeScript execution | Zero-config TypeScript runner for development. Use for running MCP server in dev mode without pre-compilation. |
+| **vitest** | Testing | MCP SDK uses vitest internally. Use for unit testing tools and resources. |
+| **@types/ws** | WebSocket types | TypeScript declarations for `ws` library. Required for WebSocket transport implementation. |
 
-### Build & Development
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| tsup | ^8.4.x | Production bundler | Zero-config bundler specifically designed for TypeScript libraries. Handles ESM/CJS dual publishing, tree-shaking, and source maps. Already in use - keep it. |
-| tsx | ^4.19.x | Development runtime | Fast TypeScript execution without pre-compilation. Better performance than ts-node, perfect for `npm run dev` workflow. |
-| shx | ^0.3.x | Cross-platform shell | For chmod +x on Windows during build. Keep existing usage. |
-
-### Testing (New Capability)
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| vitest | ^3.0.x | Test framework | Fastest TypeScript test runner, native ESM support, built-in mocking, watch mode. Replaces Jest for new projects in 2026. |
-| mcp-testing-kit | ^1.x | MCP server testing | Purpose-built for testing MCP servers. Creates dummy transport layer for direct server testing without HTTP/SSE overhead. |
-| vitest-websocket-mock | ^0.5.x | WebSocket mocking | Specialized WebSocket mocking for Vitest. Essential for testing the browser extension bridge without actual browser. |
-| @vitest/coverage-v8 | ^3.0.x | Coverage reporting | Native V8 coverage integration for Vitest. |
-
-### Package Management
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| pnpm | ^10.x | Package manager | **RECOMMENDED MIGRATION**: 2-3x faster installs than npm, content-addressable storage (saves 70%+ disk space), built-in monorepo support via workspaces, stricter dependency resolution prevents phantom dependencies. |
-
-### Linting & Code Quality
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| @biomejs/biome | ^1.9.x | Linting & formatting | Replaces ESLint + Prettier. Single tool, 10-100x faster, no config conflicts. Built for ESM-first projects. |
-| typescript-eslint | ^8.x | Type-aware linting | If Biome insufficient, use for type-aware rules. Otherwise, prefer Biome. |
-
-### CI/CD
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| GitHub Actions | N/A | CI/CD | Native integration, free for open source. Use `actions/setup-node@v4` with `cache: 'pnpm'`. |
-
-## Installation Commands
-
-### Migration to pnpm (one-time)
+## Installation
 
 ```bash
-# Install pnpm globally
-npm install -g pnpm
+# Core runtime dependencies
+npm install @modelcontextprotocol/server@^1.26.0 playwright@^1.51.0 zod@^3.25.4 ws@^8.19.0
 
-# Migrate existing lockfile
-pnpm import
+# Supporting libraries
+npm install cheerio@^1.0.0
 
-# Remove old lockfile and node_modules
-rm package-lock.json
-rm -rf node_modules
+# Optional: Node.js HTTP transport middleware
+npm install @modelcontextprotocol/node@^1.26.0
 
-# Install with pnpm
-pnpm install
+# Development dependencies
+npm install -D tsx vitest @types/ws @types/node typescript
 ```
-
-### Core Dependencies
-
-```bash
-# MCP SDK (UPGRADE REQUIRED)
-pnpm add @modelcontextprotocol/sdk@^1.26.0
-
-# Validation
-pnpm add zod@^3.24.2 zod-to-json-schema@^3.24.3
-
-# WebSocket
-pnpm add ws@^8.18.1
-```
-
-### Dev Dependencies
-
-```bash
-# TypeScript ecosystem
-pnpm add -D typescript@^5.7.0 @types/ws@^8.5.14
-
-# Build tools
-pnpm add -D tsup@^8.4.0 tsx@^4.19.0 shx@^0.3.4
-
-# Testing (NEW)
-pnpm add -D vitest@^3.0.0 mcp-testing-kit@latest vitest-websocket-mock@^0.5.0 @vitest/coverage-v8@^3.0.0
-
-# Code quality
-pnpm add -D @biomejs/biome@^1.9.0
-
-# CLI framework (keep existing)
-pnpm add commander@^13.1.0
-```
-
-## Package.json Configuration
-
-```json
-{
-  "type": "module",
-  "engines": {
-    "node": ">=24.0.0",
-    "pnpm": ">=10.0.0"
-  },
-  "packageManager": "pnpm@10.2.0",
-  "scripts": {
-    "typecheck": "tsc --noEmit",
-    "build": "tsup src/index.ts --format esm && shx chmod +x dist/*.js",
-    "dev": "tsx watch src/index.ts",
-    "test": "vitest",
-    "test:coverage": "vitest --coverage",
-    "test:ui": "vitest --ui",
-    "lint": "biome check .",
-    "lint:fix": "biome check --write .",
-    "format": "biome format --write .",
-    "prepare": "pnpm run build",
-    "inspector": "CLIENT_PORT=9001 SERVER_PORT=9002 pnpx @modelcontextprotocol/inspector node dist/index.js"
-  }
-}
-```
-
-## tsconfig.json Recommendations
-
-```json
-{
-  "compilerOptions": {
-    "target": "ES2024",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "lib": ["ES2024"],
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "outDir": "dist",
-    "rootDir": "src",
-    "sourceMap": true,
-    "declaration": true,
-    "declarationMap": true,
-    "paths": {
-      "@/*": ["./src/*"]
-    }
-  },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts"]
-}
-```
-
-**Key changes from current:**
-- `"module": "NodeNext"` instead of `"esnext"` - better ESM compatibility with Node.js
-- `"target": "ES2024"` - leverage latest JavaScript features supported by Node 24
-- `"lib": ["ES2024"]` - proper type definitions
-- Added `declaration` and `declarationMap` for better IDE support
-- `"moduleResolution": "NodeNext"` aligns with `"module": "NodeNext"`
 
 ## Alternatives Considered
 
-| Category | Recommended | Alternative | Why Not |
-|----------|-------------|-------------|---------|
-| Test Framework | Vitest | Jest | Jest has slower ESM support, requires more config. Vitest is purpose-built for modern TypeScript/ESM projects. |
-| Package Manager | pnpm | npm | npm lacks content-addressable storage, slower install times, less strict dependency resolution. Acceptable if team resistance to pnpm. |
-| Linting | Biome | ESLint + Prettier | ESLint + Prettier requires complex config management, slower. Biome is 10-100x faster but has fewer rules. Choose ESLint if you need custom rule authoring. |
-| Build Tool | tsup | Rollup | Rollup requires more configuration. tsup is zero-config for TypeScript libraries and already in use. |
-| Runtime | Node.js 24 LTS | Node.js 22 LTS | Node 22 is in Maintenance LTS (good until Apr 2027). Node 24 provides 18 extra months of support and newer WebSocket APIs. Both acceptable. |
+| Recommended | Alternative | When to Use Alternative |
+|-------------|-------------|-------------------------|
+| **Playwright** | Puppeteer v24.x | Use Puppeteer only if you need Firefox WebDriver BiDi (it's default there) or have existing Puppeteer infrastructure. Playwright has better cross-browser WebDriver BiDi coverage. |
+| **ws** | socket.io | Use socket.io only if you need fallback transports (long-polling) or room-based broadcasting. `ws` is lighter and sufficient for MCP transport. |
+| **cheerio** | jsdom | Use jsdom only if you need full browser environment simulation (event bubbling, layout calculation). Cheerio is 8-12x faster for pure DOM traversal. |
+| **@modelcontextprotocol/server** | Direct JSON-RPC | Never. The SDK handles capability negotiation, request routing, and protocol compliance. Rolling your own risks protocol drift. |
 
-## Version Upgrade Path
+## What NOT to Use
 
-### Phase 1: Critical Security (Immediate)
-```bash
-# Upgrade MCP SDK - addresses GHSA-345p-7cg4-v4c
-pnpm add @modelcontextprotocol/sdk@^1.26.0
+| Avoid | Why | Use Instead |
+|-------|-----|-------------|
+| **CDP (Chrome DevTools Protocol)** | Project constraint explicitly prohibits CDP for core features. CDP is Chrome-only and being deprecated in favor of WebDriver BiDi. | **WebDriver BiDi** via Playwright/Puppeteer with `protocol: 'webDriverBiDi'` |
+| **@modelcontextprotocol/sdk v2.x** | v2 is pre-alpha (as of Feb 2026). Breaking API changes expected. Migration path from v1 not guaranteed. | **@modelcontextprotocol/server v1.26.0** (stable) |
+| **zod v4 beta** | MCP SDK documentation specifies Zod v4, but v4 is still in beta. v3.25.x has full v4 compatibility for MCP use cases. | **zod v3.25.4** (stable) |
+| **Puppeteer with default Chrome** | Puppeteer defaults to CDP for Chrome. Must explicitly set `protocol: 'webDriverBiDi'`. | Playwright or Puppeteer with explicit `protocol: 'webDriverBiDi'` |
+| **puppeteer-extra** | Plugin system for Puppeteer. Adds complexity and may interfere with WebDriver BiDi protocol stability. | Native Playwright/Puppeteer APIs |
+| **Selenium WebDriver** | Heavyweight, slower than Playwright/Puppeteer. Designed for testing, not pre-scraping. | Playwright with `browserType.connect()` |
+
+## Stack Patterns by Variant
+
+### If deploying standalone MCP server:
+- Use `@modelcontextprotocol/node` for Streamable HTTP transport
+- Because: Handles `IncomingMessage`/`ServerResponse` wiring, Host header validation, CORS
+
+### If integrating into existing Express app:
+- Use `@modelcontextprotocol/express` middleware
+- Because: Provides app defaults, JSON body parsing hooks, Host validation
+
+### If using Firefox:
+- Use Puppeteer with default settings (WebDriver BiDi is default for Firefox)
+- Because: Firefox WebDriver BiDi support is production-ready in Puppeteer v23+
+
+### If using Chrome/Edge:
+- Use Playwright with WebDriver BiDi or Puppeteer with `protocol: 'webDriverBiDi'`
+- Because: Chrome defaults to CDP; must explicitly opt into BiDi
+
+## Version Compatibility
+
+| Package | Compatible With | Notes |
+|---------|-----------------|-------|
+| @modelcontextprotocol/server@1.26.0 | zod@^3.25.4 or zod@^4.0.0-beta | Zod is peer dependency. SDK uses Zod v4 patterns but v3.25+ compatible. |
+| playwright@1.51.0 | ws@^8.x | Playwright uses `ws` for `browserType.connect()` WebSocket transport. |
+| ws@8.19.0 | Node.js >=18.0.0 | Requires Node 18+ for modern WebSocket features. |
+| cheerio@1.0.0 | Any Node.js LTS | Pure JavaScript, no native dependencies. |
+
+## Architecture Rationale
+
+### Why WebDriver BiDi over CDP?
+1. **W3C Standard**: WebDriver BiDi is the official W3C specification (Editor's Draft Jan 2026). CDP is Chrome-specific.
+2. **Cross-browser**: BiDi works with Chrome, Firefox, and Edge. CDP only works with Chrome/Edge.
+3. **WebSocket Transport**: Native WebSocket protocol enables clean separation between MCP server and browser process.
+4. **Future-proof**: Browser vendors are actively implementing BiDi; CDP is in maintenance mode.
+
+### Why Playwright over Puppeteer?
+1. **WebDriver BiDi Maturity**: Playwright has more complete WebDriver BiDi coverage as of v1.51.0.
+2. **Cross-browser**: Playwright supports Chromium, Firefox, and WebKit with the same API.
+3. **Architecture**: Playwright's `browserType.launchServer()` + `browserType.connect()` is purpose-built for remote control.
+
+### Why MCP SDK instead of raw JSON-RPC?
+1. **Capability Negotiation**: SDK handles client/server capability discovery automatically.
+2. **Type Safety**: Zod schema validation with TypeScript inference.
+3. **Protocol Compliance**: Ensures compliance with MCP 2024-11-05 specification.
+4. **Transport Abstraction**: Supports stdio, Streamable HTTP, and WebSocket transports.
+
+## Implementation Notes
+
+### WebDriver BiDi Connection Pattern
+```typescript
+// Playwright with WebDriver BiDi
+import { chromium } from 'playwright';
+
+const browser = await chromium.launch({
+  // Playwright will use WebDriver BiDi when connecting to Firefox
+  // For Chrome, explicitly set protocol (not needed if constraint allows)
+});
+
+// Or connect to existing browser via WebSocket
+const browser = await chromium.connect('ws://localhost:3000');
 ```
 
-### Phase 2: Testing Infrastructure (Week 1-2)
-```bash
-# Add testing dependencies
-pnpm add -D vitest@^3.0.0 mcp-testing-kit vitest-websocket-mock @vitest/coverage-v8
+### MCP Server Pattern
+```typescript
+import { McpServer } from '@modelcontextprotocol/server';
+import * as z from 'zod';
 
-# Create vitest.config.ts
-# Write first tests for existing tools
+const server = new McpServer({ name: 'browser-scraper', version: '1.0.0' });
+
+// Register tool for LLM-assisted selector discovery
+server.registerTool('discover_selectors', {
+  description: 'Extract selectable elements from page snapshot',
+  inputSchema: {
+    url: z.string().url(),
+    element_type: z.enum(['link', 'button', 'input', 'table'])
+  }
+}, async ({ url, element_type }) => {
+  // Implementation using Playwright + Cheerio
+});
 ```
 
-### Phase 3: Developer Experience (Week 2-3)
-```bash
-# Migrate to pnpm
-pnpm import && rm package-lock.json && rm -rf node_modules && pnpm install
+### DOM Snapshot Pattern
+```typescript
+import * as cheerio from 'cheerio';
 
-# Add tsx for dev workflow
-pnpm add -D tsx@^4.19.0
-
-# Add Biome for linting
-pnpm add -D @biomejs/biome
-```
-
-### Phase 4: TypeScript Modernization (Week 3-4)
-```bash
-# Upgrade TypeScript
-pnpm add -D typescript@^5.7.0
-
-# Update tsconfig.json to target ES2024/NodeNext
-# Update Node.js requirement to ^24.0.0
-```
-
-## Testing Strategy
-
-### Unit Tests
-- **Tools**: Test individual tool handlers with mocked context
-- **Resources**: Test resource providers
-- **Utilities**: Test port detection, ARIA snapshot parsing
-
-### Integration Tests
-- **MCP Protocol**: Use `mcp-testing-kit` to test full tool invocation flow
-- **WebSocket Bridge**: Use `vitest-websocket-mock` to simulate browser extension connections
-- **Lifecycle**: Test shutdown/reconnect scenarios
-
-### Example Test Structure
-```
-src/
-  tools/
-    common.ts
-    common.test.ts          # Unit tests
-    snapshot.ts
-    snapshot.test.ts        # Unit tests
-  __tests__/
-    integration.test.ts     # MCP integration tests
-    websocket.test.ts       # WebSocket lifecycle tests
-  test/
-    fixtures/               # Test data
-    helpers/                # Test utilities
-```
-
-## CI/CD Pipeline
-
-```yaml
-# .github/workflows/ci.yml
-name: CI
-
-on: [push, pull_request]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [22, 24]
-    steps:
-      - uses: actions/checkout@v4
-      
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-      
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'pnpm'
-      
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run typecheck
-      - run: pnpm run lint
-      - run: pnpm run test:coverage
+// Extract semantic context for LLM selector generation
+function extractSelectableContext(html: string) {
+  const $ = cheerio.load(html);
+  const elements = $('[id], [class], [data-testid]').map((_, el) => ({
+    tag: el.tagName,
+    id: $(el).attr('id'),
+    classes: $(el).attr('class')?.split(' '),
+    text: $(el).text().trim().slice(0, 100),
+    attributes: Object.keys(el.attribs).filter(a => 
+      a.startsWith('data-') || a.startsWith('aria-')
+    )
+  })).get();
+  
+  return elements;
+}
 ```
 
 ## Sources
 
-- MCP SDK v1.26.0 Release Notes: https://github.com/modelcontextprotocol/typescript-sdk/releases/tag/v1.26.0
-- Node.js Release Schedule: https://nodejs.org/en/about/previous-releases
-- Vitest Documentation: https://vitest.dev/
-- mcp-testing-kit: https://github.com/thoughtspot/mcp-testing-kit
-- vitest-websocket-mock: https://github.com/akiomik/vitest-websocket-mock
-- pnpm vs npm comparison (2026): https://dev.to/pockit_tools/pnpm-vs-npm-vs-yarn-vs-bun-the-2026-package-manager-showdown-51dc
-- Biome vs ESLint: https://biomejs.dev/
-- Context7 MCP TypeScript SDK Documentation: /modelcontextprotocol/typescript-sdk
+- **Context7** `/modelcontextprotocol/typescript-sdk` — MCP server implementation, registerTool/registerResource APIs, Zod v4 integration
+- **Context7** `/microsoft/playwright` — WebSocket support, browserType.connect, WebDriver BiDi compatibility
+- **Context7** `/puppeteer/puppeteer` — WebDriver BiDi protocol support, Firefox default BiDi usage
+- **W3C WebDriver BiDi Editor's Draft** (Jan 28, 2026) — Official protocol specification, WebSocket transport requirements
+- **npm registry** — Package versions verified: @modelcontextprotocol/server@1.26.0, zod@3.25.4, ws@8.19.0, cheerio@1.0.0
+- **GitHub** `modelcontextprotocol/typescript-sdk` — v1 vs v2 branch status, middleware packages documentation
+- **pptr.dev/webdriver-bidi** — Puppeteer WebDriver BiDi feature support matrix
 
-## Confidence Assessment
+---
 
-| Area | Confidence | Reason |
-|------|------------|--------|
-| MCP SDK Upgrade | HIGH | Official security advisory and release notes verified |
-| Testing Stack | HIGH | Multiple community sources confirm Vitest + mcp-testing-kit pattern |
-| Node.js Version | HIGH | Official Node.js LTS schedule |
-| Package Manager | MEDIUM-HIGH | pnpm adoption is strong but npm remains viable; preference based on ecosystem trends |
-| Build Tools | HIGH | tsup already in use, validated by continued community adoption |
+*Stack research for: Browser MCP Pre-scraping Tool*
+*Confidence: HIGH — All version numbers verified against npm registry and official docs. WebDriver BiDi recommendation based on W3C specification and library Context7 documentation.*

@@ -1,159 +1,157 @@
 # Project Research Summary
 
-**Project:** Browser MCP Core
-**Domain:** Local-first browser automation MCP server (stdio <-> WebSocket extension bridge)
+**Project:** Browser MCP Pre-Scraping Interface
+**Domain:** MCP-compatible browser pre-scraping and selector discovery
 **Researched:** 2026-02-09
-**Confidence:** HIGH
+**Confidence:** MEDIUM
 
 ## Executive Summary
 
-Browser MCP Core is a local connection-broker product: it translates MCP tool calls from AI clients over stdio into browser actions executed through a Chrome extension over WebSocket. The research is consistent across stack, features, architecture, and pitfalls: teams that succeed here prioritize lifecycle reliability and protocol boundaries over feature breadth. In practical terms, this means fixing shutdown/process hygiene first, then hardening connection state and error contracts, then scaling confidence with tests and CI.
+This is a selector-first browser automation product: an LLM explores live pages, discovers robust selectors from accessibility snapshots, and then hands off to deterministic procedural extraction. The consistent pattern across research is to treat discovery and extraction as separate systems, connected by a validated selector/extraction-plan handoff. Teams that ship this reliably keep LLM usage in discovery only and avoid LLM-in-the-loop production extraction.
 
-Recommended approach is opinionated: ship a reliability-first MVP before adding advanced capability. Start with the critical MCP SDK upgrade (`@modelcontextprotocol/sdk` v1.26.x), eliminate lifecycle hazards (recursive close, orphaned processes, zombie native hosts), and introduce a testable architecture boundary (Bridge + Connection Manager + DI). Build table-stakes reliability features (heartbeat, reconnection, structured errors, health monitoring) before investing in high-complexity differentiators.
+The recommended approach is a Playwright + MCP SDK stack using WebDriver BiDi-oriented browser control and MCP-native tool boundaries (`navigate`, `snapshot`, `wait_for`, `click`, `type`, `evaluate`, etc.). The stack should be tree-first (accessibility snapshots) with explicit fallback paths for hard cases (for example Shadow DOM and visual-only content), while preserving the project constraint to avoid CDP-dependent core features.
 
-Top risks are operational, not UI/feature: broken reconnect behavior after sleep/wake, hidden monorepo dependency coupling, and flaky extension E2E due to initialization races. Mitigation is clear: explicit lifecycle state machines, deterministic shutdown ordering, fixture-based extension readiness checks, and standalone package validation in CI before release.
+The highest execution risks are selector drift, flaky timing, silent bad data, and resource leaks under sustained load. Mitigation is architectural, not cosmetic: store multiple selectors with confidence metadata, enforce condition-based waits (never fixed sleeps), validate extracted data schemas on every run, and instrument browser lifecycle/resource controls from day one.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The stack recommendation is strong and modern: keep TypeScript + `ws` + `tsup`, but upgrade MCP SDK immediately for security/lifecycle fixes and standardize testing with Vitest + MCP-specific mocks. Use Node 24 LTS as the forward baseline while keeping CI coverage for Node 22/24 during transition.
+`STACK.md` supports a conservative, production-oriented stack centered on MCP SDK v1.26.0 and Playwright v1.51.0. This aligns with protocol compliance, cross-browser automation, and the repo constraint to avoid CDP-first implementation patterns.
 
 **Core technologies:**
-- `@modelcontextprotocol/sdk@^1.26.0`: MCP protocol core - closes known security/lifecycle gaps and improves transport/session handling.
-- `Node.js@^24`: runtime baseline - longest support runway and better ESM/WebSocket ergonomics.
-- `TypeScript@^5.7`: implementation language - aligns with NodeNext/ESM and improves tooling performance.
-- `ws@^8.18`: extension bridge transport - mature, predictable WebSocket implementation.
-- `vitest` + `mcp-testing-kit` + `vitest-websocket-mock`: test stack - enables unit/integration coverage without real browser dependency.
-- `pnpm@^10` + `@biomejs/biome`: DX and CI efficiency - faster installs, stricter dependency graph, simpler lint/format workflow.
+- **`@modelcontextprotocol/server@^1.26.0`**: MCP protocol layer - stable v1 API with strong tool/resource abstractions and compatibility with current MCP ecosystem.
+- **`playwright@^1.51.0`**: Browser automation layer - mature high-level APIs, cross-browser support, and better operational ergonomics than low-level protocol handling.
+- **`zod@^3.25.4`**: Schema/typing layer - stable runtime validation for tool inputs/outputs and extraction schemas.
+- **`ws@^8.19.0`**: Transport layer - battle-tested WebSocket implementation for MCP/browser connectivity.
+- **`cheerio@^1.0.0`**: Snapshot/DOM post-processing - fast semantic extraction and compression before LLM analysis.
 
 **Critical version requirements:**
-- Upgrade MCP SDK to `^1.26.0` immediately (security advisory + lifecycle stability).
-- Set engine target to Node 24 (`>=24.0.0`) once compatibility checks pass.
+- Keep MCP packages on `1.26.x` for stability; do not move to v2 pre-alpha.
+- Keep Node runtime at `>=18` for `ws@8` compatibility.
+- Prefer stable Zod path (`3.25.x`) unless MCP dependency constraints force explicit v4 migration.
 
 ### Expected Features
 
-Research converges on reliability-first table stakes for launch, with differentiators layered only after the connection foundation is stable.
+`FEATURES.md` is clear that v1 must feel like a real browser MCP surface, not a demo: core navigation/interactions plus discovery-specific capabilities are non-negotiable.
 
 **Must have (table stakes):**
-- WebSocket heartbeat/ping-pong and connection state visibility.
-- Automatic reconnection with exponential backoff.
-- Structured, typed MCP error responses and per-operation timeout controls.
-- Unit + integration tests for tool handlers and extension bridge.
-- CI pipeline for typecheck/lint/test/build.
-- Contributor docs (`CONTRIBUTING.md`, `DEVELOPMENT.md`) and debug instrumentation.
+- `navigate`, `snapshot`, `click`, `type`, `wait_for`, `evaluate`, `close`.
+- Operational debugging primitives expected by users: `network_requests`, `console_messages`, `take_screenshot`, `select_option`, `press_key`.
+- Core product differentiator in v1: LLM-guided selector discovery.
 
-**Should have (competitive):**
-- Action confirmation (verify operation outcomes, not just dispatch).
-- Rich error context (last good state, console/log context).
-- Intelligent element recovery for stale DOM references.
-- Operation replay/trace for debugging.
+**Should have (post-launch differentiators):**
+- Session persistence/storage state management.
+- Shadow DOM-capable discovery via evaluate-assisted strategies.
+- Incremental snapshots and code generation once base workflow is reliable.
 
 **Defer (v2+):**
-- Session recovery/replay across reconnects.
-- Interactive step-through debugging.
-- Full real-browser E2E matrix until deterministic extension fixtures are mature.
+- Human handoff UX for CAPTCHA/MFA.
+- Anti-bot evasion stack (proxy/fingerprint sophistication).
+- Natural language targeting and self-healing selectors at scale.
+- Parallel multi-agent execution infrastructure.
 
 ### Architecture Approach
 
-Adopt a layered broker architecture with explicit failure boundaries: Entry/Lifecycle -> MCP Server -> Bridge Adapter -> Connection Manager -> Extension. Keep MCP server thin, move browser semantics into a Bridge, and isolate WebSocket complexity in a Connection Manager with a finite state machine. Enforce deterministic shutdown order and dependency injection for testability.
+`ARCHITECTURE.md` strongly recommends selector-centric separation: discovery (LLM) -> validation/handoff -> procedural extraction (no LLM). The architecture should keep MCP protocol layer, browser control layer, selector lifecycle, and extraction executor as distinct components with explicit boundaries.
 
 **Major components:**
-1. Entry + Lifecycle Manager - signal handling, startup/shutdown ordering, process cleanup.
-2. MCP Server Layer - protocol compliance and request routing only (no browser business logic).
-3. Bridge Layer - tool dispatch, error translation, connection-aware command mediation.
-4. Connection Manager - WebSocket lifecycle, heartbeat, reconnection, health tracking.
-5. Tool/Service Layer - automation operations behind abstractions, not direct socket calls.
+1. **Session Manager** - owns browser contexts, tab lifecycle, and state persistence/recovery.
+2. **Page Controller** - handles deterministic actions (`navigate`, `click`, `type`, `wait`, `evaluate`) with retry/timeout policy.
+3. **Selector Store + Validator** - stores selector candidates, confidence, provenance, and validates them against live DOM state.
+4. **Handoff Manager / Plan Store** - converts discovered selectors into a versioned extraction plan and marks readiness state.
+5. **Procedural Executor** - runs extraction plans without LLM involvement for repeatability, speed, and cost control.
 
 ### Critical Pitfalls
 
-1. **Zombie native host without socket** - add socket existence checks, heartbeat, and auto-respawn logic before declaring ready.
-2. **Orphaned MCP server processes** - detect parent disconnect/idle and self-terminate with full cleanup hooks.
-3. **Sleep/wake reconnection failures** - monitor port disconnects and enforce backoff reconnect state machine.
-4. **Flaky extension E2E races** - require explicit extension-ready fixture and isolated browser profiles.
-5. **Monorepo extraction breakage/version drift** - validate standalone package in clean CI and enforce strict dependency/version contracts.
+`PITFALLS.md` identifies recurring failure modes that should directly shape phase acceptance criteria.
+
+1. **Selector fragility** - avoid single brittle selectors; generate multiple semantic candidates with confidence and fallback order.
+2. **Implicit wait flakiness** - ban fixed sleeps; require condition-based waits (network/visibility/interactability).
+3. **Browser resource explosion** - enforce cleanup in `finally`, context pooling, and lifecycle circuit breakers.
+4. **Silent success data corruption** - validate schema/completeness, not just action success or HTTP status.
+5. **LLM token explosion** - preprocess/compress snapshots and avoid raw full-page HTML to keep latency/cost bounded.
 
 ## Implications for Roadmap
 
-Based on research, suggested phase structure:
+Based on combined research, the roadmap should be dependency-first and reliability-gated.
 
-### Phase 1: Lifecycle Hardening + Security Baseline
-**Rationale:** Reliability blockers and security risk are immediate and foundational; every other phase depends on this.
-**Delivers:** MCP SDK upgrade, recursive-close fix, deterministic shutdown manager, parent disconnect handling, socket/process health checks.
-**Addresses:** Table-stake reliability state and clean shutdown.
-**Avoids:** Zombie host, orphaned process, crash-leaked resources.
+### Phase 1: Foundation and Deterministic Core Tools
+**Rationale:** Everything depends on stable transport, session lifecycle, and deterministic browser primitives.
+**Delivers:** MCP server skeleton, session manager, `navigate`, `wait_for`, `snapshot`, `close`, baseline observability.
+**Addresses:** Table-stakes core operations and discovery input generation.
+**Avoids:** Implicit wait failures and resource leaks by setting hard engineering rules early.
 
-### Phase 2: Connection Reliability Architecture
-**Rationale:** Once lifecycle is safe, enforce clean protocol boundaries and resilient connection behavior.
-**Delivers:** Bridge abstraction, Connection Manager state machine, heartbeat, reconnection/backoff, structured error mapping.
-**Uses:** `ws`, upgraded MCP SDK, TypeScript NodeNext patterns.
-**Implements:** Layered broker boundaries from architecture research.
-**Avoids:** Silent connection replacement, cascading connection failures, untyped error surfaces.
+### Phase 2: Selector Discovery Engine
+**Rationale:** Core product value is selector discovery, so it should be first major capability after foundation.
+**Delivers:** `click`, `type`, `select_option`, `press_key`, `evaluate`, selector capture pipeline, multi-candidate selector output, confidence scoring, snapshot preprocessing.
+**Addresses:** v1 differentiator (LLM-guided discovery) and remaining core interaction features.
+**Avoids:** Selector fragility, silent-success validation gaps, and token-cost blowups.
 
-### Phase 3: Testing and CI Reliability
-**Rationale:** After architecture stabilizes, lock behavior with tests to prevent regression while velocity increases.
-**Delivers:** Vitest unit/integration coverage, websocket mocks, extension-ready fixtures, CI gates (typecheck/lint/test/build), baseline coverage reporting.
-**Addresses:** QA table stakes and contributor confidence.
-**Avoids:** Flaky E2E races, happy-path-only coverage, untrusted CI signal.
+### Phase 3: Handoff and Plan Validation
+**Rationale:** Discovery is not production-ready until selectors are validated and converted into executable plans.
+**Delivers:** Selector validator, extraction-plan generation, plan persistence/versioning, explicit handoff APIs/state transitions.
+**Addresses:** Discovery-to-procedural transition required by project core value.
+**Avoids:** Tight coupling anti-pattern and unvalidated selector execution.
 
-### Phase 4: Decoupling + Contributor Experience
-**Rationale:** Publishability and external contribution should come after behavior is stable and test-guarded.
-**Delivers:** Standalone package validation, explicit dependency declarations, compatibility matrix, docs completion, release readiness checks.
-**Uses:** pnpm strict graph, packaging guardrails.
-**Avoids:** Hidden monorepo dependency failures, version coordination drift, broken external installs.
+### Phase 4: Procedural Extraction and Reliability
+**Rationale:** Once plans are trustworthy, procedural execution unlocks scalable repeated scraping.
+**Delivers:** Plan executor, retries/backoff, schema validation on outputs, `network_requests` and `console_messages` tooling, failure classification.
+**Addresses:** Deterministic repeated extraction and operational debugging expectations.
+**Avoids:** Silent data corruption and unstable production behavior.
+
+### Phase 5: Hardening and Advanced Capabilities
+**Rationale:** Add complexity only after core workflow is stable and measurable.
+**Delivers:** Session persistence polish, monitoring/alerts, rate limiting, optional anti-bot architecture hooks, optional vision fallback/human handoff exploration.
+**Addresses:** Post-validation differentiators and scale.
+**Avoids:** Premature investment in expensive v2 features before PMF.
 
 ### Phase Ordering Rationale
 
-- Lifecycle reliability first because all tool execution and testing assume healthy process/socket ownership.
-- Architecture boundary second because it reduces coupling and enables meaningful unit/integration tests.
-- Testing third because stable abstractions drastically reduce test flake and maintenance cost.
-- Decoupling last because extraction amplifies unresolved lifecycle and dependency issues.
+- Discovery depends on foundation primitives (`navigate` + `snapshot` + reliable waits), so it cannot be front-loaded.
+- Handoff must precede procedural executor to preserve the architecture boundary and keep extraction deterministic.
+- Reliability controls are introduced in each phase, then expanded in Phase 4/5 to prevent late-stage rewrites.
 
 ### Research Flags
 
 Phases likely needing deeper research during planning:
-- **Phase 2:** Extension protocol contract details and connection handoff semantics still need interface validation.
-- **Phase 4:** Standalone extraction strategy (shared package ownership, semver boundaries, compatibility policy) needs targeted dependency research.
-- **Future multi-tab phase:** High uncertainty around extension/tab routing behavior; requires dedicated phase research before scoping.
+- **Phase 2:** Snapshot preprocessing strategy and selector-confidence calibration (quality/cost trade-offs).
+- **Phase 5:** Anti-bot and human handoff strategy (legal, operational, and UX complexity).
 
-Phases with standard patterns (skip research-phase):
-- **Phase 1:** Lifecycle cleanup and shutdown sequencing patterns are well-documented.
-- **Phase 3 (unit/integration portion):** Vitest + mock-driven testing patterns are established and repeatable.
+Phases with standard patterns (can likely skip extra research pass):
+- **Phase 1:** MCP server setup + Playwright session/wait primitives are well-documented.
+- **Phase 3:** Selector validation and plan handoff are well-established from architecture references.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | Strong official-source backing (MCP SDK release/security notes, Node LTS schedule) plus mature ecosystem tools. |
-| Features | MEDIUM-HIGH | Table stakes are clear; differentiators are directionally sound but less validated by direct MCP-specific precedent. |
-| Architecture | HIGH | Findings align with code-level analysis and standard broker/lifecycle design patterns. |
-| Pitfalls | HIGH | Multiple real-world incident patterns across MCP/extension/process lifecycle domains. |
+| Stack | HIGH | Strong official-source coverage (MCP docs/SDK, Playwright docs, version verification). |
+| Features | HIGH | Broad agreement across MCP ecosystem references and concrete competitor comparisons. |
+| Architecture | HIGH | Consistent with official MCP architecture and existing browser MCP implementations. |
+| Pitfalls | MEDIUM | Strong practical signal, but many sources are community blogs and need context-specific validation. |
 
-**Overall confidence:** HIGH
+**Overall confidence:** MEDIUM
 
 ### Gaps to Address
 
-- Extension-native host protocol specifics: confirm handshake fields, connection replacement semantics, and recovery responsibilities before final phase tasking.
-- Multi-tab support viability: validate extension constraints before roadmap includes any multi-tab commitment.
-- Decoupling boundaries: identify which internal packages are published vs bundled and define ownership/version policy early in planning.
-- Runtime baseline transition: verify Node 24 adoption path for all contributors/CI environments before hard enforcement.
+- **Runtime constraints in this repo:** Local operational limits (memory/throughput/concurrency targets) are not yet benchmarked; define SLOs in roadmap phase planning.
+- **Target-site profile:** No concrete target domains yet; anti-bot/session requirements may shift significantly once targets are known.
+- **Schema standards:** Output schema contracts for extraction are not finalized; define per-domain schema versioning strategy before large-scale execution.
+- **Security boundaries for `evaluate`:** Needs explicit guardrails and policy (allowed script scope, timeout, output sanitization).
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- `/modelcontextprotocol/typescript-sdk` - MCP SDK lifecycle, error handling, and server patterns.
-- https://github.com/modelcontextprotocol/typescript-sdk/releases/tag/v1.26.0 - security/lifecycle upgrade rationale.
-- https://nodejs.org/en/about/previous-releases - Node LTS planning baseline.
-- https://modelcontextprotocol.info/docs/best-practices/ - MCP architectural and operational practices.
-- Chrome/Edge/MDN native messaging docs - extension/native host lifecycle and constraints.
+- `STACK.md` sources: Context7 (`/modelcontextprotocol/typescript-sdk`, `/microsoft/playwright`, `/puppeteer/puppeteer`), official MCP and W3C WebDriver BiDi documentation, npm version verification.
+- `ARCHITECTURE.md` sources: MCP architecture docs, MCP TypeScript SDK docs, Microsoft Playwright MCP reference implementation.
 
 ### Secondary (MEDIUM confidence)
-- OneUptime WebSocket reliability posts (heartbeat, reconnect, graceful shutdown patterns).
-- Playwright/extension testing community guidance and issue threads on flake/isolation patterns.
-- Monorepo decoupling literature (`isolate-package`, Turborepo/Nx guidance, version coordination case studies).
+- `FEATURES.md` sources: Microsoft Playwright MCP docs/repo, browser-use and Stagehand docs, ecosystem surveys (Builder.io, Skyvern guide, No Hacks landscape).
+- `PITFALLS.md` sources: Browserless, BrowserStack, Zyte, ScrapeGraphAI, and practitioner writeups on scraping reliability.
 
 ### Tertiary (LOW confidence)
-- Blog/opinion content on package manager/tooling comparisons and advanced differentiator patterns; useful directionally, requires project-specific validation.
+- Industry statistics and competitive claims from non-peer-reviewed articles (for example maintenance-cost and relative-performance claims) should be validated with repo-specific telemetry.
 
 ---
 *Research completed: 2026-02-09*

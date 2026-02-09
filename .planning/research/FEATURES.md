@@ -1,324 +1,229 @@
-# Feature Landscape: Browser MCP Core
+# Feature Landscape
 
-**Domain:** Browser Automation MCP Server  
-**Researched:** 2026-02-09  
-**Context:** Brownfield project transitioning to production-grade, maintainer/contributor-ready state
+**Domain:** Browser MCP Pre-Scraping Tooling (LLM-Guided Selector Discovery)
+**Researched:** February 9, 2026
+**Confidence:** HIGH (based on official MCP specs, Playwright MCP implementation, and ecosystem analysis)
 
----
+## Feature Landscape
 
-## Current State Assessment
+### Table Stakes (Users Expect These)
 
-**Implemented:**
-- Basic MCP tool surface (navigate, click, type, hover, drag, select, wait, pressKey)
-- WebSocket communication to Chrome extension
-- ARIA snapshot capture for accessibility-based element targeting
-- Screenshot capture
-- Console logs access
-- Connection management (single tab, aggressive port cleanup)
-
-**Architecture:**
-- Layered architecture with Context, Server, Transport, Tool layers
-- Monorepo-dependent (relies on `@repo/*` and `@r2r/*` packages)
-- Stdio transport for MCP client communication
-- WebSocket server for browser extension bridge
-
-**Critical Gaps:**
-- No automated test coverage
-- No graceful error recovery or reconnection logic
-- No connection health monitoring
-- No contributor onboarding documentation
-- Missing standard production-grade features
-
----
-
-## Table Stakes
-
-Features users expect from a production-grade browser automation MCP server. Missing these = product feels broken or incomplete.
-
-### Reliability & Lifecycle Management
+Features users assume exist. Missing these = product feels incomplete.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| **WebSocket heartbeat/ping-pong** | Detect silent connection failures before users do | Low | Protocol-level ping/pong frames or application-level heartbeat. Critical for detecting zombie connections. |
-| **Automatic reconnection with backoff** | Network failures are expected, not exceptional | Medium | Exponential backoff (1s, 2s, 4s, 8s... max 60s), max retry attempts, circuit breaker pattern. |
-| **Graceful connection state management** | Users need to know if browser is connected | Low | Clear states: `disconnected` → `connecting` → `connected` → `reconnecting`. Expose via tool or resource. |
-| **Connection health monitoring** | Long-running sessions need health visibility | Low | Track last successful operation, latency metrics, consecutive failures. |
-| **Clean shutdown handling** | Prevent orphaned browser states | Low | Close WebSocket, clean up resources, notify extension on server exit. Current watchdog is basic. |
+| **navigate** | Core browser operation—must load pages | LOW | All MCP browser servers implement this; standard across ecosystem |
+| **click** | Essential interaction primitive | LOW | Standard tool in Playwright MCP, browser-use, Skyvern |
+| **type** | Form input is fundamental | LOW | Included in all browser MCP implementations |
+| **snapshot** | LLM needs page state to reason | LOW | Accessibility tree snapshots are table stakes for non-vision approaches (Microsoft Playwright MCP default) |
+| **wait_for** | Pages load asynchronously | LOW | Critical for timing—wait for element, text, or timeout |
+| **evaluate** | Run JavaScript for custom extraction | MEDIUM | Required for complex data extraction beyond accessibility tree |
+| **network_requests** | Debug and monitor HTTP traffic | MEDIUM | Standard in Playwright MCP; essential for API scraping workflows |
+| **console_messages** | Debug JavaScript errors | LOW | Included in Microsoft Playwright MCP; useful for troubleshooting |
+| **close** | Clean up resources | LOW | Basic lifecycle management |
+| **take_screenshot** | Visual verification and debugging | LOW | Not for actions (use snapshot), but essential for verification |
+| **select_option** | Dropdown interaction | LOW | Standard form control operation |
+| **press_key** | Keyboard shortcuts and special keys | LOW | Arrow keys, Enter, Escape essential for navigation |
 
-**Dependencies:**
-```
-Heartbeat detection → Automatic reconnection (need to know when to reconnect)
-Connection state → Health monitoring (state enables health tracking)
-```
+### Differentiators (Competitive Advantage)
 
-### Error Handling & Recovery
-
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| **Structured error responses** | AI clients need to understand failures | Low | Use MCP SDK's `isError: true` consistently with descriptive messages. Categorize: connection, timeout, element-not-found, permission-denied. |
-| **Timeout handling per operation** | Browser operations can hang | Low | Current 30s default is reasonable, but should be configurable per-tool. |
-| **Retry with backoff for transient failures** | Network blips shouldn't fail tasks | Medium | Distinguish transient (network timeout) vs permanent (element not found). Retry only transient. |
-| **Graceful degradation** | Partial functionality beats total failure | Medium | If screenshot fails, still return ARIA snapshot. If one tab fails, don't kill entire session. |
-
-### Testing & Quality Assurance
-
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| **Unit tests for tool handlers** | Confidence in individual components | Medium | Test tool logic in isolation with mocked Context. Current codebase has zero tests. |
-| **Integration tests with mocked extension** | Verify WebSocket communication | Medium | Mock WebSocket server that simulates extension responses. Test happy path + error scenarios. |
-| **End-to-end tests with real browser** | Catch integration issues | High | Requires Chrome + extension setup in CI. Test actual automation workflows. |
-| **Test coverage reporting** | Visibility into untested code | Low | 80%+ target for production-grade. Use c8 or nyc. |
-| **CI/CD pipeline** | Automated testing on PRs | Medium | GitHub Actions: lint, typecheck, test, build on every PR. |
-
-**Dependencies:**
-```
-Unit tests → Integration tests (integration builds on unit patterns)
-Integration tests → E2E tests (progressive complexity)
-```
-
-### Developer Experience (Contributor-Focused)
-
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| **CONTRIBUTING.md** | Clear contribution guidelines | Low | Code style, commit conventions, PR process, issue templates. |
-| **DEVELOPMENT.md** | Local setup instructions | Low | Step-by-step: clone, install, build, test, debug. Current monorepo dependency is a barrier. |
-| **Architecture documentation** | Understanding the system | Low | Already partially done in `.planning/codebase/`. Needs cross-reference with code. |
-| **API documentation for tools** | What tools do and expect | Low | Auto-generate from Zod schemas. Current tools have descriptions but no detailed docs. |
-| **Debug logging** | Troubleshooting automation | Low | Already have `debugLog` utility. Need to add more instrumentation points. |
-| **Standalone build capability** | No monorepo dependency for contributors | High | Currently relies on `@repo/*` packages. Decouple or document how to develop without monorepo. |
-
-**Confidence:** MEDIUM (WebSearch findings, community consensus on open source best practices)
-
----
-
-## Differentiators
-
-Features that set Browser MCP apart from alternatives (Playwright MCP, Chrome DevTools MCP, etc.). Not expected, but create competitive advantage.
-
-### Local-First Privacy
+Features that set the product apart. Not required, but valuable.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| **True local execution** | No data leaves the machine | Low | Already achieved. Emphasize in docs: no cloud proxy, no telemetry, no external services. |
-| **User's actual browser profile** | Access to logged-in sessions | Low | Core value prop. Avoid bot detection via real fingerprint. Different from Playwright's isolated contexts. |
-| **Private by default** | Zero network calls for automation | Low | Document: no analytics, no crash reporting, no update checks without explicit opt-in. |
+| **LLM-guided selector discovery** | Discover robust selectors before writing procedural code—reduces maintenance by 80% when sites change | MEDIUM | Core value prop for pre-scraping phase; Skyvern, Stagehand, and browser-use lead here |
+| **Accessibility tree snapshots** | 2-5KB vs 500KB for screenshots—faster inference, works with any LLM (no vision required) | MEDIUM | Microsoft's approach; 80% less context than vision-based alternatives |
+| **Shadow DOM piercing** | Access elements inside Web Components (Lit, Shoelace)—critical for modern apps | HIGH | Standard accessibility trees miss these; requires raw JS eval or Playwright's shadow-piercing selectors |
+| **Session persistence** | Reuse login state across runs—eliminates re-authentication overhead | MEDIUM | `--user-data-dir` in Playwright MCP; essential for authenticated workflows |
+| **Human handoff (pause & attach)** | AI stops at CAPTCHA/MFA, human solves, AI continues—bridges automation gaps | MEDIUM | Only `playwriter` MCP server supports this natively in 2026 |
+| **Anti-bot detection evasion** | Stealth headers, fingerprint rotation, proxy rotation—avoid blocks | HIGH | Differentiator for Skyvern, Browserbase, specialized tools |
+| **Parallel agent execution** | Run multiple selectors discovery tasks simultaneously—faster at scale | MEDIUM | Cloud solutions (Skyvern, Browserbase) offer this |
+| **Hybrid vision mode** | Auto-switch to screenshots for canvas/WebGL when accessibility tree fails | MEDIUM | Playwright MCP 2026 update added `--vision auto` |
+| **Natural language element targeting** | "Click the blue submit button" instead of CSS selectors—self-healing when UI changes | HIGH | Stagehand, Skyvern differentiator; reduces brittle selector maintenance |
+| **Self-healing selectors** | Auto-adapt when target element moves or changes attributes | HIGH | AI-powered adaptation vs brittle XPath/CSS |
+| **Incremental snapshots** | Only send changed page state between actions—further reduce context | MEDIUM | Playwright MCP `--snapshot-mode incremental` |
+| **Storage state management** | Save/load cookies, localStorage—restore sessions programmatically | LOW | `--storage-state` in Playwright MCP |
+| **Network interception/mocking** | Modify requests/responses—useful for testing and bypassing restrictions | MEDIUM | Playwright core capability |
+| **Console-level filtering** | Filter by error/warning/info—reduce noise | LOW | `--console-level` in Playwright MCP |
+| **Code generation** | Output TypeScript/JavaScript for discovered workflows | MEDIUM | Playwright MCP `--codegen typescript` |
 
-### Extension Architecture Benefits
+### Anti-Features (Commonly Requested, Often Problematic)
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| **Tab isolation** | One server per tab, no cross-tab contamination | Low | Already achieved. Better security model than global browser control. |
-| **Browser-native permissions** | Leverage Chrome's permission model | Low | Extension handles permissions, not MCP server. Clear audit trail in browser. |
-| **Visual connection indicator** | Extension shows connection status | Low | Extension UI can show active MCP connections, current operations. |
+Features that seem good but create problems.
 
-### Reliability Innovations
-
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| **Intelligent element recovery** | Handle DOM changes gracefully | High | If element reference goes stale, try to re-find by ARIA attributes or text content. |
-| **Action confirmation** | Verify operations actually completed | Medium | After click, verify element state changed. After navigate, verify URL loaded. |
-| **Session recovery** | Restore state after reconnection | High | Track operation history, replay pending operations after reconnect. |
-
-### Developer Experience
-
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| **Operation replay/recording** | Debug automation sequences | Medium | Log all operations with timestamps, allow replay for debugging. |
-| **Rich error context** | AI understands why automation failed | Medium | Include page state snapshot, last successful operation, relevant console logs in error. |
-| **Interactive debugging** | Step-through automation | High | Pause on specific operations, inspect state, resume. Complex but powerful. |
-
-**Confidence:** MEDIUM (WebSearch findings, some patterns from Playwright best practices)
-
----
-
-## Anti-Features
-
-Features to explicitly NOT build. These add complexity without proportional value, or conflict with core constraints.
-
-### Anti-Feature 1: Remote/Cloud Execution Mode
-
-**What:** Execute browser automation on cloud servers instead of local machine.
-
-**Why Avoid:**
-- Violates core "local-first" and "privacy" value propositions
-- Requires infrastructure (servers, proxies, security hardening)
-- Loses key differentiator: user's logged-in browser profile
-- Increases attack surface significantly
-
-**What to Do Instead:**
-- Double down on local execution reliability
-- Document how to run in Docker locally for isolation if needed
-- Focus on making local execution as seamless as possible
-
-### Anti-Feature 2: Multi-Tab/Multi-Window Coordination
-
-**What:** Control multiple tabs or windows from single MCP server.
-
-**Why Avoid:**
-- Significant complexity increase
-- Tab isolation is a security feature, not a limitation
-- Users can spawn multiple MCP servers for multiple tabs
-- Chrome extension architecture favors one connection per context
-
-**What to Do Instead:**
-- Document pattern: one server per tab
-- Provide clear error message if user tries to connect multiple tabs
-- Focus on making single-tab automation rock-solid
-
-### Anti-Feature 3: Built-in CAPTCHA Solving
-
-**What:** Automatic CAPTCHA detection and solving.
-
-**Why Avoid:**
-- Legal and ethical concerns
-- CAPTCHA providers actively fight automation
-- Arms race that's expensive to maintain
-- Violates terms of service of most websites
-
-**What to Do Instead:**
-- Document that Browser MCP is for legitimate automation only
-- Provide clear error when CAPTCHA detected (screenshot shows CAPTCHA)
-- Let user handle CAPTCHA manually if needed
-
-### Anti-Feature 4: Persistent Session Storage
-
-**What:** Save and resume browser sessions across server restarts.
-
-**Why Avoid:**
-- Significant complexity (cookies, localStorage, sessionStorage, IndexedDB)
-- Security risk: where do you store sensitive session data?
-- Browser already handles session persistence
-- MCP server should be stateless where possible
-
-**What to Do Instead:**
-- Document that sessions live in the browser
-- If persistence needed, use browser's built-in profiles
-- Keep MCP server ephemeral and restartable
-
-### Anti-Feature 5: AI-Driven Element Selection
-
-**What:** Use AI/ML to find elements instead of ARIA/selector-based targeting.
-
-**Why Avoid:**
-- ARIA snapshots are deterministic and fast
-- AI selection adds latency, cost, and non-determinism
-- Vision-based selection (screenshot → AI → coordinates) is fragile
-- Conflicts with "reliability over cleverness" principle
-
-**What to Do Instead:**
-- Double down on ARIA accessibility tree
-- Improve ARIA snapshot quality and coverage
-- Add more selector strategies (CSS, XPath) as fallbacks, not AI
-
-### Anti-Feature 6: Browser Extension Store Integration
-
-**What:** Auto-install or manage Chrome extension via Web Store APIs.
-
-**Why Avoid:**
-- Requires Google API credentials and OAuth
-- Adds dependency on external service
-- Extension installation should be explicit user action
-- Security risk: auto-installing extensions
-
-**What to Do Instead:**
-- Clear documentation on how to install extension manually
-- Provide extension download link
-- Check for extension and provide helpful error if not installed
-
-**Confidence:** HIGH (Strong alignment with project's stated constraints and core values)
-
----
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|-----------------|-------------|
+| **Full CDP (Chrome DevTools Protocol) dependency** | Access to all browser internals | Violates project constraint; locks to Chrome; complex to maintain without Devtools | Use Playwright's abstraction layer; CDP only for extension mode if needed |
+| **Vision-only approach** | Works with any visual model | 100x more tokens (500KB screenshot vs 2-5KB snapshot); slower inference; unnecessary cost | Accessibility tree primary, vision fallback for canvas/WebGL only |
+| **Brittle XPath selectors** | Precise targeting | Break with every UI update; 19.2% of IT budgets wasted on script maintenance (industry stat) | LLM-guided semantic targeting; natural language element descriptions |
+| **Recording-based automation** | Easy creation | Creates brittle scripts; doesn't adapt to changes; high maintenance burden | AI-powered semantic understanding; self-healing workflows |
+| **Multi-browser support** | Cover all bases | Adds complexity; Chrome/Chromium covers 95% of use cases; Firefox/WebKit often unnecessary | Start with Chrome; add others only when demand justifies cost |
+| **Real-time collaboration** | Multiple users on same session | Complex state synchronization; security concerns; rare use case | Session sharing via storage state export; separate sessions per user |
+| **Built-in CAPTCHA solving** | Unattended automation | Arms race with CAPTCHA providers; legal gray area; often unreliable | Human handoff pattern; pause and attach for manual solving |
+| **Automatic form submission** | Speed up workflows | Risk of unintended data changes; compliance issues | Explicit confirmation step; dry-run mode for safety |
 
 ## Feature Dependencies
 
 ```
-Core Infrastructure:
-  WebSocket heartbeat
-      ↓
-  Automatic reconnection
-      ↓
-  Connection health monitoring
+[LLM-guided selector discovery]
+    └──requires──> [snapshot]
+        └──requires──> [navigate]
 
-Error Handling:
-  Structured error responses
-      ↓
-  Retry with backoff
-      ↓
-  Graceful degradation
+[Shadow DOM piercing]
+    └──requires──> [evaluate]
+        └──requires──> [snapshot]
 
-Testing:
-  Unit tests
-      ↓
-  Integration tests (depends on unit test patterns)
-      ↓
-  E2E tests (depends on integration test infrastructure)
+[Session persistence]
+    └──requires──> [close]
+        └──requires──> [navigate]
 
-Contributor Experience:
-  CONTRIBUTING.md + DEVELOPMENT.md
-      ↓
-  Standalone build (enables contributors without monorepo)
-      ↓
-  CI/CD pipeline (validates contributions)
+[Human handoff]
+    └──requires──> [headed mode]
+        └──enhances──> [session persistence]
 
-Reliability Innovations (Differentiators):
-  Connection health monitoring
-      ↓
-  Action confirmation
-      ↓
-  Intelligent element recovery
+[Anti-bot evasion]
+    └──enhances──> [navigate]
+    └──conflicts──> [headless mode] (some detect headless)
+
+[Hybrid vision mode]
+    └──requires──> [snapshot]
+    └──requires──> [take_screenshot]
+        └──fallback──> [evaluate] (for canvas/WebGL)
+
+[Natural language targeting]
+    └──requires──> [LLM-guided selector discovery]
+        └──requires──> [snapshot]
+
+[Self-healing selectors]
+    └──requires──> [natural language targeting]
+        └──requires──> [LLM-guided selector discovery]
 ```
 
----
+### Dependency Notes
 
-## MVP Recommendation (Next Phase)
+- **LLM-guided selector discovery requires snapshot:** The LLM needs current page state (accessibility tree or DOM) to identify and suggest selectors
+- **Shadow DOM piercing requires evaluate:** Standard snapshots miss shadow DOM; need JavaScript execution to access `shadowRoot`
+- **Session persistence requires close:** Must properly close/save browser context to persist state to disk
+- **Human handoff requires headed mode:** User needs visible browser to interact with; can't handoff in headless
+- **Anti-bot conflicts with headless:** Many bot detection systems specifically check for headless indicators
+- **Hybrid vision requires both snapshot and screenshot:** Need accessibility tree for efficiency, screenshot fallback for visual content
 
-**Prioritize these table stakes for reliability:**
+## MVP Definition
 
-1. **WebSocket heartbeat + reconnection** (Low complexity, high impact)
-   - Addresses silent connection failures
-   - Enables recovery from transient network issues
+### Launch With (v1)
 
-2. **Structured error handling** (Low complexity, high impact)
-   - Immediate improvement in user experience
-   - Foundation for all other reliability features
+Minimum viable product—what's needed to validate the concept.
 
-3. **Unit test framework + initial tests** (Medium complexity, foundational)
-   - Enables confident refactoring
-   - Required before adding complexity
+1. **navigate** — Core primitive; can't do anything without loading pages
+2. **snapshot** — Essential for LLM to see page state; use accessibility tree approach
+3. **click** — Basic interaction for selector discovery validation
+4. **type** — Form input for testing discovered selectors
+5. **wait_for** — Handle async page loads and transitions
+6. **evaluate** — JavaScript execution for custom extraction and Shadow DOM access
+7. **LLM-guided selector discovery** — Core differentiator; discover selectors procedurally before committing
+8. **close** — Resource cleanup
 
-4. **CONTRIBUTING.md + DEVELOPMENT.md** (Low complexity, enables contributors)
-   - Unblocks external contributors
-   - Document standalone development workaround
+### Add After Validation (v1.x)
 
-**Defer these to later phases:**
+Features to add once core is working.
 
-- Session recovery (High complexity, lower frequency issue)
-- Interactive debugging (High complexity, niche use case)
-- E2E tests with real browser (High complexity, need foundation first)
+1. **take_screenshot** — Visual verification; trigger when specifically requested
+2. **network_requests** — Debug API calls; useful for advanced scraping workflows
+3. **console_messages** — Troubleshooting JavaScript errors
+4. **session persistence** — Reuse logins; high value for authenticated workflows
+5. **press_key** — Keyboard navigation; special keys (Escape, Tab, Arrows)
+6. **select_option** — Dropdown interaction; common in forms
 
----
+### Future Consideration (v2+)
 
-## Confidence Assessment
+Features to defer until product-market fit is established.
 
-| Area | Confidence | Notes |
-|------|------------|-------|
-| Table Stakes - Reliability | HIGH | Well-documented patterns (WebSocket heartbeat, reconnection) |
-| Table Stakes - Testing | HIGH | Standard Node.js testing practices |
-| Table Stakes - DX | MEDIUM | WebSearch findings on open source best practices |
-| Differentiators | MEDIUM | Some innovative, based on domain knowledge |
-| Anti-Features | HIGH | Strong alignment with project constraints |
-| Dependencies | HIGH | Logical sequencing based on implementation experience |
+1. **Human handoff** — Complex UX; solve CAPTCHA/MFA blockers
+2. **Anti-bot evasion** — Specialized need; adds significant complexity
+3. **Parallel execution** — Scale feature; needs infrastructure
+4. **Natural language targeting** — Requires mature selector discovery first
+5. **Self-healing selectors** — Advanced adaptation; build on solid base
+6. **Hybrid vision mode** — Fallback for canvas/WebGL edge cases
+7. **Code generation** — Export to Playwright/Puppeteer scripts
 
----
+## Feature Prioritization Matrix
+
+| Feature | User Value | Implementation Cost | Priority |
+|---------|------------|---------------------|----------|
+| navigate | HIGH | LOW | P1 |
+| snapshot | HIGH | LOW | P1 |
+| click | HIGH | LOW | P1 |
+| type | HIGH | LOW | P1 |
+| wait_for | HIGH | LOW | P1 |
+| evaluate | HIGH | MEDIUM | P1 |
+| LLM-guided selector discovery | HIGH | MEDIUM | P1 |
+| close | HIGH | LOW | P1 |
+| take_screenshot | MEDIUM | LOW | P2 |
+| network_requests | MEDIUM | MEDIUM | P2 |
+| console_messages | LOW | LOW | P2 |
+| session persistence | HIGH | MEDIUM | P2 |
+| press_key | MEDIUM | LOW | P2 |
+| select_option | MEDIUM | LOW | P2 |
+| Shadow DOM piercing | MEDIUM | HIGH | P2 |
+| human handoff | MEDIUM | MEDIUM | P3 |
+| anti-bot evasion | MEDIUM | HIGH | P3 |
+| parallel execution | MEDIUM | HIGH | P3 |
+| natural language targeting | HIGH | HIGH | P3 |
+| self-healing selectors | HIGH | HIGH | P3 |
+
+**Priority key:**
+- **P1:** Must have for launch—core functionality
+- **P2:** Should have—add after validation
+- **P3:** Nice to have—future consideration
+
+## Competitor Feature Analysis
+
+| Feature | Microsoft Playwright MCP | browser-use | Skyvern | Stagehand | Our Approach |
+|---------|-------------------------|-------------|---------|-----------|--------------|
+| **Core automation** (click, type, navigate) | ✅ 25+ tools | ✅ | ✅ | ✅ | ✅ P1 |
+| **Accessibility tree snapshots** | ✅ Default | ❌ Vision-based | ✅ | ✅ | ✅ P1 (tree default) |
+| **LLM-guided selector discovery** | ❌ | ✅ Core feature | ✅ | ✅ | ✅ P1 (core value) |
+| **Shadow DOM support** | ⚠️ Limited | ✅ Full API | ✅ | ✅ | ✅ P2 (via evaluate) |
+| **Session persistence** | ✅ `--user-data-dir` | ✅ | ✅ Cloud | ✅ | ✅ P2 |
+| **Human handoff** | ❌ Manual only | ❌ | ❌ | ❌ | ⚠️ P3 (nice to have) |
+| **Anti-bot evasion** | ❌ | ⚠️ Stealth | ✅ Built-in | ⚠️ Partial | ⚠️ P3 (defer) |
+| **Natural language targeting** | ❌ | ✅ | ✅ | ✅ | ⚠️ P3 (build on base) |
+| **Code generation** | ✅ TypeScript | ❌ | ❌ | ❌ | ⚠️ P3 |
+| **No CDP required** | ✅ | ✅ | ⚠️ Uses CDP | ✅ | ✅ (constraint) |
+
+**Legend:** ✅ Full support | ⚠️ Partial/limited | ❌ Not supported
+
+## Key Insights from Research
+
+### Industry Trends (2025-2026)
+
+1. **MCP is the winning standard** — OpenAI, Google, and Microsoft all adopted MCP in 2025. Anthropic donated it to Linux Foundation December 2025. Custom protocols are legacy.
+
+2. **Accessibility trees beat screenshots for most use cases** — Microsoft's Playwright MCP proved 2-5KB structured data outperforms 500KB screenshots for LLM reasoning. Vision reserved for edge cases (canvas, WebGL).
+
+3. **Selector brittleness is the #1 pain point** — Industry data shows 19.2% of IT budgets wasted maintaining brittle XPath/CSS scripts. LLM-guided discovery is the solution.
+
+4. **Session persistence separates toys from tools** — Production workflows require authenticated access. Re-authenticating on every run doesn't scale.
+
+5. **Shadow DOM is the silent killer** — Modern design systems (Lit, Shoelace, Stencil) hide elements in shadow roots. Accessibility trees miss them. Raw JavaScript access essential.
+
+### Architecture Implications
+
+- **No CDP for core features** — Project constraint aligns with Playwright MCP approach (accessibility tree). CDP only needed for extension mode.
+- **Prioritize selector discovery over execution** — Pre-scraping phase focuses on finding robust selectors, not just running them.
+- **Tree-first, vision-fallback** — Follow Microsoft's proven approach for efficiency.
 
 ## Sources
 
-- MCP SDK Documentation (Context7 - TypeScript SDK)
-- MCP Production Best Practices: The New Stack, ByteBridge Medium
-- WebSocket Reliability: OneUptime blog series on reconnection and heartbeat
-- Chrome Extension Security: OWASP Cheat Sheet, Creole Studios blog
-- MCP Testing: Codely blog, MCPcat guides, mcp-jest repo
-- Browser Automation: Playwright best practices, Anchor Browser blog
-- Open Source DX: PullNotifier blog, PullFlow collaboration report
+- Microsoft Playwright MCP (github.com/microsoft/playwright-mcp) — Official implementation, 25+ browser tools, accessibility tree approach
+- "6 most popular Playwright MCP servers for AI testing in 2026" (Bug0, January 2026) — Competitive analysis of MCP servers
+- "Browser Automation MCP Servers Guide" (Skyvern, October 2025) — Enterprise patterns, anti-bot, CAPTCHA handling
+- "The Agentic Browser Landscape in 2026" (No Hacks Podcast, January 2026) — Consumer and developer ecosystem overview
+- "The Best MCP Servers for Developers in 2026" (Builder.io, December 2025) — MCP ecosystem survey, security best practices
+- browser-use documentation (browser-use.com) — Open-source agent library patterns
+- Stagehand documentation (stagehand.dev) — Natural language automation approach
+- Web scraping industry reports — 19.2% maintenance cost statistic
 
-**Research Confidence:** MEDIUM-HIGH (Multiple authoritative sources, patterns align across sources)
+---
+*Feature research for: Browser MCP Pre-Scraping Tooling*
+*Researched: February 9, 2026*
