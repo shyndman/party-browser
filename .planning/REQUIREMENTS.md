@@ -1,84 +1,63 @@
-# Requirements: Browser MCP Core
+# Requirements: Browser MCP Pre-Scraping Interface
 
 **Defined:** 2026-02-09
-**Core Value:** AI clients can reliably automate a real, logged-in local browser session through a simple MCP interface.
+**Core Value:** An LLM can consistently derive actionable selectors from live page context so downstream procedural scraping is reliable.
 
 ## v1 Requirements
 
-Requirements for the next delivery roadmap. These combine all researched table-stakes capabilities plus product guarantees explicitly described in `README.md`.
+Requirements for initial release. Each maps to roadmap phases.
 
-### Reliability & Lifecycle
+### Runtime Foundation
 
-- [ ] **RELY-01**: User session reports connection health using heartbeat/ping-pong checks
-- [ ] **RELY-02**: Server automatically attempts reconnect with bounded exponential backoff after transient disconnects
-- [ ] **RELY-03**: User can observe explicit connection state (`disconnected`, `connecting`, `connected`, `reconnecting`)
-- [ ] **RELY-04**: Server exposes connection health signals (last successful operation, failure streak, and basic latency)
-- [ ] **RELY-05**: Server performs clean shutdown without recursive close failure or orphaned runtime resources
+- [ ] **RUNT-01**: Operator can install dependencies and complete a successful local build from this repository.
+- [ ] **RUNT-02**: Operator can start the MCP server locally and see the pre-scraping toolset registered.
 
-### Platform & Dependency Baseline
+### Core Automation Tools
 
-- [ ] **STACK-01**: Server runs on `@modelcontextprotocol/sdk` `^1.26.x` with validated compatibility for current tool/resource flows
+- [ ] **AUTO-01**: User can navigate to a URL via `browser_navigate`.
+- [ ] **AUTO-02**: User can wait for time/text/text disappearance via `browser_wait_for`.
+- [ ] **AUTO-03**: User can click a target element via `browser_click`.
+- [ ] **AUTO-04**: User can type text into a target element via `browser_type`.
+- [ ] **AUTO-05**: User can select one or more dropdown values via `browser_select_option`.
+- [ ] **AUTO-06**: User can issue keyboard input via `browser_press_key`.
+- [ ] **AUTO-07**: User can close the active browser page/session via `browser_close`.
 
-### Error Handling & Recovery
+### Discovery and Inspection Tools
 
-- [ ] **ERR-01**: Tool failures return structured, categorized MCP errors with actionable messages
-- [ ] **ERR-02**: Each tool operation enforces a configurable timeout with safe failure behavior
-- [ ] **ERR-03**: Transient connection failures retry with backoff while non-transient failures fail fast
-- [ ] **ERR-04**: Partial operation failures degrade gracefully when safe alternatives exist
+- [ ] **DISC-01**: User can capture a structured accessibility snapshot for selector reasoning via `browser_snapshot`.
+- [ ] **DISC-02**: User can evaluate JavaScript for controlled page/element inspection via `browser_evaluate`.
+- [ ] **DISC-03**: User can inspect captured network activity via `browser_network_requests`.
+- [ ] **DISC-04**: User can inspect browser console output via `browser_console_messages`.
+- [ ] **DISC-05**: User can capture page screenshots for visual verification via `browser_take_screenshot`.
 
-### Testing & Quality
+### Pre-Scraping Workflow
 
-- [ ] **TEST-01**: Tool handlers have automated unit tests covering success and representative failure paths
-- [ ] **TEST-02**: Extension-bridge behavior has integration tests with mocked WebSocket/extension responses
-- [ ] **TEST-03**: End-to-end automation flow is covered by browser-backed tests for critical user workflows
-- [ ] **TEST-04**: Coverage reporting is generated and enforced in CI for core server packages
-- [ ] **TEST-05**: Pull requests run automated quality gates (typecheck, tests, build) in CI
-
-### Contributor Experience
-
-- [ ] **DX-05**: Debug logging is instrumented consistently across lifecycle and bridge operations
-
-### Product Guarantees (From README)
-
-- [ ] **CORE-01**: Automation executes locally on the user's machine without requiring remote browser execution
-- [ ] **CORE-02**: Automation uses the user's existing browser profile so logged-in sessions remain usable
-- [ ] **CORE-03**: Default automation flow keeps browsing activity on-device and avoids remote telemetry dependence
-- [ ] **CORE-04**: Automation path preserves real-browser interaction characteristics needed to reduce basic bot-detection friction
+- [ ] **FLOW-01**: User can run an LLM-guided discovery pass that outputs selectors suitable for procedural extraction.
+- [ ] **FLOW-02**: User can persist or export a selector handoff artifact that procedural scraping can execute without LLM involvement.
 
 ## v2 Requirements
 
-Deferred differentiators not explicitly requested in the provided idea document.
+Deferred to future release. Tracked but not in current roadmap.
 
-### Advanced Reliability and UX
+### Advanced Capabilities
 
-- **ADV-01**: User can recover pending automation context after reconnect (session recovery)
-- **ADV-02**: User receives post-action confirmation that navigation/click/type completed as intended
-- **ADV-03**: Server can attempt intelligent element recovery when selectors become stale
-- **ADV-04**: Developer can replay recorded operation sequences for debugging
-- **ADV-05**: Error payloads include rich contextual diagnostics (state snapshot and recent operation context)
-- **ADV-06**: Developer can run interactive step-through debugging for automation sequences
-- **ADV-07**: Extension exposes visual connection and activity indicator for live troubleshooting
-
-### Contributor Experience (Deferred)
-
-- **DX-01**: Repository includes contributor guidelines for setup, conventions, and PR workflow
-- **DX-02**: Repository includes developer setup guide for running, testing, and debugging locally
-- **DX-03**: Architecture documentation is published and cross-referenced from contributor docs
-- **DX-04**: Tool API documentation is available for tool inputs, outputs, and behavior expectations
-- **DX-06**: Contributors can build and validate this repository without hidden monorepo-only coupling
+- **ADVN-01**: User can persist authenticated browser session state across runs.
+- **ADVN-02**: User can discover/select targets inside Shadow DOM with dedicated helpers.
+- **ADVN-03**: User can use incremental snapshots to reduce repeated LLM context size.
+- **ADVN-04**: User can resume automated flow after manual human handoff for CAPTCHA/MFA.
+- **ADVN-05**: User can enable optional anti-bot hardening strategies for hostile targets.
+- **ADVN-06**: User can use self-healing selector updates when previously valid selectors drift.
+- **ADVN-07**: User can generate procedural code artifacts from validated discovery flows.
 
 ## Out of Scope
 
-Explicitly excluded to prevent scope creep and preserve local-first product direction.
+Explicitly excluded. Documented to prevent scope creep.
 
 | Feature | Reason |
 |---------|--------|
-| Remote/cloud browser execution mode | Conflicts with local-first and privacy guarantees |
-| Multi-tab or multi-window orchestration in one server process | Adds high complexity and weakens current isolation model |
-| Built-in CAPTCHA solving | Legal/ethical risk and high maintenance burden |
-| Persistent session storage inside MCP server | Increases security risk and duplicates browser-owned session management |
-| AI-driven element selection as primary strategy | Adds non-determinism and latency compared with deterministic selectors |
-| Auto-install/manage extension via store APIs | Adds credentials/dependency risk and reduces explicit user control |
+| CDP-based dialog handling (`browser_handle_dialog`) | Explicit project constraint: no DevTools/CDP-based implementation for core capabilities |
+| Arbitrary browser code execution (`browser_run_code`) | Increases security and control risk for v1 selector-first scope |
+| Coordinate/vision-first controls (`*_xy`, wheel/drag coordinates) | Brittle for selector-centric pre-scraping and not required for v1 value |
 
 ## Traceability
 
@@ -86,32 +65,28 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| STACK-01 | Phase 1 | Pending |
-| RELY-01 | Phase 2 | Pending |
-| RELY-02 | Phase 2 | Pending |
-| RELY-03 | Phase 2 | Pending |
-| RELY-04 | Phase 2 | Pending |
-| RELY-05 | Phase 1 | Pending |
-| ERR-01 | Phase 2 | Pending |
-| ERR-02 | Phase 2 | Pending |
-| ERR-03 | Phase 2 | Pending |
-| ERR-04 | Phase 2 | Pending |
-| TEST-01 | Phase 3 | Pending |
-| TEST-02 | Phase 3 | Pending |
-| TEST-03 | Phase 3 | Pending |
-| TEST-04 | Phase 3 | Pending |
-| TEST-05 | Phase 3 | Pending |
-| DX-05 | Phase 2 | Pending |
-| CORE-01 | Phase 1 | Pending |
-| CORE-02 | Phase 1 | Pending |
-| CORE-03 | Phase 1 | Pending |
-| CORE-04 | Phase 1 | Pending |
+| RUNT-01 | TBD | Pending |
+| RUNT-02 | TBD | Pending |
+| AUTO-01 | TBD | Pending |
+| AUTO-02 | TBD | Pending |
+| AUTO-03 | TBD | Pending |
+| AUTO-04 | TBD | Pending |
+| AUTO-05 | TBD | Pending |
+| AUTO-06 | TBD | Pending |
+| AUTO-07 | TBD | Pending |
+| DISC-01 | TBD | Pending |
+| DISC-02 | TBD | Pending |
+| DISC-03 | TBD | Pending |
+| DISC-04 | TBD | Pending |
+| DISC-05 | TBD | Pending |
+| FLOW-01 | TBD | Pending |
+| FLOW-02 | TBD | Pending |
 
 **Coverage:**
-- v1 requirements: 20 total
-- Mapped to phases: 20
-- Unmapped: 0 ✓
+- v1 requirements: 16 total
+- Mapped to phases: 0
+- Unmapped: 16 ⚠️
 
 ---
 *Requirements defined: 2026-02-09*
-*Last updated: 2026-02-09 after reducing to 3-phase v1 and adding MCP SDK upgrade requirement*
+*Last updated: 2026-02-09 after initial definition*
