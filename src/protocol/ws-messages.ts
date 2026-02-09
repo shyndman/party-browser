@@ -23,10 +23,10 @@ export interface SocketMessageMap {
   browser_wait: { time: number };
 
   // Snapshot and inspection messages
-  browser_snapshot: Record<string, never>;
-  browser_screenshot: Record<string, never>;
-  browser_get_console_logs: Record<string, never>;
-  browser_evaluate: { script: string };
+  browser_snapshot: Record<string, never>; // Returns: Full page HTML snapshot
+  browser_screenshot: Record<string, never>; // Returns: base64-encoded PNG string (not Data URL)
+  browser_get_console_logs: Record<string, never>; // Returns: Array of console log entries
+  browser_evaluate: { script: string }; // Returns: JSON-serializable result
 
   // Deterministic wait messages
   browser_wait_for:
