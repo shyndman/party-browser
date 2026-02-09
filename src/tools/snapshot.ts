@@ -7,7 +7,7 @@ import {
   SelectOptionTool,
   SnapshotTool,
   TypeTool,
-} from "@repo/types/mcp/tool";
+} from "@/protocol/tool-definitions";
 
 import type { Context } from "@/context";
 import { captureAriaSnapshot } from "@/utils/aria-snapshot";
