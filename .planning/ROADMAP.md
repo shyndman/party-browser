@@ -87,15 +87,14 @@ Plans:
 - Background reconnection without command replay
 
 **Success Criteria** (what must be TRUE):
-  1. User can inspect captured network activity from discovery sessions to debug selector and timing behavior.
-  2. User can inspect browser console output from discovery sessions to diagnose failures.
-  3. User can persist or export a selector handoff artifact that a procedural scraping stage can execute without LLM involvement.
-**Plans**: TBD
+   1. User can inspect captured network activity from discovery sessions to debug selector and timing behavior.
+   2. User can inspect browser console output from discovery sessions to diagnose failures.
+   3. User can persist or export a selector handoff artifact that a procedural scraping stage can execute without LLM involvement.
+**Plans**: 2 plans in 2 waves
 
 Plans:
-- [ ] 03-01: Session correlation and console/network capture per session
-- [ ] 03-02: Selector artifact export with discovery replay data
-- [ ] 03-03: Procedural scraping execution format (JSON/YAML)
+- [ ] 03-01-PLAN.md — Session-scoped network and console capture infrastructure (browser_network_requests, browser_console_messages tools)
+- [ ] 03-02-PLAN.md — Selector artifact export for procedural scraping handoff (browser_export_selectors tool, JSON artifact format)
 
 ## Progress
 
