@@ -64,12 +64,15 @@ Plans:
   - MCP startup decoupled from WebSocket bind so tool registration remains available.
   - browser_wait_for schema compatibility hardened for strict tool validators.
   - Extension now enforces session-bound tab targeting.
-**Plans:** 3 plans in 2 waves
+**Plans:** 6 plans in 4 waves (3 original + 3 gap closure)
 
 Plans:
-- [ ] 02.1-01-PLAN.md — Bridge process ownership, kill switch integration, transport cleanup, and explicit startup failure handling.
-- [ ] 02.1-02-PLAN.md — Session-owned tab model: navigate-time tab creation, SESSION_NOT_INITIALIZED error codes, tab grouping and title prefix, session lifecycle state machine.
-- [ ] 02.1-03-PLAN.md — Regression checks: schema validation, error code standardization, no-retry verification, startup reliability tests, Phase 3 migration scope documentation.
+- [x] 02.1-01-PLAN.md — Bridge process ownership, kill switch integration, transport cleanup, and explicit startup failure handling.
+- [x] 02.1-02-PLAN.md — Session-owned tab model: navigate-time tab creation, SESSION_NOT_INITIALIZED error codes, tab grouping and title prefix, session lifecycle state machine.
+- [x] 02.1-03-PLAN.md — Regression checks: schema validation, error code standardization, no-retry verification, startup reliability tests, Phase 3 migration scope documentation.
+- [x] 02.1-04-PLAN.md — Gap 1 Fix: Session ownership cleared on WebSocket close to prevent auto-reuse
+- [x] 02.1-05-PLAN.md — Gap 2 Fix: Machine-readable error codes added to transport gate
+- [x] 02.1-06-PLAN.md — Gap 3 Fix: Universal [CODE] prefix for all tool execution errors
 
 ### Phase 3: Handoff and Repeatable Execution Readiness
 **Goal**: Discovery results can be inspected, packaged, and handed off for procedural scraping without LLM involvement.
@@ -103,5 +106,5 @@ Phases execute in numeric order: 1 -> 2 -> 02.1 -> 3
 |-------|----------------|--------|-----------|
 | 1. Runtime and Deterministic Core | 3/3 | ✓ Complete | 2026-02-09 |
 | 2. Interactive Selector Discovery | 4/4 | ✓ Complete | 2026-02-09 |
-| 02.1 Session and Transport Stabilization (INSERTED) | 3/3 | ✓ Complete | 2026-02-10 |
+| 02.1 Session and Transport Stabilization (INSERTED) | 6/6 | ✓ Complete | 2026-02-10 |
 | 3. Handoff and Repeatable Execution Readiness | 0/TBD | ○ Not started | - |
