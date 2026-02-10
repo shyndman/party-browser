@@ -122,7 +122,7 @@ export async function createServerWithTools(options: Options): Promise<Server> {
       const result = await tool.handle(context, request.params.arguments);
       return result;
     } catch (error) {
-      // Include errorCode if available from CodedError
+      // Include errorCode if available from CodedError, otherwise use INTERNAL_TOOL_ERROR fallback
       const errorCode = (error as Error & { errorCode?: string }).errorCode;
       const errorMessage = String(error);
 
@@ -130,7 +130,7 @@ export async function createServerWithTools(options: Options): Promise<Server> {
         content: [
           {
             type: "text",
-            text: errorCode ? `[${errorCode}] ${errorMessage}` : errorMessage,
+            text: `[${errorCode || "INTERNAL_TOOL_ERROR"}] ${errorMessage}`,
           },
         ],
         isError: true,
