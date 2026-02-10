@@ -10,9 +10,9 @@ See: `.planning/PROJECT.md` (updated 2026-02-09)
 ## Current Position
 
 Phase: 02.1-single-browser-bridge-session-owned-tab-model-no-active-tab-fallback-no-per-call-tabid-overrides
-Plan: 04 (Gap 1 Fix - COMPLETE)
-Status: All Phase 02.1 plans complete - Session ownership cleared on disconnect, gap closure verified
-Last activity: 2026-02-10 - Completed Plan 02.1-04: Gap 1 Fix - Clear Session Ownership on Disconnect
+Plan: 05 (Gap 2 Fix - COMPLETE)
+Status: All Phase 02.1 plans complete - Machine-readable error codes added to transport gate, all gaps closed
+Last activity: 2026-02-10 - Completed Plan 02.1-05: Gap 2 Fix - Machine-Readable Error Codes
 
 Progress: [██████████] 100%
 
@@ -42,6 +42,7 @@ Progress: [██████████] 100%
 | Phase 02.1 P03 | 10min | 5 tasks | 9 files |
 | Phase 02.1 P02 | 8min | 5 tasks | 1 files |
 | Phase 02.1-single-browser-bridge-session-owned-tab-model-no-active-tab-fallback-no-per-call-tabid-overrides P04 | 2min | 2 tasks | 1 files |
+| Phase 02.1-single-browser-bridge-session-owned-tab-model-no-active-tab-fallback-no-per-call-tabid-overrides P05 | 2min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -82,6 +83,7 @@ Recent decisions affecting current work:
 - [Phase 02.1-03] Automated startup reliability test suite with 3 scenarios
 - [Phase 02.1-03] Session lifecycle state machine: UNINITIALIZED → NAVIGATING → ACTIVE → CLOSED
 - [Phase 02.1-04]: Session ownership MUST be cleared on wsConnection.onclose to prevent auto-reuse after reconnect
+- [Phase 02.1-05]: All server error responses include machine-readable codes using CodedError class with consistent [CODE] prefix format
 
 ### Roadmap Evolution
 
@@ -106,6 +108,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-10 09:44
-Stopped at: Completed Plan 02.1-04: Gap 1 Fix - Clear Session Ownership on Disconnect
+Last session: 2026-02-10 09:47
+Stopped at: Completed Plan 02.1-05: Gap 2 Fix - Machine-Readable Error Codes
 Resume file: None
