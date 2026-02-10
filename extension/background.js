@@ -5,9 +5,24 @@
 
 // Configuration
 const CONFIG = {
-  DEFAULT_PORT: 9876,
+  DEFAULT_PORT: 3456,
   RECONNECT_INTERVAL: 5000,
   MAX_RECONNECT_ATTEMPTS: 10
+};
+
+const ICON_PATHS = {
+  connected: {
+    64: 'icons/state_connected_64.png',
+    128: 'icons/state_connected_128.png'
+  },
+  disconnected: {
+    64: 'icons/state_disconnected_64.png',
+    128: 'icons/state_disconnected_128.png'
+  },
+  off: {
+    64: 'icons/state_off_64.png',
+    128: 'icons/state_off_128.png'
+  }
 };
 
 // State
@@ -23,8 +38,22 @@ let isKillSwitchEnabled = true; // Kill switch state (default: enabled)
  */
 function init() {
   console.log('[Browser MCP] Background script initialized');
+  updateToolbarIcon();
   loadPortFromStorage().then(port => {
     startWebSocketServer(port);
+  });
+}
+
+/**
+ * Set toolbar icon based on extension state
+ */
+function updateToolbarIcon() {
+  const iconState = !isKillSwitchEnabled
+    ? 'off'
+    : (isServerRunning ? 'connected' : 'disconnected');
+
+  browser.browserAction.setIcon({ path: ICON_PATHS[iconState] }).catch((error) => {
+    console.error('[Browser MCP] Failed to update toolbar icon:', error);
   });
 }
 
@@ -52,6 +81,7 @@ function startWebSocketServer(port) {
 
   if (!isKillSwitchEnabled) {
     console.log('[Browser MCP] Kill switch disabled, not connecting');
+    updateToolbarIcon();
     return;
   }
 
@@ -65,6 +95,7 @@ function startWebSocketServer(port) {
       console.log('[Browser MCP] Connected to MCP server');
       isServerRunning = true;
       reconnectAttempts = 0;
+      updateToolbarIcon();
     };
 
     wsConnection.onmessage = async (event) => {
@@ -76,7 +107,7 @@ function startWebSocketServer(port) {
         if (!isKillSwitchEnabled) {
           wsConnection.send(JSON.stringify({
             success: false,
-            error: 'Kill switch is disabled. Enable it via the extension popup to resume MCP communications.'
+            error: 'Kill switch is disabled. Click the extension icon to resume MCP communications.'
           }));
           return;
         }
@@ -101,6 +132,7 @@ function startWebSocketServer(port) {
       console.log('[Browser MCP] WebSocket connection closed');
       isServerRunning = false;
       wsConnection = null;
+      updateToolbarIcon();
 
       // Attempt reconnection if kill switch is still enabled
       if (isKillSwitchEnabled && reconnectAttempts < CONFIG.MAX_RECONNECT_ATTEMPTS) {
@@ -115,11 +147,13 @@ function startWebSocketServer(port) {
     wsConnection.onerror = (error) => {
       console.error('[Browser MCP] WebSocket error:', error);
       isServerRunning = false;
+      updateToolbarIcon();
     };
 
   } catch (error) {
     console.error('[Browser MCP] Failed to start WebSocket:', error);
     isServerRunning = false;
+    updateToolbarIcon();
   }
 }
 
@@ -331,6 +365,11 @@ function waitForTabLoad(tabId) {
  * Stop the WebSocket server (kill switch off)
  */
 function stopWebSocketServer() {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+
   if (wsConnection) {
     try {
       wsConnection.close();
@@ -340,7 +379,27 @@ function stopWebSocketServer() {
     wsConnection = null;
   }
   isServerRunning = false;
+  reconnectAttempts = 0;
+  updateToolbarIcon();
   console.log('[Browser MCP] WebSocket server stopped (kill switch)');
+}
+
+/**
+ * Toggle kill switch and start/stop MCP communications
+ */
+async function toggleKillSwitch() {
+  isKillSwitchEnabled = !isKillSwitchEnabled;
+  console.log('[Browser MCP] Kill switch toggled:', isKillSwitchEnabled ? 'ENABLED' : 'DISABLED');
+
+  if (!isKillSwitchEnabled) {
+    stopWebSocketServer();
+    return { isEnabled: isKillSwitchEnabled };
+  }
+
+  const port = await loadPortFromStorage();
+  startWebSocketServer(port);
+  updateToolbarIcon();
+  return { isEnabled: isKillSwitchEnabled };
 }
 
 /**
@@ -354,7 +413,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (!isKillSwitchEnabled) {
       sendResponse({
         success: false,
-        error: 'Kill switch is disabled. Enable it via the extension popup to resume MCP communications.'
+        error: 'Kill switch is disabled. Click the extension icon to resume MCP communications.'
       });
       return false;
     }
@@ -374,21 +433,13 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'toggleKillSwitch') {
-    isKillSwitchEnabled = !isKillSwitchEnabled;
-    console.log('[Browser MCP] Kill switch toggled:', isKillSwitchEnabled ? 'ENABLED' : 'DISABLED');
-    
-    if (!isKillSwitchEnabled) {
-      // Kill switch turned OFF - stop server
-      stopWebSocketServer();
-    } else {
-      // Kill switch turned ON - restart server
-      loadPortFromStorage().then(port => {
-        startWebSocketServer(port);
-      });
-    }
-    
-    sendResponse({ isEnabled: isKillSwitchEnabled });
-    return false;
+    toggleKillSwitch()
+      .then((response) => sendResponse(response))
+      .catch((error) => sendResponse({
+        isEnabled: isKillSwitchEnabled,
+        error: error.message
+      }));
+    return true;
   }
 
   if (message.type === 'getKillSwitchState') {
@@ -409,3 +460,9 @@ browser.runtime.onInstalled.addListener((details) => {
 
 // Initialize on startup
 init();
+
+browser.browserAction.onClicked.addListener(() => {
+  toggleKillSwitch().catch((error) => {
+    console.error('[Browser MCP] Failed to toggle kill switch from toolbar click:', error);
+  });
+});

@@ -138,6 +138,55 @@ node dist/index.js
 2. Ensure the extension shows "Connected" status
 3. Have at least one browser tab open
 
+### Using with OpenCode (local checkout)
+
+If this repo is already checked out on your machine, you can point OpenCode at this local build directly.
+
+1. Build the MCP server and Firefox extension:
+
+```bash
+npm install
+npm run build
+npm run build:xpi
+```
+
+2. Install the extension in Firefox Developer Edition:
+   - Open `about:debugging`
+   - Click "This Firefox" -> "Load Temporary Add-on..."
+   - Select `dist/browser-mcp-firefox.xpi`
+
+3. Add an MCP entry to `opencode.json` (project root) or `~/.config/opencode/opencode.json`:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "browsermcp": {
+      "type": "local",
+      "command": ["node", "/path/to/browser-mcp/dist/index.js"],
+      "enabled": true
+    }
+  }
+}
+```
+
+4. Verify OpenCode sees the server:
+
+```bash
+opencode mcp list
+```
+
+5. In OpenCode, run a prompt that explicitly uses the MCP tools:
+
+```text
+Use the browsermcp tools to navigate to https://example.com and return a page snapshot.
+```
+
+Notes:
+- OpenCode starts this MCP process from the configured `command`; you do not need to run `node dist/index.js` separately.
+- If commands fail with connection errors, click the Browser MCP toolbar icon to ensure communications are enabled.
+- If OpenCode cannot start the server, re-check the `command` path and rebuild with `npm run build`.
+
 ### Common Issues
 
 | Issue | Cause | Solution |
@@ -146,7 +195,7 @@ node dist/index.js
 | Smoke test fails with "Server binary not found" | Build artifacts missing | Run `npm run build` first |
 | Extension shows "Disconnected" | Server not running or port issue | Verify server is running, check extension settings |
 | **Firefox:** "Extension could not be installed" | Using regular Firefox | Use Firefox Developer Edition for unsigned extensions |
-| **Firefox:** "Connection failed" | MCP server not running or port blocked | Ensure server is running and port 9876 is available |
+| **Firefox:** "Connection failed" | MCP server not running or port blocked | Ensure server is running and port 3456 is available |
 | **Firefox:** Permission denied errors | Extension lacks permissions | Check `about:addons` > Browser MCP > Permissions |
 
 ### Development Workflow
