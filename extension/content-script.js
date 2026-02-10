@@ -5,6 +5,107 @@
 
 console.log('[Browser MCP] Content script loaded on', window.location.href);
 
+// ============================================================
+// SESSION-SCOPED CONSOLE CAPTURE (Phase 03.1)
+// ============================================================
+
+const MAX_CONSOLE_LOGS = 1000; // Maximum entries (ring buffer)
+
+// Ring buffer for console logs
+const consoleLogs = [];
+
+// Store original console methods
+const originalConsole = {
+  log: console.log,
+  error: console.error,
+  warn: console.warn,
+  info: console.info
+};
+
+/**
+ * Push log entry to ring buffer
+ * @param {string} level - Log level (log, error, warn, info)
+ * @param {Array} args - Original console arguments
+ */
+function pushConsoleLog(level, args) {
+  const entry = {
+    level,
+    message: args.map(arg => {
+      if (typeof arg === 'object') {
+        try {
+          return JSON.stringify(arg);
+        } catch {
+          return String(arg);
+        }
+      }
+      return String(arg);
+    }).join(' '),
+    timestamp: Date.now(),
+    stack: level === 'error' ? new Error().stack : undefined
+  };
+
+  consoleLogs.push(entry);
+
+  // Ring buffer: remove oldest if over limit
+  if (consoleLogs.length > MAX_CONSOLE_LOGS) {
+    consoleLogs.shift();
+  }
+}
+
+// Override console methods with ring buffer
+console.log = function(...args) {
+  pushConsoleLog('log', args);
+  originalConsole.log.apply(console, args);
+};
+
+console.error = function(...args) {
+  pushConsoleLog('error', args);
+  originalConsole.error.apply(console, args);
+};
+
+console.warn = function(...args) {
+  pushConsoleLog('warn', args);
+  originalConsole.warn.apply(console, args);
+};
+
+console.info = function(...args) {
+  pushConsoleLog('info', args);
+  originalConsole.info.apply(console, args);
+};
+
+// Capture uncaught errors
+window.onerror = function(message, source, lineno, colno, error) {
+  pushConsoleLog('error', [`Uncaught: ${message} at ${source}:${lineno}:${colno}`]);
+  return false; // Let default handler run
+};
+
+// Capture unhandled promise rejections
+window.onunhandledrejection = function(event) {
+  pushConsoleLog('error', [`Unhandled Promise Rejection: ${event.reason}`]);
+};
+
+/**
+ * Get console logs with optional clear
+ * @param {boolean} clear - Whether to clear the buffer after reading
+ * @returns {Array} Console log entries
+ */
+function getConsoleLogs(clear = false) {
+  const logs = [...consoleLogs];
+  if (clear) {
+    consoleLogs.length = 0;
+  }
+  return logs;
+}
+
+/**
+ * Clear all console logs
+ */
+function clearConsoleLogs() {
+  consoleLogs.length = 0;
+}
+
+// ============================================================
+
 /**
  * Parse element reference string into selector info
  */
@@ -439,6 +540,16 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         stack: error.stack
       }));
     return true; // Keep channel open for async
+  }
+
+  // Handle console log requests
+  if (message.type === 'getConsoleLogs') {
+    const logs = getConsoleLogs(message.clear);
+    sendResponse({
+      success: true,
+      logs: logs
+    });
+    return false;
   }
 
   return false;
