@@ -280,7 +280,55 @@ async function createSessionTab() {
     console.log('[Browser MCP] Could not set initial tab title:', error.message);
   }
 
+  // Add tab to OpenCode Sessions group
+  try {
+    await addTabToSessionGroup(tab.id);
+  } catch (error) {
+    // Grouping may fail if API unavailable; non-critical
+    console.log('[Browser MCP] Could not add tab to group:', error.message);
+  }
+
   return tab.id;
+}
+
+/**
+ * Add tab to OpenCode Sessions tab group
+ */
+async function addTabToSessionGroup(tabId) {
+  // Check if tabGroups API is available
+  if (!browser.tabGroups) {
+    console.log('[Browser MCP] Tab groups API not available');
+    return;
+  }
+
+  try {
+    // Query for existing groups with 'OpenCode' or 'OC' in title
+    const groups = await browser.tabGroups.query({});
+    const existingGroup = groups.find(g =>
+      g.title && (g.title.includes('OpenCode') || g.title.includes('OC'))
+    );
+
+    if (existingGroup) {
+      // Add to existing group
+      await browser.tabs.group({
+        tabIds: tabId,
+        groupId: existingGroup.id
+      });
+      console.log(`[Browser MCP] Added tab ${tabId} to existing group: ${existingGroup.title}`);
+    } else {
+      // Create new group
+      const groupId = await browser.tabs.group({
+        tabIds: tabId
+      });
+      await browser.tabGroups.update(groupId, {
+        title: 'OpenCode Sessions',
+        color: 'blue'
+      });
+      console.log(`[Browser MCP] Created new tab group: OpenCode Sessions`);
+    }
+  } catch (error) {
+    console.error('[Browser MCP] Failed to manage tab group:', error);
+  }
 }
 
 /**
