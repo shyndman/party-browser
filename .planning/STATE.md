@@ -10,9 +10,9 @@ See: `.planning/PROJECT.md` (updated 2026-02-09)
 ## Current Position
 
 Phase: 02.1-single-browser-bridge-session-owned-tab-model-no-active-tab-fallback-no-per-call-tabid-overrides
-Plan: 03 (Regression Checks - COMPLETE)
-Status: All Phase 02.1 plans complete - Session model stable, schema hardened, error codes standardized
-Last activity: 2026-02-10 - Completed Plan 02.1-03: Regression Checks
+Plan: 04 (Gap 1 Fix - COMPLETE)
+Status: All Phase 02.1 plans complete - Session ownership cleared on disconnect, gap closure verified
+Last activity: 2026-02-10 - Completed Plan 02.1-04: Gap 1 Fix - Clear Session Ownership on Disconnect
 
 Progress: [██████████] 100%
 
@@ -41,6 +41,7 @@ Progress: [██████████] 100%
 | Phase 02-interactive-selector-discovery P02 | 1min | 3 tasks | 2 files |
 | Phase 02.1 P03 | 10min | 5 tasks | 9 files |
 | Phase 02.1 P02 | 8min | 5 tasks | 1 files |
+| Phase 02.1-single-browser-bridge-session-owned-tab-model-no-active-tab-fallback-no-per-call-tabid-overrides P04 | 2min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -80,6 +81,7 @@ Recent decisions affecting current work:
 - [Phase 02.1-03] No in-flight request retry policy - commands fail immediately on transport drop
 - [Phase 02.1-03] Automated startup reliability test suite with 3 scenarios
 - [Phase 02.1-03] Session lifecycle state machine: UNINITIALIZED → NAVIGATING → ACTIVE → CLOSED
+- [Phase 02.1-04]: Session ownership MUST be cleared on wsConnection.onclose to prevent auto-reuse after reconnect
 
 ### Roadmap Evolution
 
@@ -104,6 +106,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-10 09:17
-Stopped at: Completed Plan 02.1-03: Regression Checks
+Last session: 2026-02-10 09:44
+Stopped at: Completed Plan 02.1-04: Gap 1 Fix - Clear Session Ownership on Disconnect
 Resume file: None
