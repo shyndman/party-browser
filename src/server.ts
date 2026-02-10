@@ -5,7 +5,9 @@ import {
   ListToolsRequestSchema,
   ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import type { WebSocketServer } from "ws";
 
+import { mcpConfig } from "@/config/mcp.config";
 import { Context } from "@/context";
 import type { Resource } from "@/resources/resource";
 import type { Tool } from "@/tools/tool";
@@ -18,9 +20,20 @@ type Options = {
   resources: Resource[];
 };
 
+function formatTransportStartupError(error: Error): string {
+  const code = (error as Error & { code?: string }).code;
+  if (code === "EADDRINUSE") {
+    return `WebSocket port ${mcpConfig.defaultWsPort} is already in use by another process.`;
+  }
+  return error.message;
+}
+
 export async function createServerWithTools(options: Options): Promise<Server> {
   const { name, version, tools, resources } = options;
   const context = new Context();
+  let wss: WebSocketServer | undefined;
+  let transportStartupError: Error | undefined;
+
   const server = new Server(
     { name, version },
     {
@@ -31,25 +44,37 @@ export async function createServerWithTools(options: Options): Promise<Server> {
     },
   );
 
-  const wss = await createWebSocketServer();
-  wss.on("connection", (websocket) => {
-    // Close any existing connections
-    if (context.hasWs()) {
-      context.ws.close();
+  const startWebSocketTransport = async () => {
+    try {
+      wss = await createWebSocketServer();
+      wss.on("connection", (websocket) => {
+        console.log("Browser extension connected");
+
+        if (context.hasWs()) {
+          context.ws.close();
+        }
+        context.ws = websocket;
+
+        websocket.on("close", () => {
+          console.log("Extension disconnected (connection lost)");
+          context.ws = undefined;
+        });
+
+        websocket.on("error", (error) => {
+          console.error("WebSocket error:", error);
+          context.ws = undefined;
+        });
+      });
+    } catch (error) {
+      transportStartupError =
+        error instanceof Error ? error : new Error(String(error));
+      console.error(
+        `Failed to start Browser MCP WebSocket transport: ${formatTransportStartupError(transportStartupError)}`,
+      );
     }
-    context.ws = websocket;
+  };
 
-    // Handle WebSocket disconnect gracefully
-    websocket.on("close", () => {
-      console.log("Extension disconnected (kill switch or browser closed)");
-      context.ws = undefined;
-    });
-
-    websocket.on("error", (error) => {
-      console.error("WebSocket error:", error);
-      context.ws = undefined;
-    });
-  });
+  const wsStartupPromise = startWebSocketTransport();
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     return { tools: tools.map((tool) => tool.schema) };
@@ -65,6 +90,18 @@ export async function createServerWithTools(options: Options): Promise<Server> {
       return {
         content: [
           { type: "text", text: `Tool "${request.params.name}" not found` },
+        ],
+        isError: true,
+      };
+    }
+
+    if (transportStartupError && !context.hasWs()) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Browser transport unavailable: ${formatTransportStartupError(transportStartupError)} Close other Browser MCP sessions using this port, then restart this MCP process.`,
+          },
         ],
         isError: true,
       };
@@ -93,9 +130,22 @@ export async function createServerWithTools(options: Options): Promise<Server> {
     return { contents };
   });
 
+  const originalClose = server.close.bind(server);
   server.close = async () => {
-    await server.close();
-    await wss.close();
+    await originalClose();
+    await wsStartupPromise;
+    if (wss) {
+      const socketServer = wss;
+      await new Promise<void>((resolve, reject) => {
+        socketServer.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        });
+      });
+    }
     await context.close();
   };
 
