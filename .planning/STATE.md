@@ -9,10 +9,10 @@ See: `.planning/PROJECT.md` (updated 2026-02-09)
 
 ## Current Position
 
-Phase: 3 of 3 (Handoff and Repeatable Execution Readiness)
-Plan: 0 of TBD in current phase
-Status: Ready for phase planning
-Last activity: 2026-02-10 - Completed quick task 2: Gate all communications behind a single extension-icon kill switch that tears down and restarts the socket server
+Phase: 02.1-single-browser-bridge-session-owned-tab-model-no-active-tab-fallback-no-per-call-tabid-overrides
+Plan: 01 (Transport Stabilization)
+Status: Plan 01 complete, awaiting next plan
+Last activity: 2026-02-10 - Completed Plan 02.1-01: Transport Stabilization
 
 Progress: [███████░░░] 67%
 
@@ -32,14 +32,13 @@ Progress: [███████░░░] 67%
 | 3 | 0 | 0 min | 0 min |
 
 **Recent Trend:**
-- Last 5 plans: Phase 01 P01 (2 min, 3 tasks), Phase 01 P02 (2 min, 3 tasks), Phase 01 P03 (2 min, 3 tasks)
+- Last 5 plans: Phase 02.1-01 (2 min, 3 tasks), Phase quick P1 (3 min, 3 tasks)
 - Trend: Stable
-| Phase 01 P03 | 2 min | 3 tasks | 3 files |
-| Phase 02-interactive-selector-discovery P01 | 2min | 4 tasks | 4 files |
-| Phase 02-interactive-selector-discovery P02 | 1min | 3 tasks | 2 files |
-| Phase 02-interactive-selector-discovery P03 | 3min | 4 tasks | 0 files |
+| Phase 02.1 P01 | 2 min | 3 tasks | 2 files |
 | Phase 02-interactive-selector-discovery P04 | 2 min | 3 tasks | 3 files |
-| Phase quick P1 | 3 | 3 tasks | 9 files |
+| Phase quick P1 | 3 min | 3 tasks | 9 files |
+| Phase 02-interactive-selector-discovery P03 | 3min | 4 tasks | 0 files |
+| Phase 02-interactive-selector-discovery P02 | 1min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -67,6 +66,13 @@ Recent decisions affecting current work:
 - [Phase 02-04]: Documented standardized selector artifact JSON format for downstream procedural scraping consumption
 - [Phase 02-04]: Established 4-tier priority system for selector selection: semantic > test IDs > stable attributes > structural
 - [Phase quick]: [Quick-1] Firefox WebExtension v2 chosen for maximum compatibility
+- [Phase 02.1-01] Kill switch OFF closes the owned session tab (not just clears reference)
+- [Phase 02.1-01] Connection state logging uses standardized reasons: kill_switch, tab_closed, transport_drop, reconnect
+- [Phase 02.1-01] Server-side disconnect messages use generic 'connection lost' messaging per security guidelines
+
+### Roadmap Evolution
+
+- Phase 02.1 inserted after Phase 2: Single browser bridge + session-owned tab model (no active-tab fallback, no per-call tabId overrides) (URGENT)
 
 ### Pending Todos
 
@@ -87,6 +93,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-09 23:33
-Stopped at: Completed Plan 02-04: Selector Discovery Workflow Documentation
+Last session: 2026-02-10 08:58
+Stopped at: Completed Plan 02.1-01: Transport Stabilization
 Resume file: None
