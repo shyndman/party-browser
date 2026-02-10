@@ -3,6 +3,19 @@ import { WebSocket } from "ws";
 import type { MessagePayload, MessageType, SocketMessageMap } from "./ws-messages";
 
 /**
+ * Error with machine-readable code for MCP tool failures
+ */
+export class CodedError extends Error {
+  errorCode: string;
+
+  constructor(message: string, errorCode: string) {
+    super(message);
+    this.errorCode = errorCode;
+    this.name = "CodedError";
+  }
+}
+
+/**
  * Options for sending socket messages
  */
 interface SendOptions {
@@ -45,7 +58,7 @@ export function createSocketMessageSender<T extends SocketMessageMap>(ws: WebSoc
           if (response.id === messageId) {
             cleanup();
             if (response.error) {
-              reject(new Error(response.error));
+              reject(new CodedError(response.error, response.errorCode || "UNKNOWN_ERROR"));
             } else {
               resolve(response.result);
             }

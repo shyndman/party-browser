@@ -111,8 +111,17 @@ export async function createServerWithTools(options: Options): Promise<Server> {
       const result = await tool.handle(context, request.params.arguments);
       return result;
     } catch (error) {
+      // Include errorCode if available from CodedError
+      const errorCode = (error as Error & { errorCode?: string }).errorCode;
+      const errorMessage = String(error);
+
       return {
-        content: [{ type: "text", text: String(error) }],
+        content: [
+          {
+            type: "text",
+            text: errorCode ? `[${errorCode}] ${errorMessage}` : errorMessage,
+          },
+        ],
         isError: true,
       };
     }

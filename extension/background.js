@@ -3,6 +3,17 @@
  * Manages WebSocket server and routes commands between MCP server and content scripts
  */
 
+// Error codes for machine-readable failure reasons
+const ErrorCodes = {
+  SESSION_NOT_INITIALIZED: 'SESSION_NOT_INITIALIZED',
+  SESSION_TAB_CLOSED: 'SESSION_TAB_CLOSED',
+  EXPLICIT_TABID_NOT_SUPPORTED: 'EXPLICIT_TABID_NOT_SUPPORTED',
+  TRANSPORT_UNAVAILABLE: 'TRANSPORT_UNAVAILABLE',
+  COMMAND_FAILED: 'COMMAND_FAILED',
+  KILL_SWITCH_DISABLED: 'KILL_SWITCH_DISABLED',
+  UNKNOWN_ERROR: 'UNKNOWN_ERROR'
+};
+
 // Configuration
 const CONFIG = {
   DEFAULT_PORT: 3456,
@@ -65,13 +76,13 @@ function updateToolbarIcon() {
 async function resolveTargetTabId(params) {
   if (params && Object.prototype.hasOwnProperty.call(params, 'tabId')) {
     const error = new Error('tabId overrides are not supported. Browser MCP uses the session-owned tab.');
-    error.errorCode = 'EXPLICIT_TABID_NOT_SUPPORTED';
+    error.errorCode = ErrorCodes.EXPLICIT_TABID_NOT_SUPPORTED;
     throw error;
   }
 
   if (sessionTabId === null) {
     const error = new Error('Session not initialized. Run browser_navigate first to create a session tab.');
-    error.errorCode = 'SESSION_NOT_INITIALIZED';
+    error.errorCode = ErrorCodes.SESSION_NOT_INITIALIZED;
     throw error;
   }
 
@@ -80,7 +91,7 @@ async function resolveTargetTabId(params) {
     await browser.tabs.get(sessionTabId);
   } catch (error) {
     const err = new Error('Session tab was closed. Run browser_navigate to create a new session tab.');
-    err.errorCode = 'SESSION_TAB_CLOSED';
+    err.errorCode = ErrorCodes.SESSION_TAB_CLOSED;
     throw err;
   }
 
@@ -145,7 +156,8 @@ function startWebSocketServer(port) {
         if (!isKillSwitchEnabled) {
           wsConnection.send(JSON.stringify({
             success: false,
-            error: 'Kill switch is disabled. Click the extension icon to resume MCP communications.'
+            error: 'Kill switch is disabled. Click the extension icon to resume MCP communications.',
+            errorCode: ErrorCodes.KILL_SWITCH_DISABLED
           }));
           return;
         }
@@ -160,7 +172,8 @@ function startWebSocketServer(port) {
         if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
           wsConnection.send(JSON.stringify({
             success: false,
-            error: error.message
+            error: error.message,
+            errorCode: error.errorCode || ErrorCodes.TRANSPORT_UNAVAILABLE
           }));
         }
       }
@@ -252,7 +265,7 @@ async function handleBrowserCommand(command, params) {
     return {
       success: false,
       error: error.message,
-      errorCode: error.errorCode || 'UNKNOWN_ERROR',
+      errorCode: error.errorCode || ErrorCodes.COMMAND_FAILED,
       stack: error.stack
     };
   }
@@ -599,13 +612,18 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (!isKillSwitchEnabled) {
       sendResponse({
         success: false,
-        error: 'Kill switch is disabled. Click the extension icon to resume MCP communications.'
+        error: 'Kill switch is disabled. Click the extension icon to resume MCP communications.',
+        errorCode: ErrorCodes.KILL_SWITCH_DISABLED
       });
       return false;
     }
     handleBrowserCommand(message.command, message.params)
       .then(result => sendResponse({ success: true, result }))
-      .catch(error => sendResponse({ success: false, error: error.message }));
+      .catch(error => sendResponse({
+        success: false,
+        error: error.message,
+        errorCode: error.errorCode || ErrorCodes.COMMAND_FAILED
+      }));
     return true; // Keep channel open for async
   }
 

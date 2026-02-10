@@ -2,12 +2,13 @@ import { WebSocket } from "ws";
 
 import { mcpConfig } from "@/config/mcp.config";
 import {
+  CodedError,
   createSocketMessageSender,
 } from "@/protocol/ws-sender";
 import type { MessagePayload, MessageType } from "@/protocol/ws-messages";
 import type { SocketMessageMap } from "@/protocol/ws-messages";
 
-const noConnectionMessage = `No connection to browser extension. In order to proceed, you must first connect a tab by clicking the Browser MCP extension icon in the browser toolbar and clicking the 'Connect' button.`;
+const noConnectionMessage = `No connection to browser extension. In order to proceed, click the Browser MCP extension icon in the browser toolbar to enable communications, then retry.`;
 
 export class Context {
   private _ws: WebSocket | undefined;
