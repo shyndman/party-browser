@@ -10,11 +10,11 @@ See: `.planning/PROJECT.md` (updated 2026-02-09)
 ## Current Position
 
 Phase: 03-handoff-and-repeatable-execution-readiness
-Plan: 01 (Session-Scoped Network and Console Capture - COMPLETE)
-Status: Network and console capture infrastructure implemented with bounded ring buffers
-Last activity: 2026-02-10 - Completed Plan 03-01: Session-Scoped Network and Console Capture
+Plan: 02 (Selector Artifact Export - COMPLETE)
+Status: Selector artifact export infrastructure complete - browser_export_selectors tool generates JSON artifacts for downstream procedural scraping
+Last activity: 2026-02-10 - Completed Plan 03-02: Selector Artifact Export
 
-Progress: [██░░░░░░░░] 20%
+Progress: [██░░░░░░░░] 40%
 
 ## Performance Metrics
 
@@ -90,6 +90,10 @@ Recent decisions affecting current work:
 - [Phase 03-01]: Network capture filters by tabId to prevent cross-session leakage
 - [Phase 03-01]: Console capture preserves original descriptors with .apply() for compatibility
 - [Phase 03-01]: Automatic cleanup on tab close/transport drop ensures session isolation
+- [Phase 03-02]: Session ID generated on first navigate with timestamp + random suffix format
+- [Phase 03-02]: Selector prefix system: css:/xpath:/text:/ for explicit types, eN format for refs
+- [Phase 03-02]: Artifact format inspired by Chrome DevTools Recorder for broad compatibility
+- [Phase 03-02]: Optional console/network data bounded to last 50 entries to prevent huge artifacts
 
 ### Roadmap Evolution
 
@@ -114,6 +118,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-10 17:18
-Stopped at: Completed Plan 03-01: Session-Scoped Network and Console Capture
+Last session: 2026-02-10 17:27
+Stopped at: Completed Plan 03-02: Selector Artifact Export
 Resume file: None
