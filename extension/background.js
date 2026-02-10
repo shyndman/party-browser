@@ -196,7 +196,8 @@ function startWebSocketServer(port) {
       // Session persists across reconnects until tab is closed or kill switch triggered
       // On reconnect, sessionTabId will remain set until explicitly cleared
 
-      console.log(`[Browser MCP] Extension disconnected (reason: ${reason})`);
+      // Note: No in-flight request retry - commands will fail immediately
+      console.warn(`[Browser MCP] Extension disconnected (reason: ${reason}); pending commands will fail. Reconnecting...`);
       updateToolbarIcon();
 
       // Attempt reconnection if kill switch is still enabled
