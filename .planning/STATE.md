@@ -9,12 +9,12 @@ See: `.planning/PROJECT.md` (updated 2026-02-09)
 
 ## Current Position
 
-Phase: 02.1-single-browser-bridge-session-owned-tab-model-no-active-tab-fallback-no-per-call-tabid-overrides
-Plan: 06 (Gap 3 Fix - COMPLETE)
-Status: All Phase 02.1 gaps CLOSED - Complete machine-readable error code coverage achieved
-Last activity: 2026-02-10 - Completed Plan 02.1-06: Gap 3 Fix - Complete Machine-Readable Error Code Coverage
+Phase: 03-handoff-and-repeatable-execution-readiness
+Plan: 01 (Session-Scoped Network and Console Capture - COMPLETE)
+Status: Network and console capture infrastructure implemented with bounded ring buffers
+Last activity: 2026-02-10 - Completed Plan 03-01: Session-Scoped Network and Console Capture
 
-Progress: [██████████] 100%
+Progress: [██░░░░░░░░] 20%
 
 ## Performance Metrics
 
@@ -28,8 +28,8 @@ Progress: [██████████] 100%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1 | 3 | 6 min | 2 min |
-| 2 | 2 | 4 min | 2 min |
-| 3 | 0 | 0 min | 0 min |
+| 2 | 6 | 30 min | 5 min |
+| 3 | 1 | 4 min | 4 min |
 
 **Recent Trend:**
 - Last 5 plans: Phase 02.1-06 (2 min, 1 task, 1 file)
@@ -86,6 +86,10 @@ Recent decisions affecting current work:
 - [Phase 02.1-04]: Session ownership MUST be cleared on wsConnection.onclose to prevent auto-reuse after reconnect
 - [Phase 02.1-05]: All server error responses include machine-readable codes using CodedError class with consistent [CODE] prefix format
 - [Phase 02.1-06]: Plain Error throws receive INTERNAL_TOOL_ERROR fallback code to guarantee [CODE] prefix on ALL tool execution errors
+- [Phase 03-01]: Ring buffer size of 1000 entries prevents memory exhaustion
+- [Phase 03-01]: Network capture filters by tabId to prevent cross-session leakage
+- [Phase 03-01]: Console capture preserves original descriptors with .apply() for compatibility
+- [Phase 03-01]: Automatic cleanup on tab close/transport drop ensures session isolation
 
 ### Roadmap Evolution
 
@@ -110,6 +114,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-10 10:00
-Stopped at: Completed Plan 02.1-06: Gap 3 Fix - Complete Machine-Readable Error Code Coverage
+Last session: 2026-02-10 17:18
+Stopped at: Completed Plan 03-01: Session-Scoped Network and Console Capture
 Resume file: None
