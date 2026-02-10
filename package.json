@@ -20,6 +20,7 @@
     "inspector": "CLIENT_PORT=9001 SERVER_PORT=9002 pnpx @modelcontextprotocol/inspector node dist/index.js",
     "smoke": "npm run build && node scripts/smoke-list-tools.mjs",
     "smoke:tools": "node scripts/smoke-list-tools.mjs",
+    "test:startup": "npm run build && node scripts/test-startup-reliability.mjs",
     "build:xpi": "node scripts/build-xpi.mjs",
     "build:all": "npm run build && npm run build:xpi"
   },
