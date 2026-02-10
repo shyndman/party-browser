@@ -32,6 +32,7 @@ let reconnectAttempts = 0;
 let reconnectTimer = null;
 let wsConnection = null; // Track WebSocket connection for kill switch
 let isKillSwitchEnabled = true; // Kill switch state (default: enabled)
+let sessionTabId = null; // Bound tab for current MCP session
 
 /**
  * Initialize the extension
@@ -58,6 +59,34 @@ function updateToolbarIcon() {
 }
 
 /**
+ * Resolve target tab for MCP commands (session-bound only)
+ */
+function resolveTargetTabId(params) {
+  if (params && Object.prototype.hasOwnProperty.call(params, 'tabId')) {
+    throw new Error('tabId overrides are not supported. Browser MCP uses the bound session tab.');
+  }
+
+  if (!sessionTabId) {
+    throw new Error('Session tab unavailable. Reconnect Browser MCP while focused on the tab you want to control.');
+  }
+
+  return sessionTabId;
+}
+
+/**
+ * Bind current active tab to this MCP session
+ */
+async function bindSessionTab() {
+  const activeTab = await getActiveTab();
+  if (!activeTab || !activeTab.id) {
+    throw new Error('No active tab found to bind Browser MCP session.');
+  }
+
+  sessionTabId = activeTab.id;
+  console.log(`[Browser MCP] Session tab bound: ${sessionTabId}`);
+}
+
+/**
  * Load configured port from storage
  */
 async function loadPortFromStorage() {
@@ -74,6 +103,12 @@ async function loadPortFromStorage() {
  * Start the WebSocket server (connect to MCP server)
  */
 function startWebSocketServer(port) {
+  // Clear any pending reconnect timer before checking state
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+
   if (isServerRunning) {
     console.log('[Browser MCP] Server already running');
     return;
@@ -91,10 +126,16 @@ function startWebSocketServer(port) {
     // Connect to MCP server WebSocket
     wsConnection = new WebSocket(`ws://localhost:${port}`);
 
-    wsConnection.onopen = () => {
-      console.log('[Browser MCP] Connected to MCP server');
+    wsConnection.onopen = async () => {
+      console.log('[Browser MCP] Extension connected to MCP server');
       isServerRunning = true;
       reconnectAttempts = 0;
+      try {
+        await bindSessionTab();
+      } catch (error) {
+        sessionTabId = null;
+        console.error('[Browser MCP] Failed to bind session tab:', error);
+      }
       updateToolbarIcon();
     };
 
@@ -129,9 +170,24 @@ function startWebSocketServer(port) {
     };
 
     wsConnection.onclose = () => {
-      console.log('[Browser MCP] WebSocket connection closed');
+      const wasConnected = isServerRunning;
       isServerRunning = false;
       wsConnection = null;
+
+      // Determine reason for disconnection
+      let reason = 'transport_drop';
+      if (!isKillSwitchEnabled) {
+        reason = 'kill_switch';
+      } else if (reconnectAttempts > 0) {
+        reason = 'reconnect';
+      }
+
+      if (sessionTabId !== null) {
+        console.log(`[Browser MCP] Session ownership cleared (reason: ${reason})`);
+        sessionTabId = null;
+      }
+
+      console.log(`[Browser MCP] Extension disconnected (reason: ${reason})`);
       updateToolbarIcon();
 
       // Attempt reconnection if kill switch is still enabled
@@ -205,8 +261,8 @@ async function handleBrowserCommand(command, params) {
  * Navigate to URL
  */
 async function handleNavigate(params) {
-  const { url, tabId } = params;
-  const targetTabId = tabId || (await getActiveTab()).id;
+  const { url } = params;
+  const targetTabId = resolveTargetTabId(params);
 
   await browser.tabs.update(targetTabId, { url });
   await waitForTabLoad(targetTabId);
@@ -218,8 +274,8 @@ async function handleNavigate(params) {
  * Click element
  */
 async function handleClick(params) {
-  const { element, tabId } = params;
-  const targetTabId = tabId || (await getActiveTab()).id;
+  const { element } = params;
+  const targetTabId = resolveTargetTabId(params);
 
   const results = await browser.tabs.sendMessage(targetTabId, {
     type: 'executeCommand',
@@ -234,8 +290,8 @@ async function handleClick(params) {
  * Type text into element
  */
 async function handleType(params) {
-  const { element, value, tabId } = params;
-  const targetTabId = tabId || (await getActiveTab()).id;
+  const { element, value } = params;
+  const targetTabId = resolveTargetTabId(params);
 
   const results = await browser.tabs.sendMessage(targetTabId, {
     type: 'executeCommand',
@@ -250,8 +306,8 @@ async function handleType(params) {
  * Execute JavaScript
  */
 async function handleEvaluate(params) {
-  const { script, tabId } = params;
-  const targetTabId = tabId || (await getActiveTab()).id;
+  const { script } = params;
+  const targetTabId = resolveTargetTabId(params);
 
   const results = await browser.tabs.sendMessage(targetTabId, {
     type: 'executeCommand',
@@ -266,8 +322,7 @@ async function handleEvaluate(params) {
  * Take screenshot
  */
 async function handleScreenshot(params) {
-  const { tabId } = params;
-  const targetTabId = tabId || (await getActiveTab()).id;
+  const targetTabId = resolveTargetTabId(params);
 
   const screenshot = await browser.tabs.captureTab(targetTabId, {
     format: 'png'
@@ -280,8 +335,7 @@ async function handleScreenshot(params) {
  * Get page snapshot (accessibility tree)
  */
 async function handleSnapshot(params) {
-  const { tabId } = params;
-  const targetTabId = tabId || (await getActiveTab()).id;
+  const targetTabId = resolveTargetTabId(params);
 
   const results = await browser.tabs.sendMessage(targetTabId, {
     type: 'executeCommand',
@@ -295,8 +349,8 @@ async function handleSnapshot(params) {
  * Select option from dropdown
  */
 async function handleSelectOption(params) {
-  const { element, value, tabId } = params;
-  const targetTabId = tabId || (await getActiveTab()).id;
+  const { element, value } = params;
+  const targetTabId = resolveTargetTabId(params);
 
   const results = await browser.tabs.sendMessage(targetTabId, {
     type: 'executeCommand',
@@ -364,24 +418,47 @@ function waitForTabLoad(tabId) {
 /**
  * Stop the WebSocket server (kill switch off)
  */
-function stopWebSocketServer() {
+async function stopWebSocketServer(reason = 'kill_switch') {
+  // Clear all timers first
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
   }
 
+  // Close WebSocket connection with defensive checks
   if (wsConnection) {
     try {
-      wsConnection.close();
+      if (wsConnection.readyState === WebSocket.OPEN || wsConnection.readyState === WebSocket.CONNECTING) {
+        wsConnection.close();
+      }
     } catch (error) {
       console.error('[Browser MCP] Error closing WebSocket:', error);
     }
     wsConnection = null;
   }
+
+  // Close session-owned tab if it exists
+  if (sessionTabId !== null) {
+    try {
+      await browser.tabs.remove(sessionTabId);
+      console.log(`[Browser MCP] Session tab closed (reason: ${reason})`);
+    } catch (error) {
+      // Tab may already be closed or no longer exist
+      console.log(`[Browser MCP] Session tab already closed or unavailable`);
+    }
+  }
+
+  // Reset all state
   isServerRunning = false;
   reconnectAttempts = 0;
+  const clearedTabId = sessionTabId;
+  sessionTabId = null;
   updateToolbarIcon();
-  console.log('[Browser MCP] WebSocket server stopped (kill switch)');
+
+  if (clearedTabId !== null) {
+    console.log(`[Browser MCP] Session ownership cleared (reason: ${reason})`);
+  }
+  console.log('[Browser MCP] Server stopped and session cleaned up');
 }
 
 /**
@@ -392,7 +469,7 @@ async function toggleKillSwitch() {
   console.log('[Browser MCP] Kill switch toggled:', isKillSwitchEnabled ? 'ENABLED' : 'DISABLED');
 
   if (!isKillSwitchEnabled) {
-    stopWebSocketServer();
+    await stopWebSocketServer('kill_switch');
     return { isEnabled: isKillSwitchEnabled };
   }
 
@@ -427,7 +504,8 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({
       isServerRunning,
       reconnectAttempts,
-      isKillSwitchEnabled
+      isKillSwitchEnabled,
+      sessionTabId
     });
     return false;
   }
@@ -460,6 +538,14 @@ browser.runtime.onInstalled.addListener((details) => {
 
 // Initialize on startup
 init();
+
+browser.tabs.onRemoved.addListener((removedTabId) => {
+  if (sessionTabId === removedTabId) {
+    console.log(`[Browser MCP] Session ownership cleared (reason: tab_closed)`);
+    console.warn('[Browser MCP] Session tab closed; clearing session binding');
+    sessionTabId = null;
+  }
+});
 
 browser.browserAction.onClicked.addListener(() => {
   toggleKillSwitch().catch((error) => {
