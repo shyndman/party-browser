@@ -95,6 +95,18 @@ let isKillSwitchEnabled = true; // Kill switch state (default: enabled)
 let sessionTabId = null; // Bound tab for current MCP session
 let sessionTabClosed = false; // Flag to track if session tab was closed
 
+// Session-scoped network and console capture (Phase 03.1)
+const MAX_LOG_SIZE = 1000; // Maximum entries per session (ring buffer)
+
+// Map to store network request data per session (key: sessionTabId, value: array of request objects)
+const sessionNetworkLogs = new Map();
+
+// Track active network capture listener
+let networkCaptureListener = null;
+
+// Map to store console logs per session
+const sessionConsoleLogs = new Map();
+
 /**
  * Initialize the extension
  */
@@ -104,6 +116,191 @@ function init() {
   loadPortFromStorage().then(port => {
     startWebSocketServer(port);
   });
+}
+
+// ============================================================
+// SESSION-SCOPED NETWORK CAPTURE (Phase 03.1)
+// ============================================================
+
+/**
+ * Start network capture for a specific tab/session
+ * Uses webRequest API to capture network activity
+ * @param {number} tabId - The session tab ID to capture
+ */
+function startNetworkCapture(tabId) {
+  // Stop any existing capture first
+  stopNetworkCapture();
+
+  console.log(`[Browser MCP] Starting network capture for tab ${tabId}`);
+
+  // Initialize log storage for this session
+  sessionNetworkLogs.set(tabId, []);
+
+  // Capture request started
+  const onBeforeRequest = (details) => {
+    if (details.tabId !== tabId) return;
+
+    const logs = sessionNetworkLogs.get(tabId);
+    if (!logs) return;
+
+    // Create request entry
+    const requestEntry = {
+      requestId: details.requestId,
+      url: details.url,
+      method: details.method,
+      type: details.type,
+      timestamp: details.timeStamp,
+      requestBody: details.requestBody || null,
+      statusCode: null,
+      responseHeaders: null,
+      error: null
+    };
+
+    // Add to buffer with ring buffer behavior
+    logs.push(requestEntry);
+    if (logs.length > MAX_LOG_SIZE) {
+      logs.shift(); // Remove oldest entry
+    }
+  };
+
+  // Capture request completed
+  const onCompleted = (details) => {
+    if (details.tabId !== tabId) return;
+
+    const logs = sessionNetworkLogs.get(tabId);
+    if (!logs) return;
+
+    // Find and update the request entry
+    const entry = logs.find(r => r.requestId === details.requestId);
+    if (entry) {
+      entry.statusCode = details.statusCode;
+      entry.responseHeaders = details.responseHeaders;
+    }
+  };
+
+  // Capture request errors
+  const onErrorOccurred = (details) => {
+    if (details.tabId !== tabId) return;
+
+    const logs = sessionNetworkLogs.get(tabId);
+    if (!logs) return;
+
+    // Find and update the request entry
+    const entry = logs.find(r => r.requestId === details.requestId);
+    if (entry) {
+      entry.error = details.error;
+    }
+  };
+
+  // Register listeners
+  browser.webRequest.onBeforeRequest.addListener(
+    onBeforeRequest,
+    { urls: ['<all_urls>'], tabId },
+    ['requestBody']
+  );
+
+  browser.webRequest.onCompleted.addListener(
+    onCompleted,
+    { urls: ['<all_urls>'], tabId },
+    ['responseHeaders']
+  );
+
+  browser.webRequest.onErrorOccurred.addListener(
+    onErrorOccurred,
+    { urls: ['<all_urls>'], tabId }
+  );
+
+  // Store references for cleanup
+  networkCaptureListener = {
+    tabId,
+    onBeforeRequest,
+    onCompleted,
+    onErrorOccurred
+  };
+}
+
+/**
+ * Stop network capture and clear listeners
+ */
+function stopNetworkCapture() {
+  if (networkCaptureListener) {
+    const { onBeforeRequest, onCompleted, onErrorOccurred } = networkCaptureListener;
+
+    try {
+      browser.webRequest.onBeforeRequest.removeListener(onBeforeRequest);
+    } catch (e) {
+      // Listener may not exist
+    }
+
+    try {
+      browser.webRequest.onCompleted.removeListener(onCompleted);
+    } catch (e) {
+      // Listener may not exist
+    }
+
+    try {
+      browser.webRequest.onErrorOccurred.removeListener(onErrorOccurred);
+    } catch (e) {
+      // Listener may not exist
+    }
+
+    console.log(`[Browser MCP] Stopped network capture for tab ${networkCaptureListener.tabId}`);
+    networkCaptureListener = null;
+  }
+}
+
+/**
+ * Clear session network logs
+ * @param {number} tabId - The session tab ID
+ */
+function clearSessionNetworkLogs(tabId) {
+  if (tabId !== null) {
+    sessionNetworkLogs.delete(tabId);
+  }
+  // Clear all if no specific tab (full cleanup)
+  if (tabId === undefined) {
+    sessionNetworkLogs.clear();
+  }
+}
+
+/**
+ * Get network requests for current session
+ * @param {Object} filter - Optional filter { types: string[], urlPattern: string }
+ * @returns {Array} Filtered network request logs
+ */
+function getSessionNetworkRequests(filter = {}) {
+  if (sessionTabId === null) {
+    return [];
+  }
+
+  let logs = sessionNetworkLogs.get(sessionTabId) || [];
+
+  // Apply type filter
+  if (filter.types && filter.types.length > 0) {
+    logs = logs.filter(r => filter.types.includes(r.type));
+  }
+
+  // Apply URL pattern filter (simple substring match)
+  if (filter.urlPattern) {
+    const pattern = filter.urlPattern.toLowerCase();
+    logs = logs.filter(r => r.url.toLowerCase().includes(pattern));
+  }
+
+  return logs;
+}
+
+/**
+ * Clear session console logs
+ * @param {number} tabId - The session tab ID
+ */
+function clearSessionConsoleLogs(tabId) {
+  if (tabId !== null) {
+    sessionConsoleLogs.delete(tabId);
+  }
+  // Clear all if no specific tab (full cleanup)
+  if (tabId === undefined) {
+    sessionConsoleLogs.clear();
+  }
 }
 
 /**
@@ -311,6 +508,12 @@ async function handleBrowserCommand(command, params) {
       case 'getTabs':
         return await handleGetTabs();
 
+      case 'getNetworkRequests':
+        return await handleGetNetworkRequests(params);
+
+      case 'getConsoleMessages':
+        return await handleGetConsoleMessages(params);
+
       default:
         throw new Error(`Unknown command: ${command}`);
     }
@@ -419,6 +622,9 @@ async function handleNavigate(params) {
     // sessionMetadata.set(sessionId, { createdAt: Date.now(), initialUrl: url });
 
     console.log(`[Browser MCP] Session tab created: ${sessionTabId}`);
+
+    // Start network capture for this session
+    startNetworkCapture(sessionTabId);
   } else {
     // Subsequent navigate: reuse existing session tab
     targetTabId = sessionTabId;
@@ -565,6 +771,76 @@ async function handleGetTabs() {
 }
 
 /**
+ * Get network requests for current session
+ */
+async function handleGetNetworkRequests(params = {}) {
+  const targetTabId = await resolveTargetTabId(params);
+
+  // Get filtered network logs
+  const { filter } = params;
+  const logs = getSessionNetworkRequests(filter);
+
+  // Format response
+  const formatted = logs.map(r => ({
+    id: r.requestId,
+    url: r.url,
+    method: r.method,
+    type: r.type,
+    status: r.statusCode,
+    timestamp: r.timestamp,
+    error: r.error
+  }));
+
+  return {
+    success: true,
+    count: formatted.length,
+    requests: formatted
+  };
+}
+
+/**
+ * Get console messages for current session
+ */
+async function handleGetConsoleMessages(params = {}) {
+  const targetTabId = await resolveTargetTabId(params);
+
+  // Request logs from content script
+  let logs = [];
+  try {
+    const response = await browser.tabs.sendMessage(targetTabId, {
+      type: 'getConsoleLogs',
+      clear: false
+    });
+    if (response && response.success) {
+      logs = response.logs || [];
+    }
+  } catch (error) {
+    console.log('[Browser MCP] Content script not available for console logs:', error.message);
+  }
+
+  // Apply level filter
+  if (params.level && params.level !== 'all') {
+    logs = logs.filter(l => l.level === params.level);
+  }
+
+  // Apply time filter (since timestamp)
+  if (params.since) {
+    logs = logs.filter(l => l.timestamp >= params.since);
+  }
+
+  return {
+    success: true,
+    count: logs.length,
+    logs: logs.map(l => ({
+      level: l.level,
+      message: l.message,
+      timestamp: l.timestamp,
+      stack: l.stack
+    }))
+  };
+}
+
+/**
  * Get active tab
  */
 async function getActiveTab() {
@@ -628,6 +904,11 @@ async function stopWebSocketServer(reason = 'kill_switch') {
       console.log(`[Browser MCP] Session tab already closed or unavailable`);
     }
   }
+
+  // Stop network capture and clear logs
+  stopNetworkCapture();
+  clearSessionNetworkLogs(sessionTabId);
+  clearSessionConsoleLogs(sessionTabId);
 
   // Reset all state
   // Session ownership cleared on kill switch - requires fresh navigate to re-establish
@@ -731,6 +1012,12 @@ browser.tabs.onRemoved.addListener((removedTabId) => {
     // Session ownership cleared on tab close - requires fresh navigate to establish new session
     console.log(`[Browser MCP] Session ownership cleared (reason: tab_closed)`);
     console.warn('[Browser MCP] Session tab closed; clearing session binding');
+    
+    // Stop capture and clear logs for this session
+    stopNetworkCapture();
+    clearSessionNetworkLogs(sessionTabId);
+    clearSessionConsoleLogs(sessionTabId);
+    
     sessionTabId = null;
     sessionTabClosed = true;
 
