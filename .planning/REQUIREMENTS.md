@@ -28,7 +28,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **DISC-02**: User can evaluate JavaScript for controlled page/element inspection via `browser_evaluate`.
 - [ ] **DISC-03**: User can inspect captured network activity via `browser_network_requests`.
 - [ ] **DISC-04**: User can inspect browser console output via `browser_console_messages`.
-- [ ] **DISC-05**: User can capture page screenshots for visual verification via `browser_take_screenshot`.
+- [ ] **DISC-05**: User can capture page screenshots for visual verification via `browser_screenshot`.
 
 ### Pre-Scraping Workflow
 

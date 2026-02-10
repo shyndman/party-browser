@@ -17,7 +17,7 @@ An LLM can consistently derive actionable selectors from live page context so do
 ### Active
 
 - [ ] Get this repository running locally in a reproducible way despite current dependency/friction points.
-- [ ] Expose a critical pre-scraping MCP toolset compatible with Playwright-MCP-style usage (`navigate`, `wait_for`, `snapshot`, `click`, `type`, `select_option`, `press_key`, `evaluate`, `network_requests`, `take_screenshot`, `console_messages`, `close`).
+- [ ] Expose a critical pre-scraping MCP toolset compatible with Playwright-MCP-style usage (`navigate`, `wait_for`, `snapshot`, `click`, `type`, `select_option`, `press_key`, `evaluate`, `network_requests`, `screenshot`, `console_messages`, `close`).
 - [ ] Enable a practical two-stage scraping workflow: LLM selector discovery first, procedural extraction second.
 - [ ] Keep tool semantics deterministic and automation-safe for repeated scraping runs.
 
