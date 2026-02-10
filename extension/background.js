@@ -630,6 +630,7 @@ async function stopWebSocketServer(reason = 'kill_switch') {
   }
 
   // Reset all state
+  // Session ownership cleared on kill switch - requires fresh navigate to re-establish
   isServerRunning = false;
   reconnectAttempts = 0;
   const clearedTabId = sessionTabId;
@@ -727,6 +728,7 @@ init();
 
 browser.tabs.onRemoved.addListener((removedTabId) => {
   if (sessionTabId === removedTabId) {
+    // Session ownership cleared on tab close - requires fresh navigate to establish new session
     console.log(`[Browser MCP] Session ownership cleared (reason: tab_closed)`);
     console.warn('[Browser MCP] Session tab closed; clearing session binding');
     sessionTabId = null;
