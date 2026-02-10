@@ -37,6 +37,15 @@ export interface SocketMessageMap {
   // Session management messages
   browser_close: Record<string, never>;
 
+  // Network and console inspection messages (Phase 03.1)
+  browser_get_network_requests: {
+    filter?: { types?: string[]; urlPattern?: string };
+  };
+  browser_get_console_messages: {
+    level?: "all" | "log" | "warn" | "error";
+    since?: number;
+  };
+
   // Page state messages
   getUrl: undefined;
   getTitle: undefined;

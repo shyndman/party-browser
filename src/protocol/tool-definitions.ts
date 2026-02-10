@@ -191,3 +191,48 @@ export const EvaluateTool = z.object({
 });
 
 export type EvaluateTool = z.infer<typeof EvaluateTool>;
+
+// NetworkRequests tool - get captured network requests for current session
+export const NetworkRequestsTool = z.object({
+  name: z.literal("browser_network_requests"),
+  description: z.literal(
+    "Get network requests captured during the current browser session"
+  ),
+  arguments: z.object({
+    filter: z
+      .object({
+        types: z
+          .array(z.string())
+          .optional()
+          .describe("Filter by request types (e.g., 'main_frame', 'script', 'xhr')"),
+        urlPattern: z
+          .string()
+          .optional()
+          .describe("Filter URLs containing this substring"),
+      })
+      .optional()
+      .describe("Optional filters for network requests"),
+  }),
+});
+
+export type NetworkRequestsTool = z.infer<typeof NetworkRequestsTool>;
+
+// ConsoleMessages tool - get captured console messages for current session
+export const ConsoleMessagesTool = z.object({
+  name: z.literal("browser_console_messages"),
+  description: z.literal(
+    "Get console messages captured during the current browser session"
+  ),
+  arguments: z.object({
+    level: z
+      .enum(["all", "log", "warn", "error"])
+      .optional()
+      .describe("Filter by log level (default: 'all')"),
+    since: z
+      .number()
+      .optional()
+      .describe("Only return logs after this timestamp (Unix ms)"),
+  }),
+});
+
+export type ConsoleMessagesTool = z.infer<typeof ConsoleMessagesTool>;
