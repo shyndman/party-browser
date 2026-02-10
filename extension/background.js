@@ -240,14 +240,73 @@ async function handleBrowserCommand(command, params) {
 }
 
 /**
- * Navigate to URL
+ * Create a new session-owned tab at about:blank in background
+ */
+async function createSessionTab() {
+  // Create tab in background (active: false)
+  const tab = await browser.tabs.create({
+    url: 'about:blank',
+    active: false
+  });
+
+  // Wait for the tab to finish loading
+  await waitForTabLoad(tab.id);
+
+  // Set initial title prefix
+  try {
+    await browser.tabs.executeScript(tab.id, {
+      code: `document.title = 'OC | Browser MCP Session'`
+    });
+  } catch (error) {
+    // Title setting may fail in some contexts; non-critical
+    console.log('[Browser MCP] Could not set initial tab title:', error.message);
+  }
+
+  return tab.id;
+}
+
+/**
+ * Navigate to URL - creates session tab on first navigate, reuses on subsequent
  */
 async function handleNavigate(params) {
   const { url } = params;
-  const targetTabId = resolveTargetTabId(params);
 
+  let targetTabId;
+
+  if (sessionTabId === null) {
+    // First navigate: create session tab at about:blank in background
+    console.log('[Browser MCP] First navigate: creating session tab at about:blank');
+    targetTabId = await createSessionTab();
+    sessionTabId = targetTabId;
+    console.log(`[Browser MCP] Session tab created: ${sessionTabId}`);
+  } else {
+    // Subsequent navigate: reuse existing session tab
+    targetTabId = sessionTabId;
+
+    // Verify the tab still exists
+    try {
+      await browser.tabs.get(targetTabId);
+    } catch (error) {
+      // Tab was closed
+      console.log('[Browser MCP] Prior session tab closed; creating new session tab');
+      targetTabId = await createSessionTab();
+      sessionTabId = targetTabId;
+    }
+  }
+
+  // Navigate to the target URL
   await browser.tabs.update(targetTabId, { url });
   await waitForTabLoad(targetTabId);
+
+  // Update title with page title prefixed
+  try {
+    await browser.tabs.executeScript(targetTabId, {
+      code: `document.title = 'OC | ' + document.title`
+    });
+  } catch (error) {
+    // Title setting may fail; non-critical
+    console.log('[Browser MCP] Could not update tab title:', error.message);
+  }
 
   return { success: true, url, tabId: targetTabId };
 }
