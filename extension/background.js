@@ -94,6 +94,8 @@ let wsConnection = null; // Track WebSocket connection for kill switch
 let isKillSwitchEnabled = true; // Kill switch state (default: enabled)
 let sessionTabId = null; // Bound tab for current MCP session
 let sessionTabClosed = false; // Flag to track if session tab was closed
+let sessionId = null; // Unique session identifier
+let sessionStartTime = null; // When session started (for duration calculation)
 
 // Session-scoped network and console capture (Phase 03.1)
 const MAX_LOG_SIZE = 1000; // Maximum entries per session (ring buffer)
@@ -442,6 +444,8 @@ function startWebSocketServer(port) {
       // Per locked decision: session is NOT auto-reused after reconnect
       const clearedTabId = sessionTabId;
       sessionTabId = null;
+      sessionId = null;
+      sessionStartTime = null;
       if (clearedTabId !== null) {
         console.log(`[Browser MCP] Session ownership cleared (reason: ${reason})`);
       }
@@ -513,6 +517,9 @@ async function handleBrowserCommand(command, params) {
 
       case 'getConsoleMessages':
         return await handleGetConsoleMessages(params);
+
+      case 'export_selectors':
+        return await handleExportSelectors(params);
 
       default:
         throw new Error(`Unknown command: ${command}`);
@@ -617,9 +624,10 @@ async function handleNavigate(params) {
     sessionTabId = targetTabId;
     sessionTabClosed = false; // Clear the closure flag
 
-    // TODO(Phase3): Generate session ID here
-    // const sessionId = generateSessionId();
-    // sessionMetadata.set(sessionId, { createdAt: Date.now(), initialUrl: url });
+    // Generate session ID on first navigate (Phase 03.2)
+    sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    sessionStartTime = Date.now();
+    console.log(`[Browser MCP] Session started: ${sessionId}`);
 
     console.log(`[Browser MCP] Session tab created: ${sessionTabId}`);
 
@@ -841,6 +849,207 @@ async function handleGetConsoleMessages(params = {}) {
 }
 
 /**
+ * Export selectors as JSON artifact
+ */
+async function handleExportSelectors(params) {
+  // Check if session exists
+  if (!sessionId) {
+    return {
+      success: false,
+      error: 'Session not initialized. Run browser_navigate first to create a session.',
+      errorCode: ErrorCodes.SESSION_NOT_INITIALIZED
+    };
+  }
+
+  const targetTabId = await resolveTargetTabId(params);
+
+  const {
+    name,
+    steps,
+    includeMetadata = true,
+    includeConsole = false,
+    includeNetwork = false
+  } = params;
+
+  // Validate name
+  if (!name || typeof name !== 'string') {
+    return {
+      success: false,
+      error: 'Name parameter is required',
+      errorCode: ErrorCodes.COMMAND_FAILED
+    };
+  }
+
+  // Sanitize name for filename use
+  const sanitizedName = name.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 50);
+
+  // Get current URL for initialUrl
+  let initialUrl = '';
+  try {
+    const tab = await browser.tabs.get(targetTabId);
+    initialUrl = tab.url || '';
+  } catch (error) {
+    console.log('[Browser MCP] Could not get tab URL:', error.message);
+  }
+
+  // Map input steps to SelectorStep format
+  const mappedSteps = steps.map((step, index) => {
+    const baseStep = {
+      type: step.action,
+      description: step.description || `${step.action} step ${index + 1}`
+    };
+
+    switch (step.action) {
+      case 'navigate':
+        return {
+          ...baseStep,
+          url: step.value || step.target || initialUrl
+        };
+
+      case 'click':
+        return {
+          ...baseStep,
+          selectors: [parseSelector(step.target)]
+        };
+
+      case 'type':
+        return {
+          ...baseStep,
+          selectors: [parseSelector(step.target)],
+          value: step.value || ''
+        };
+
+      case 'select':
+        return {
+          ...baseStep,
+          selectors: [parseSelector(step.target)],
+          option: step.value || ''
+        };
+
+      case 'wait':
+        // Wait can be time-based (numeric) or selector-based
+        const isTimeBased = step.value && !isNaN(parseInt(step.value));
+        return {
+          ...baseStep,
+          mode: isTimeBased ? 'time' : 'selector',
+          value: isTimeBased ? parseInt(step.value) : (step.target || step.value || '')
+        };
+
+      case 'extract':
+        return {
+          ...baseStep,
+          name: step.target || `extract_${index}`,
+          selectors: [parseSelector(step.target)]
+        };
+
+      default:
+        return baseStep;
+    }
+  });
+
+  // Calculate session duration
+  const sessionDuration = sessionStartTime ? Date.now() - sessionStartTime : 0;
+
+  // Aggregate metadata
+  const networkLogs = sessionNetworkLogs.get(targetTabId) || [];
+  const consoleLogs = sessionConsoleLogs.get(targetTabId) || [];
+
+  const metadata = {
+    networkRequestCount: networkLogs.length,
+    consoleErrorCount: consoleLogs.filter(l => l.level === 'error').length,
+    consoleWarnCount: consoleLogs.filter(l => l.level === 'warn').length,
+    sessionDuration
+  };
+
+  // Build artifact
+  const artifact = {
+    version: '1.0',
+    title: sanitizedName,
+    createdAt: new Date().toISOString(),
+    sessionId,
+    initialUrl,
+    steps: mappedSteps,
+    metadata
+  };
+
+  // Optionally include recent console logs (last 50)
+  if (includeConsole && consoleLogs.length > 0) {
+    artifact.console = consoleLogs.slice(-50).map(l => ({
+      level: l.level,
+      message: l.message,
+      timestamp: l.timestamp,
+      stack: l.stack
+    }));
+  }
+
+  // Optionally include recent network requests (last 50)
+  if (includeNetwork && networkLogs.length > 0) {
+    artifact.network = networkLogs.slice(-50).map(r => ({
+      requestId: r.requestId,
+      url: r.url,
+      method: r.method,
+      type: r.type,
+      timestamp: r.timestamp,
+      statusCode: r.statusCode,
+      error: r.error
+    }));
+  }
+
+  console.log(`[Browser MCP] Exported artifact: ${sanitizedName} (${mappedSteps.length} steps)`);
+
+  return {
+    success: true,
+    artifact
+  };
+}
+
+/**
+ * Parse a selector string into SelectorDefinition format
+ * Supports prefixes: css:, xpath:, text:, and eN (element ref) format
+ */
+function parseSelector(target) {
+  if (!target) {
+    return { type: 'text', value: '' };
+  }
+
+  // Check for prefixes
+  if (target.startsWith('css:')) {
+    return {
+      type: 'css',
+      value: target.slice(4)
+    };
+  }
+
+  if (target.startsWith('xpath:')) {
+    return {
+      type: 'xpath',
+      value: target.slice(6)
+    };
+  }
+
+  if (target.startsWith('text:')) {
+    return {
+      type: 'text',
+      value: target.slice(5)
+    };
+  }
+
+  // Check for element ref format (e.g., "e12", "42")
+  if (/^e?\d+$/.test(target)) {
+    return {
+      type: 'ref',
+      value: target.startsWith('e') ? target : `e${target}`
+    };
+  }
+
+  // Default to text matching
+  return {
+    type: 'text',
+    value: target
+  };
+}
+
+/**
  * Get active tab
  */
 async function getActiveTab() {
@@ -916,6 +1125,8 @@ async function stopWebSocketServer(reason = 'kill_switch') {
   reconnectAttempts = 0;
   const clearedTabId = sessionTabId;
   sessionTabId = null;
+  sessionId = null;
+  sessionStartTime = null;
   updateToolbarIcon();
 
   if (clearedTabId !== null) {
@@ -1020,6 +1231,8 @@ browser.tabs.onRemoved.addListener((removedTabId) => {
     
     sessionTabId = null;
     sessionTabClosed = true;
+    sessionId = null;
+    sessionStartTime = null;
 
     // Notify MCP server if connection is active
     if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
