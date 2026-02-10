@@ -38,6 +38,17 @@ export async function createServerWithTools(options: Options): Promise<Server> {
       context.ws.close();
     }
     context.ws = websocket;
+
+    // Handle WebSocket disconnect gracefully
+    websocket.on("close", () => {
+      console.log("Extension disconnected (kill switch or browser closed)");
+      context.ws = undefined;
+    });
+
+    websocket.on("error", (error) => {
+      console.error("WebSocket error:", error);
+      context.ws = undefined;
+    });
   });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
