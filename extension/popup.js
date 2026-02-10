@@ -14,9 +14,41 @@ async function init() {
   // Set up event listeners
   document.getElementById('refresh-btn').addEventListener('click', refreshStatus);
   document.getElementById('docs-btn').addEventListener('click', openDocs);
+  document.getElementById('kill-switch-btn').addEventListener('click', toggleKillSwitch);
 
   // Load initial status
   await refreshStatus();
+}
+
+/**
+ * Toggle kill switch
+ */
+async function toggleKillSwitch() {
+  const btn = document.getElementById('kill-switch-btn');
+  btn.disabled = true;
+
+  try {
+    const response = await browser.runtime.sendMessage({ type: 'toggleKillSwitch' });
+    updateKillSwitchUI(response.isEnabled);
+  } catch (error) {
+    console.error('[Browser MCP] Failed to toggle kill switch:', error);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/**
+ * Update kill switch UI based on state
+ */
+function updateKillSwitchUI(isEnabled) {
+  const btn = document.getElementById('kill-switch-btn');
+  if (isEnabled) {
+    btn.textContent = 'Enabled';
+    btn.className = 'kill-switch-btn enabled';
+  } else {
+    btn.textContent = 'Disabled';
+    btn.className = 'kill-switch-btn disabled';
+  }
 }
 
 /**
@@ -38,15 +70,18 @@ async function refreshStatus() {
     const status = await browser.runtime.sendMessage({ type: 'getStatus' });
 
     // Update server status
-    if (status.isServerRunning) {
+    if (status.isServerRunning && status.isKillSwitchEnabled) {
       serverTextEl.textContent = 'Connected';
       serverDotEl.className = 'status-dot connected';
       serverStatusEl.className = 'status-value connected';
     } else {
-      serverTextEl.textContent = 'Disconnected';
+      serverTextEl.textContent = status.isKillSwitchEnabled ? 'Disconnected' : 'Paused';
       serverDotEl.className = 'status-dot disconnected';
       serverStatusEl.className = 'status-value disconnected';
     }
+
+    // Update kill switch UI
+    updateKillSwitchUI(status.isKillSwitchEnabled);
 
     // Get tab count
     const tabs = await browser.tabs.query({});
