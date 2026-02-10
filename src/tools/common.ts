@@ -121,15 +121,58 @@ export const pressKey: Tool = {
   },
 };
 
+// Unified schema for browser_wait_for - compatible with strict MCP validators
+// Uses consistent field structure across all modes with runtime validation
+const waitForInputSchema = {
+  type: "object",
+  properties: {
+    mode: {
+      type: "string",
+      enum: ["time", "text", "text_gone"],
+      description: "Wait mode: fixed time, text appears, or text disappears",
+    },
+    value: {
+      oneOf: [
+        { type: "number", description: "Time to wait in seconds (for mode=time)" },
+        { type: "string", description: "Text to wait for (for mode=text or text_gone)" },
+      ],
+      description:
+        "For mode=time use a number (seconds). For text/text_gone use the text string.",
+    },
+    timeout: {
+      type: "number",
+      description:
+        "Maximum wait time in seconds. Optional for mode=time (defaults to value). Required for text/text_gone modes.",
+    },
+  },
+  required: ["mode", "value"],
+  additionalProperties: false,
+} as const;
+
 export const waitFor: Tool = {
   schema: {
     name: WaitForTool.shape.name.value,
     description: WaitForTool.shape.description.value,
-    inputSchema: zodToJsonSchema(WaitForTool.shape.arguments),
+    inputSchema: waitForInputSchema,
   },
   handle: async (context, params) => {
     const args = WaitForTool.shape.arguments.parse(params);
     const { mode, value, timeout } = args;
+
+    // Runtime validation for mode-specific requirements
+    if (mode === "time") {
+      if (typeof value !== "number") {
+        throw new Error(`Invalid value type for mode=time: expected number, got ${typeof value}`);
+      }
+    } else {
+      // text or text_gone mode
+      if (typeof value !== "string") {
+        throw new Error(`Invalid value type for mode=${mode}: expected string, got ${typeof value}`);
+      }
+      if (timeout === undefined) {
+        throw new Error(`timeout is required for mode=${mode}`);
+      }
+    }
 
     await context.sendSocketMessage("browser_wait_for", { mode, value, timeout } as any);
 
