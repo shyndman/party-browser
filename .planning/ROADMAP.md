@@ -73,8 +73,16 @@ Plans:
 
 ### Phase 3: Handoff and Repeatable Execution Readiness
 **Goal**: Discovery results can be inspected, packaged, and handed off for procedural scraping without LLM involvement.
-**Depends on**: Phase 02.1
+**Depends on**: Phase 02.1 (Session-owned tab model MUST be stable)
 **Requirements**: DISC-03, DISC-04, FLOW-02
+
+**Dependencies from Phase 02.1:**
+- Session lifecycle state machine (UNINITIALIZED → NAVIGATING → ACTIVE → CLOSED)
+- Navigate-time tab creation and session binding
+- SCREAMING_SNAKE_CASE error codes for programmatic handling
+- No in-flight request retry (commands fail fast on transport drop)
+- Background reconnection without command replay
+
 **Success Criteria** (what must be TRUE):
   1. User can inspect captured network activity from discovery sessions to debug selector and timing behavior.
   2. User can inspect browser console output from discovery sessions to diagnose failures.
@@ -82,7 +90,9 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 03-01: TBD during `/gsd-plan-phase 3`
+- [ ] 03-01: Session correlation and console/network capture per session
+- [ ] 03-02: Selector artifact export with discovery replay data
+- [ ] 03-03: Procedural scraping execution format (JSON/YAML)
 
 ## Progress
 
@@ -93,5 +103,5 @@ Phases execute in numeric order: 1 -> 2 -> 02.1 -> 3
 |-------|----------------|--------|-----------|
 | 1. Runtime and Deterministic Core | 3/3 | ✓ Complete | 2026-02-09 |
 | 2. Interactive Selector Discovery | 4/4 | ✓ Complete | 2026-02-09 |
-| 02.1 Session and Transport Stabilization (INSERTED) | 0/TBD | ○ Not started | - |
+| 02.1 Session and Transport Stabilization (INSERTED) | 3/3 | ✓ Complete | 2026-02-10 |
 | 3. Handoff and Repeatable Execution Readiness | 0/TBD | ○ Not started | - |

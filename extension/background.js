@@ -1,6 +1,55 @@
 /**
  * Background script for Browser MCP Firefox extension
  * Manages WebSocket server and routes commands between MCP server and content scripts
+ *
+ * SESSION MODEL ARCHITECTURE (Phase 02.1)
+ * ======================================
+ *
+ * Session Lifecycle States:
+ * - UNINITIALIZED: No session tab exists (sessionTabId === null)
+ * - NAVIGATING: Navigate command in progress, tab created/updated
+ * - ACTIVE: Session tab exists and is ready for commands
+ * - CLOSED: Session tab was closed or kill switch triggered
+ *
+ * State Transitions:
+ * - UNINITIALIZED -> NAVIGATING: First browser_navigate call creates session tab
+ * - NAVIGATING -> ACTIVE: Navigation completes (page load finished)
+ * - ACTIVE -> CLOSED: Tab closed by user or kill switch
+ * - CLOSED -> UNINITIALIZED: Session cleared, ready for new navigate
+ *
+ * Key Invariants:
+ * - One session tab per MCP connection (no multi-session support)
+ * - Session persists across reconnects until tab closed
+ * - Navigate command required to re-initialize after tab closure
+ * - No in-flight request retry after transport drop
+ *
+ * PHASE 3 INTEGRATION POINTS (Handoff and Repeatable Execution)
+ * =============================================================
+ *
+ * TODO(Phase3): Add session ID generation on first navigate
+ *   - Generate unique session ID (UUID or timestamp-based)
+ *   - Include session ID in all command responses
+ *   - Store session metadata (creation time, initial URL)
+ *
+ * TODO(Phase3): Hook console log capture to session lifecycle
+ *   - Capture console.* calls from content script
+ *   - Buffer logs per session with timestamps
+ *   - Provide endpoint to retrieve logs for session ID
+ *
+ * TODO(Phase3): Hook network activity capture to session lifecycle
+ *   - Use webRequest API to capture network calls
+ *   - Store request/response data per session
+ *   - Filter to relevant domains (exclude analytics/CDNs)
+ *
+ * TODO(Phase3): Add session export endpoint
+ *   - Export selector artifacts from discovery
+ *   - Include console logs and network activity
+ *   - Generate replayable script format
+ *
+ * TODO(Phase3): Support multiple concurrent sessions
+ *   - Map session IDs to tab IDs
+ *   - Route commands to correct session
+ *   - Isolate session state (logs, network, selectors)
  */
 
 // Error codes for machine-readable failure reasons
@@ -360,6 +409,11 @@ async function handleNavigate(params) {
     targetTabId = await createSessionTab();
     sessionTabId = targetTabId;
     sessionTabClosed = false; // Clear the closure flag
+
+    // TODO(Phase3): Generate session ID here
+    // const sessionId = generateSessionId();
+    // sessionMetadata.set(sessionId, { createdAt: Date.now(), initialUrl: url });
+
     console.log(`[Browser MCP] Session tab created: ${sessionTabId}`);
   } else {
     // Subsequent navigate: reuse existing session tab
