@@ -33,6 +33,7 @@ let reconnectTimer = null;
 let wsConnection = null; // Track WebSocket connection for kill switch
 let isKillSwitchEnabled = true; // Kill switch state (default: enabled)
 let sessionTabId = null; // Bound tab for current MCP session
+let sessionTabClosed = false; // Flag to track if session tab was closed
 
 /**
  * Initialize the extension
@@ -340,10 +341,11 @@ async function handleNavigate(params) {
   let targetTabId;
 
   if (sessionTabId === null) {
-    // First navigate: create session tab at about:blank in background
-    console.log('[Browser MCP] First navigate: creating session tab at about:blank');
+    // First navigate or after tab closure: create session tab at about:blank in background
+    console.log('[Browser MCP] Creating session tab at about:blank');
     targetTabId = await createSessionTab();
     sessionTabId = targetTabId;
+    sessionTabClosed = false; // Clear the closure flag
     console.log(`[Browser MCP] Session tab created: ${sessionTabId}`);
   } else {
     // Subsequent navigate: reuse existing session tab
@@ -651,6 +653,20 @@ browser.tabs.onRemoved.addListener((removedTabId) => {
     console.log(`[Browser MCP] Session ownership cleared (reason: tab_closed)`);
     console.warn('[Browser MCP] Session tab closed; clearing session binding');
     sessionTabId = null;
+    sessionTabClosed = true;
+
+    // Notify MCP server if connection is active
+    if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
+      try {
+        wsConnection.send(JSON.stringify({
+          type: 'session_lost',
+          reason: 'tab_closed',
+          message: 'Session tab was closed'
+        }));
+      } catch (error) {
+        console.log('[Browser MCP] Failed to notify server of session loss:', error.message);
+      }
+    }
   }
 });
 
