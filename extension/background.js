@@ -241,9 +241,13 @@ function startWebSocketServer(port) {
         reason = 'reconnect';
       }
 
-      // Note: sessionTabId is NOT cleared on disconnect
-      // Session persists across reconnects until tab is closed or kill switch triggered
-      // On reconnect, sessionTabId will remain set until explicitly cleared
+      // Session ownership cleared on disconnect - requires fresh navigate after reconnect
+      // Per locked decision: session is NOT auto-reused after reconnect
+      const clearedTabId = sessionTabId;
+      sessionTabId = null;
+      if (clearedTabId !== null) {
+        console.log(`[Browser MCP] Session ownership cleared (reason: ${reason})`);
+      }
 
       // Note: No in-flight request retry - commands will fail immediately
       console.warn(`[Browser MCP] Extension disconnected (reason: ${reason}); pending commands will fail. Reconnecting...`);
