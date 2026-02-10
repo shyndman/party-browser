@@ -11,6 +11,7 @@ import { mcpConfig } from "@/config/mcp.config";
 import { Context } from "@/context";
 import type { Resource } from "@/resources/resource";
 import type { Tool } from "@/tools/tool";
+import { CodedError } from "@/protocol/ws-sender";
 import { createWebSocketServer } from "@/ws";
 
 type Options = {
@@ -96,11 +97,17 @@ export async function createServerWithTools(options: Options): Promise<Server> {
     }
 
     if (transportStartupError && !context.hasWs()) {
+      const code = (transportStartupError as Error & { code?: string }).code;
+      const errorCode = code === "EADDRINUSE" ? "EADDRINUSE" : "TRANSPORT_UNAVAILABLE";
+      const error = new CodedError(
+        `Browser transport unavailable: ${formatTransportStartupError(transportStartupError)} Close other Browser MCP sessions using this port, then restart this MCP process.`,
+        errorCode
+      );
       return {
         content: [
           {
             type: "text",
-            text: `Browser transport unavailable: ${formatTransportStartupError(transportStartupError)} Close other Browser MCP sessions using this port, then restart this MCP process.`,
+            text: `[${error.errorCode}] ${error.message}`,
           },
         ],
         isError: true,
