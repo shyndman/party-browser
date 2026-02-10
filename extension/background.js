@@ -61,13 +61,26 @@ function updateToolbarIcon() {
 /**
  * Resolve target tab for MCP commands (session-bound only)
  */
-function resolveTargetTabId(params) {
+async function resolveTargetTabId(params) {
   if (params && Object.prototype.hasOwnProperty.call(params, 'tabId')) {
-    throw new Error('tabId overrides are not supported. Browser MCP uses the bound session tab.');
+    const error = new Error('tabId overrides are not supported. Browser MCP uses the session-owned tab.');
+    error.errorCode = 'EXPLICIT_TABID_NOT_SUPPORTED';
+    throw error;
   }
 
-  if (!sessionTabId) {
-    throw new Error('Session tab unavailable. Reconnect Browser MCP while focused on the tab you want to control.');
+  if (sessionTabId === null) {
+    const error = new Error('Session not initialized. Run browser_navigate first to create a session tab.');
+    error.errorCode = 'SESSION_NOT_INITIALIZED';
+    throw error;
+  }
+
+  // Verify the session tab still exists
+  try {
+    await browser.tabs.get(sessionTabId);
+  } catch (error) {
+    const err = new Error('Session tab was closed. Run browser_navigate to create a new session tab.');
+    err.errorCode = 'SESSION_TAB_CLOSED';
+    throw err;
   }
 
   return sessionTabId;
@@ -235,7 +248,12 @@ async function handleBrowserCommand(command, params) {
     }
   } catch (error) {
     console.error('[Browser MCP] Command failed:', error);
-    return { error: error.message, stack: error.stack };
+    return {
+      success: false,
+      error: error.message,
+      errorCode: error.errorCode || 'UNKNOWN_ERROR',
+      stack: error.stack
+    };
   }
 }
 
@@ -316,7 +334,7 @@ async function handleNavigate(params) {
  */
 async function handleClick(params) {
   const { element } = params;
-  const targetTabId = resolveTargetTabId(params);
+  const targetTabId = await resolveTargetTabId(params);
 
   const results = await browser.tabs.sendMessage(targetTabId, {
     type: 'executeCommand',
@@ -332,7 +350,7 @@ async function handleClick(params) {
  */
 async function handleType(params) {
   const { element, value } = params;
-  const targetTabId = resolveTargetTabId(params);
+  const targetTabId = await resolveTargetTabId(params);
 
   const results = await browser.tabs.sendMessage(targetTabId, {
     type: 'executeCommand',
@@ -348,7 +366,7 @@ async function handleType(params) {
  */
 async function handleEvaluate(params) {
   const { script } = params;
-  const targetTabId = resolveTargetTabId(params);
+  const targetTabId = await resolveTargetTabId(params);
 
   const results = await browser.tabs.sendMessage(targetTabId, {
     type: 'executeCommand',
@@ -363,7 +381,7 @@ async function handleEvaluate(params) {
  * Take screenshot
  */
 async function handleScreenshot(params) {
-  const targetTabId = resolveTargetTabId(params);
+  const targetTabId = await resolveTargetTabId(params);
 
   const screenshot = await browser.tabs.captureTab(targetTabId, {
     format: 'png'
@@ -376,7 +394,7 @@ async function handleScreenshot(params) {
  * Get page snapshot (accessibility tree)
  */
 async function handleSnapshot(params) {
-  const targetTabId = resolveTargetTabId(params);
+  const targetTabId = await resolveTargetTabId(params);
 
   const results = await browser.tabs.sendMessage(targetTabId, {
     type: 'executeCommand',
@@ -391,7 +409,7 @@ async function handleSnapshot(params) {
  */
 async function handleSelectOption(params) {
   const { element, value } = params;
-  const targetTabId = resolveTargetTabId(params);
+  const targetTabId = await resolveTargetTabId(params);
 
   const results = await browser.tabs.sendMessage(targetTabId, {
     type: 'executeCommand',
