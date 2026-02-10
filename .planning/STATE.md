@@ -12,7 +12,7 @@ See: `.planning/PROJECT.md` (updated 2026-02-09)
 Phase: 3 of 3 (Handoff and Repeatable Execution Readiness)
 Plan: 0 of TBD in current phase
 Status: Ready for phase planning
-Last activity: 2026-02-10 - Completed quick task 1: Improve the build process so it produces a well-formed Firefox XPI ready to install in Firefox Developer Edition
+Last activity: 2026-02-10 - Completed quick task 2: Gate all communications behind a single extension-icon kill switch that tears down and restarts the socket server
 
 Progress: [███████░░░] 67%
 
@@ -83,6 +83,7 @@ None yet.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 1 | Improve the build process so it produces a well-formed Firefox XPI ready to install in Firefox Developer Edition | 2026-02-10 | 8fce0a3 | [1-improve-the-build-process-so-it-produces](./quick/1-improve-the-build-process-so-it-produces/) |
+| 2 | Gate all communications behind a single extension-icon kill switch that tears down and restarts the socket server | 2026-02-10 | 916717e | [2-gate-all-communications-behind-a-single-](./quick/2-gate-all-communications-behind-a-single-/) |
 
 ## Session Continuity
 
