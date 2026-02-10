@@ -1,0 +1,454 @@
+/**
+ * Content script for Browser MCP Firefox extension
+ * Handles DOM interaction and accessibility tree generation
+ */
+
+console.log('[Browser MCP] Content script loaded on', window.location.href);
+
+/**
+ * Parse element reference string into selector info
+ */
+function parseElementRef(ref) {
+  if (!ref) return null;
+
+  // Handle numeric refs (e.g., "e42")
+  if (ref.match(/^e\d+$/)) {
+    const index = parseInt(ref.slice(1), 10);
+    return { type: 'index', index };
+  }
+
+  // Handle CSS selectors
+  if (ref.startsWith('css:')) {
+    return { type: 'css', selector: ref.slice(4) };
+  }
+
+  // Handle XPath
+  if (ref.startsWith('xpath:')) {
+    return { type: 'xpath', path: ref.slice(6) };
+  }
+
+  // Default: treat as text content
+  return { type: 'text', text: ref };
+}
+
+/**
+ * Find element by reference
+ */
+function findElement(ref) {
+  const parsed = parseElementRef(ref);
+
+  switch (parsed.type) {
+    case 'index':
+      const elements = document.querySelectorAll('[data-mcp-ref], a, button, input, select, textarea, [role="button"], [role="link"]');
+      return elements[parsed.index] || null;
+
+    case 'css':
+      return document.querySelector(parsed.selector);
+
+    case 'xpath':
+      return findByXPath(parsed.path);
+
+    case 'text':
+      return findByText(parsed.text);
+
+    default:
+      return null;
+  }
+}
+
+/**
+ * Find element by XPath
+ */
+function findByXPath(path) {
+  try {
+    const result = document.evaluate(
+      path,
+      document,
+      null,
+      XPathResult.FIRST_ORDERED_NODE_TYPE,
+      null
+    );
+    return result.singleNodeValue;
+  } catch (e) {
+    console.error('[Browser MCP] XPath error:', e);
+    return null;
+  }
+}
+
+/**
+ * Find element by text content
+ */
+function findByText(text) {
+  const walker = document.createTreeWalker(
+    document.body,
+    NodeFilter.SHOW_ELEMENT,
+    null,
+    false
+  );
+
+  let node;
+  while (node = walker.nextNode()) {
+    if (node.textContent.trim().includes(text)) {
+      return node;
+    }
+  }
+  return null;
+}
+
+/**
+ * Click element
+ */
+async function clickElement(params) {
+  const { element: ref } = params;
+  const element = findElement(ref);
+
+  if (!element) {
+    throw new Error(`Element not found: ${ref}`);
+  }
+
+  // Scroll into view
+  element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  await new Promise(resolve => setTimeout(resolve, 100));
+
+  // Click
+  const clickEvent = new MouseEvent('click', {
+    bubbles: true,
+    cancelable: true,
+    view: window
+  });
+  element.dispatchEvent(clickEvent);
+
+  // Also trigger native click
+  element.click();
+
+  return {
+    success: true,
+    element: ref,
+    tagName: element.tagName,
+    text: element.textContent?.trim().slice(0, 50)
+  };
+}
+
+/**
+ * Type text into element
+ */
+async function typeIntoElement(params) {
+  const { element: ref, value } = params;
+  const element = findElement(ref);
+
+  if (!element) {
+    throw new Error(`Element not found: ${ref}`);
+  }
+
+  // Focus the element
+  element.focus();
+  await new Promise(resolve => setTimeout(resolve, 50));
+
+  // Clear existing value for inputs
+  if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
+    element.value = '';
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  // Type each character
+  for (const char of value) {
+    // Keydown
+    element.dispatchEvent(new KeyboardEvent('keydown', {
+      key: char,
+      bubbles: true
+    }));
+
+    // Input
+    if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
+      element.value += char;
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    // Keyup
+    element.dispatchEvent(new KeyboardEvent('keyup', {
+      key: char,
+      bubbles: true
+    }));
+
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+
+  // Final change event
+  element.dispatchEvent(new Event('change', { bubbles: true }));
+  element.blur();
+
+  return {
+    success: true,
+    element: ref,
+    value: value.slice(0, 50)
+  };
+}
+
+/**
+ * Execute JavaScript
+ */
+async function evaluateScript(params) {
+  const { script } = params;
+
+  try {
+    // Use Function constructor for safer evaluation
+    const fn = new Function(script);
+    const result = fn.call(window);
+
+    // Handle async results
+    if (result instanceof Promise) {
+      const resolved = await result;
+      return {
+        success: true,
+        result: serializeResult(resolved)
+      };
+    }
+
+    return {
+      success: true,
+      result: serializeResult(result)
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message,
+      stack: error.stack
+    };
+  }
+}
+
+/**
+ * Serialize evaluation result
+ */
+function serializeResult(result) {
+  if (result === null) return null;
+  if (result === undefined) return undefined;
+
+  const type = typeof result;
+
+  switch (type) {
+    case 'boolean':
+    case 'number':
+    case 'string':
+      return result;
+
+    case 'object':
+      if (Array.isArray(result)) {
+        return result.map(serializeResult);
+      }
+      if (result instanceof Element) {
+        return {
+          type: 'Element',
+          tagName: result.tagName,
+          id: result.id,
+          className: result.className
+        };
+      }
+      if (result instanceof NodeList || result instanceof HTMLCollection) {
+        return Array.from(result).map(serializeResult);
+      }
+      try {
+        return JSON.parse(JSON.stringify(result));
+      } catch {
+        return String(result);
+      }
+
+    case 'function':
+      return `[Function: ${result.name || 'anonymous'}]`;
+
+    default:
+      return String(result);
+  }
+}
+
+/**
+ * Get accessibility tree snapshot
+ */
+function getSnapshot() {
+  const tree = buildAccessibilityTree(document.body);
+  return {
+    success: true,
+    url: window.location.href,
+    title: document.title,
+    tree
+  };
+}
+
+/**
+ * Build accessibility tree
+ */
+function buildAccessibilityTree(root) {
+  const elements = [];
+  let refCounter = 0;
+
+  function traverse(node, depth = 0) {
+    if (depth > 50) return; // Prevent infinite recursion
+
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const element = node;
+      const info = getElementInfo(element, refCounter++);
+
+      if (info && info.interactive) {
+        elements.push(info);
+      }
+
+      // Traverse children
+      for (const child of element.children) {
+        traverse(child, depth + 1);
+      }
+    }
+  }
+
+  traverse(root);
+  return elements;
+}
+
+/**
+ * Get element info for snapshot
+ */
+function getElementInfo(element, ref) {
+  const tagName = element.tagName.toLowerCase();
+  const role = element.getAttribute('role');
+  const ariaLabel = element.getAttribute('aria-label');
+  const ariaLabelledBy = element.getAttribute('aria-labelledby');
+
+  // Determine if element is interactive
+  const interactiveTypes = ['a', 'button', 'input', 'select', 'textarea'];
+  const interactiveRoles = ['button', 'link', 'checkbox', 'radio', 'textbox', 'combobox', 'menuitem'];
+
+  const isInteractive = interactiveTypes.includes(tagName) ||
+                       interactiveRoles.includes(role) ||
+                       element.onclick !== null ||
+                       element.tabIndex >= 0;
+
+  if (!isInteractive) return null;
+
+  // Get name/text
+  let name = ariaLabel;
+  if (!name && ariaLabelledBy) {
+    const labelElement = document.getElementById(ariaLabelledBy);
+    if (labelElement) {
+      name = labelElement.textContent;
+    }
+  }
+  if (!name) {
+    name = element.textContent?.trim() || element.value || element.placeholder || '';
+  }
+
+  // Get input type
+  let inputType = null;
+  if (tagName === 'input') {
+    inputType = element.type || 'text';
+  }
+
+  // Add data attribute for reference
+  element.setAttribute('data-mcp-ref', `e${ref}`);
+
+  return {
+    ref: `e${ref}`,
+    tagName,
+    role,
+    type: inputType,
+    name: name.slice(0, 100),
+    value: element.value?.slice(0, 100),
+    placeholder: element.placeholder,
+    disabled: element.disabled,
+    checked: element.checked,
+    interactive: true
+  };
+}
+
+/**
+ * Select option from dropdown
+ */
+async function selectOption(params) {
+  const { element: ref, value } = params;
+  const element = findElement(ref);
+
+  if (!element) {
+    throw new Error(`Element not found: ${ref}`);
+  }
+
+  if (element.tagName !== 'SELECT') {
+    throw new Error(`Element is not a select: ${ref}`);
+  }
+
+  // Find option
+  const options = Array.from(element.options);
+  const option = options.find(opt =>
+    opt.value === value ||
+    opt.textContent.trim() === value
+  );
+
+  if (!option) {
+    throw new Error(`Option not found: ${value}`);
+  }
+
+  element.value = option.value;
+  element.dispatchEvent(new Event('change', { bubbles: true }));
+  element.dispatchEvent(new Event('input', { bubbles: true }));
+
+  return {
+    success: true,
+    element: ref,
+    selectedValue: option.value,
+    selectedText: option.textContent.trim()
+  };
+}
+
+/**
+ * Execute command handler
+ */
+async function executeCommand(message) {
+  const { command, params } = message;
+
+  switch (command) {
+    case 'click':
+      return await clickElement(params);
+
+    case 'type':
+      return await typeIntoElement(params);
+
+    case 'evaluate':
+      return await evaluateScript(params);
+
+    case 'snapshot':
+      return getSnapshot();
+
+    case 'select_option':
+      return await selectOption(params);
+
+    default:
+      throw new Error(`Unknown command: ${command}`);
+  }
+}
+
+/**
+ * Listen for messages from background script
+ */
+browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log('[Browser MCP] Content script received:', message);
+
+  if (message.type === 'executeCommand') {
+    executeCommand(message)
+      .then(result => sendResponse(result))
+      .catch(error => sendResponse({
+        success: false,
+        error: error.message,
+        stack: error.stack
+      }));
+    return true; // Keep channel open for async
+  }
+
+  return false;
+});
+
+// Signal that content script is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    console.log('[Browser MCP] Content script ready');
+  });
+} else {
+  console.log('[Browser MCP] Content script ready (document already loaded)');
+}
