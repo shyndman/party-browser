@@ -10,11 +10,11 @@ See: `.planning/PROJECT.md` (updated 2026-02-09)
 ## Current Position
 
 Phase: 02.1-single-browser-bridge-session-owned-tab-model-no-active-tab-fallback-no-per-call-tabid-overrides
-Plan: 02 (Session-Owned Tab Model)
-Status: Plan 02 complete - Session-owned tab model with navigate-time initialization implemented
-Last activity: 2026-02-10 - Completed Plan 02.1-02: Session-Owned Tab Model
+Plan: 03 (Regression Checks - COMPLETE)
+Status: All Phase 02.1 plans complete - Session model stable, schema hardened, error codes standardized
+Last activity: 2026-02-10 - Completed Plan 02.1-03: Regression Checks
 
-Progress: [████████░░] 80%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -39,6 +39,7 @@ Progress: [████████░░] 80%
 | Phase quick P1 | 3 min | 3 tasks | 9 files |
 | Phase 02-interactive-selector-discovery P03 | 3min | 4 tasks | 0 files |
 | Phase 02-interactive-selector-discovery P02 | 1min | 3 tasks | 2 files |
+| Phase 02.1 P03 | 10min | 5 tasks | 9 files |
 | Phase 02.1 P02 | 8min | 5 tasks | 1 files |
 
 ## Accumulated Context
@@ -74,6 +75,11 @@ Recent decisions affecting current work:
 - [Phase 02.1-02] Session persists across reconnects but ownership NOT auto-restored (fresh navigate required)
 - [Phase 02.1-02] SCREAMING_SNAKE_CASE error codes: SESSION_NOT_INITIALIZED, SESSION_TAB_CLOSED, EXPLICIT_TABID_NOT_SUPPORTED
 - [Phase 02.1-02] Tab presentation: 'OC | ' title prefix and 'OpenCode Sessions' blue tab group
+- [Phase 02.1-03] oneOf JSON schema pattern for strict MCP validator compatibility with union types
+- [Phase 02.1-03] CodedError class for error code propagation through async call chain
+- [Phase 02.1-03] No in-flight request retry policy - commands fail immediately on transport drop
+- [Phase 02.1-03] Automated startup reliability test suite with 3 scenarios
+- [Phase 02.1-03] Session lifecycle state machine: UNINITIALIZED → NAVIGATING → ACTIVE → CLOSED
 
 ### Roadmap Evolution
 
@@ -98,6 +104,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-10 14:38
-Stopped at: Completed Plan 02.1-02: Session-Owned Tab Model
+Last session: 2026-02-10 09:17
+Stopped at: Completed Plan 02.1-03: Regression Checks
 Resume file: None
