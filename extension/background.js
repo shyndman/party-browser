@@ -74,19 +74,6 @@ function resolveTargetTabId(params) {
 }
 
 /**
- * Bind current active tab to this MCP session
- */
-async function bindSessionTab() {
-  const activeTab = await getActiveTab();
-  if (!activeTab || !activeTab.id) {
-    throw new Error('No active tab found to bind Browser MCP session.');
-  }
-
-  sessionTabId = activeTab.id;
-  console.log(`[Browser MCP] Session tab bound: ${sessionTabId}`);
-}
-
-/**
  * Load configured port from storage
  */
 async function loadPortFromStorage() {
@@ -130,12 +117,8 @@ function startWebSocketServer(port) {
       console.log('[Browser MCP] Extension connected to MCP server');
       isServerRunning = true;
       reconnectAttempts = 0;
-      try {
-        await bindSessionTab();
-      } catch (error) {
-        sessionTabId = null;
-        console.error('[Browser MCP] Failed to bind session tab:', error);
-      }
+      // Note: sessionTabId is NOT auto-restored on reconnect
+      // Session must be initialized via browser_navigate
       updateToolbarIcon();
     };
 
@@ -182,10 +165,9 @@ function startWebSocketServer(port) {
         reason = 'reconnect';
       }
 
-      if (sessionTabId !== null) {
-        console.log(`[Browser MCP] Session ownership cleared (reason: ${reason})`);
-        sessionTabId = null;
-      }
+      // Note: sessionTabId is NOT cleared on disconnect
+      // Session persists across reconnects until tab is closed or kill switch triggered
+      // On reconnect, sessionTabId will remain set until explicitly cleared
 
       console.log(`[Browser MCP] Extension disconnected (reason: ${reason})`);
       updateToolbarIcon();
