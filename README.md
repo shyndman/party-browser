@@ -14,7 +14,11 @@
 
 ## About
 
-Browser MCP is an MCP server + Chrome extension that allows you to automate your browser using AI applications like VS Code, Claude, Cursor, and Windsurf.
+Browser MCP is an MCP server + browser extension that allows you to automate your browser using AI applications like VS Code, Claude, Cursor, and Windsurf.
+
+**Supported Browsers:**
+- ✅ Google Chrome (with extension from Chrome Web Store)
+- ✅ Firefox Developer Edition (with local XPI build)
 
 ## Features
 
@@ -22,6 +26,7 @@ Browser MCP is an MCP server + Chrome extension that allows you to automate your
 - 🔒 Private: Since automation happens locally, your browser activity stays on your device and isn't sent to remote servers.
 - 👤 Logged In: Uses your existing browser profile, keeping you logged into all your services.
 - 🥷🏼 Stealth: Avoids basic bot detection and CAPTCHAs by using your real browser fingerprint.
+- 🦊 Firefox Support: Build and install the extension in Firefox Developer Edition for cross-browser automation.
 
 ## Usage
 
@@ -57,7 +62,7 @@ Key tools for selector discovery and browser automation:
 ### Prerequisites
 
 - Node.js 18+ and npm
-- Browser MCP Chrome extension installed and enabled
+- Browser MCP extension installed and enabled (Chrome or Firefox)
 
 ### Quick Start
 
@@ -86,6 +91,38 @@ npm run smoke:tools
 
 **Expected output:** All checks pass, 4 required Phase 1 tools found.
 
+### Firefox Extension Installation
+
+You can also build and use the Firefox extension for cross-browser automation:
+
+**Build the extension:**
+
+```bash
+# Build just the Firefox extension XPI
+npm run build:xpi
+
+# Or build both server and extension
+npm run build:all
+```
+
+**Install in Firefox Developer Edition:**
+
+> ⚠️ **Important:** Regular Firefox requires signed extensions from Mozilla Add-ons. For development and testing, use Firefox Developer Edition which allows loading unsigned extensions.
+
+1. Download and install [Firefox Developer Edition](https://www.mozilla.org/en-US/firefox/developer/)
+2. Open Firefox Developer Edition
+3. Navigate to `about:debugging`
+4. Click "This Firefox" in the left sidebar
+5. Click "Load Temporary Add-on..."
+6. Navigate to `dist/browser-mcp-firefox.xpi` and select it
+7. The extension will appear in your toolbar
+
+**Verification:**
+
+- Click the Browser MCP icon in the toolbar to open the popup
+- Status should show "Connected" when the MCP server is running
+- You can now use the MCP tools in Firefox
+
 ### Running the Server
 
 Start the MCP server for local development:
@@ -97,7 +134,7 @@ node dist/index.js
 
 **Important:** The server starts successfully even without a browser tab connected. This is expected behavior. Tool calls will fail with connection errors until you:
 
-1. Open the Browser MCP extension in Chrome
+1. Open the Browser MCP extension in Chrome or Firefox
 2. Ensure the extension shows "Connected" status
 3. Have at least one browser tab open
 
@@ -105,9 +142,12 @@ node dist/index.js
 
 | Issue | Cause | Solution |
 |-------|-------|----------|
-| `browser_navigate` fails with connection error | No browser tab connected | Open Chrome extension, ensure it shows "Connected" |
+| `browser_navigate` fails with connection error | No browser tab connected | Open browser extension, ensure it shows "Connected" |
 | Smoke test fails with "Server binary not found" | Build artifacts missing | Run `npm run build` first |
 | Extension shows "Disconnected" | Server not running or port issue | Verify server is running, check extension settings |
+| **Firefox:** "Extension could not be installed" | Using regular Firefox | Use Firefox Developer Edition for unsigned extensions |
+| **Firefox:** "Connection failed" | MCP server not running or port blocked | Ensure server is running and port 9876 is available |
+| **Firefox:** Permission denied errors | Extension lacks permissions | Check `about:addons` > Browser MCP > Permissions |
 
 ### Development Workflow
 
