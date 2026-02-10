@@ -12,6 +12,7 @@ This roadmap delivers a selector-first pre-scraping workflow where an LLM perfor
 
 - [ ] **Phase 1: Runtime and Deterministic Core** - Local operability plus stable navigation, waiting, snapshot, and session closure.
 - [ ] **Phase 2: Interactive Selector Discovery** - Discovery-time interactions and LLM-guided selector generation.
+- [ ] **Phase 02.1: Session and Transport Stabilization (INSERTED)** - Bridge-oriented session ownership and deterministic tab targeting.
 - [ ] **Phase 3: Handoff and Repeatable Execution Readiness** - Inspection visibility and exportable handoff for no-LLM procedural execution.
 
 ## Phase Details
@@ -49,9 +50,30 @@ Plans:
 - [ ] 02-03-PLAN.md — Verify and refine all interactive tools (click, type, select, keyboard)
 - [ ] 02-04-PLAN.md — Create LLM-guided selector discovery workflow documentation
 
+### Phase 02.1: Single browser bridge + session-owned tab model (no active-tab fallback, no per-call tabId overrides) (INSERTED)
+
+**Goal:** Stabilize transport/session behavior so startup is reliable, tab targeting is deterministic, and bridge-oriented multi-session work can proceed cleanly.
+**Depends on:** Phase 2
+**Success Criteria** (what must be TRUE):
+  1. MCP tools can be listed even when browser transport is unavailable.
+  2. Transport startup failures are explicit (for example port already in use) and never kill unrelated processes.
+  3. Browser command execution targets a session-owned tab only (no active-tab fallback, no per-call tabId override).
+  4. Bridge migration scope is captured so Phase 3 can depend on a stable session model.
+**Ad-hoc work already completed (to formalize in planning):**
+  - Port default alignment fix (extension and MCP both use 3456).
+  - MCP startup decoupled from WebSocket bind so tool registration remains available.
+  - browser_wait_for schema compatibility hardened for strict tool validators.
+  - Extension now enforces session-bound tab targeting.
+**Plans:** 3 plans in 2 waves
+
+Plans:
+- [ ] 02.1-01-PLAN.md — Bridge process ownership, kill switch integration, transport cleanup, and explicit startup failure handling.
+- [ ] 02.1-02-PLAN.md — Session-owned tab model: navigate-time tab creation, SESSION_NOT_INITIALIZED error codes, tab grouping and title prefix, session lifecycle state machine.
+- [ ] 02.1-03-PLAN.md — Regression checks: schema validation, error code standardization, no-retry verification, startup reliability tests, Phase 3 migration scope documentation.
+
 ### Phase 3: Handoff and Repeatable Execution Readiness
 **Goal**: Discovery results can be inspected, packaged, and handed off for procedural scraping without LLM involvement.
-**Depends on**: Phase 2
+**Depends on**: Phase 02.1
 **Requirements**: DISC-03, DISC-04, FLOW-02
 **Success Criteria** (what must be TRUE):
   1. User can inspect captured network activity from discovery sessions to debug selector and timing behavior.
@@ -65,10 +87,11 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3
+Phases execute in numeric order: 1 -> 2 -> 02.1 -> 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Runtime and Deterministic Core | 3/3 | ✓ Complete | 2026-02-09 |
 | 2. Interactive Selector Discovery | 4/4 | ✓ Complete | 2026-02-09 |
+| 02.1 Session and Transport Stabilization (INSERTED) | 0/TBD | ○ Not started | - |
 | 3. Handoff and Repeatable Execution Readiness | 0/TBD | ○ Not started | - |
