@@ -88,9 +88,13 @@ export async function createServerWithTools(options: Options): Promise<Server> {
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const tool = tools.find((tool) => tool.schema.name === request.params.name);
     if (!tool) {
+      const error = new CodedError(
+        `Tool "${request.params.name}" not found`,
+        "TOOL_NOT_FOUND"
+      );
       return {
         content: [
-          { type: "text", text: `Tool "${request.params.name}" not found` },
+          { type: "text", text: `[${error.errorCode}] ${error.message}` },
         ],
         isError: true,
       };
