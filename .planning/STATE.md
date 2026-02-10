@@ -10,11 +10,11 @@ See: `.planning/PROJECT.md` (updated 2026-02-09)
 ## Current Position
 
 Phase: 02.1-single-browser-bridge-session-owned-tab-model-no-active-tab-fallback-no-per-call-tabid-overrides
-Plan: 01 (Transport Stabilization)
-Status: Plan 01 complete, awaiting next plan
-Last activity: 2026-02-10 - Completed Plan 02.1-01: Transport Stabilization
+Plan: 02 (Session-Owned Tab Model)
+Status: Plan 02 complete - Session-owned tab model with navigate-time initialization implemented
+Last activity: 2026-02-10 - Completed Plan 02.1-02: Session-Owned Tab Model
 
-Progress: [███████░░░] 67%
+Progress: [████████░░] 80%
 
 ## Performance Metrics
 
@@ -39,6 +39,7 @@ Progress: [███████░░░] 67%
 | Phase quick P1 | 3 min | 3 tasks | 9 files |
 | Phase 02-interactive-selector-discovery P03 | 3min | 4 tasks | 0 files |
 | Phase 02-interactive-selector-discovery P02 | 1min | 3 tasks | 2 files |
+| Phase 02.1 P02 | 8min | 5 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -69,6 +70,10 @@ Recent decisions affecting current work:
 - [Phase 02.1-01] Kill switch OFF closes the owned session tab (not just clears reference)
 - [Phase 02.1-01] Connection state logging uses standardized reasons: kill_switch, tab_closed, transport_drop, reconnect
 - [Phase 02.1-01] Server-side disconnect messages use generic 'connection lost' messaging per security guidelines
+- [Phase 02.1-02] Session initialized on first navigate, not on WebSocket connection (navigate-time vs connect-time)
+- [Phase 02.1-02] Session persists across reconnects but ownership NOT auto-restored (fresh navigate required)
+- [Phase 02.1-02] SCREAMING_SNAKE_CASE error codes: SESSION_NOT_INITIALIZED, SESSION_TAB_CLOSED, EXPLICIT_TABID_NOT_SUPPORTED
+- [Phase 02.1-02] Tab presentation: 'OC | ' title prefix and 'OpenCode Sessions' blue tab group
 
 ### Roadmap Evolution
 
@@ -93,6 +98,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-10 08:58
-Stopped at: Completed Plan 02.1-01: Transport Stabilization
+Last session: 2026-02-10 14:38
+Stopped at: Completed Plan 02.1-02: Session-Owned Tab Model
 Resume file: None
