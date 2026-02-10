@@ -10,6 +10,7 @@ import { createServerWithTools } from "@/server";
 import * as common from "@/tools/common";
 import * as custom from "@/tools/custom";
 import { evaluate } from "@/tools/evaluate";
+import { exportSelectors } from "@/tools/export";
 import * as inspection from "@/tools/inspection";
 import * as snapshot from "@/tools/snapshot";
 import type { Tool } from "@/tools/tool";
@@ -30,6 +31,7 @@ const customTools: Tool[] = [
   custom.getConsoleLogs,
   custom.screenshot,
   evaluate,
+  exportSelectors,
   inspection.networkRequests,
   inspection.consoleMessages,
 ];
