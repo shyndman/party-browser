@@ -15,6 +15,8 @@ let serverSocket = null;
 let isServerRunning = false;
 let reconnectAttempts = 0;
 let reconnectTimer = null;
+let wsConnection = null; // Track WebSocket connection for kill switch
+let isKillSwitchEnabled = true; // Kill switch state (default: enabled)
 
 /**
  * Initialize the extension
@@ -40,7 +42,7 @@ async function loadPortFromStorage() {
 }
 
 /**
- * Start the WebSocket server
+ * Start the WebSocket server (connect to MCP server)
  */
 function startWebSocketServer(port) {
   if (isServerRunning) {
@@ -48,19 +50,77 @@ function startWebSocketServer(port) {
     return;
   }
 
+  if (!isKillSwitchEnabled) {
+    console.log('[Browser MCP] Kill switch disabled, not connecting');
+    return;
+  }
+
   console.log(`[Browser MCP] Starting WebSocket server on port ${port}`);
 
-  // Create server socket
-  // Note: Firefox extensions cannot directly create TCP servers
-  // We use a different approach - the MCP server connects via native messaging
-  // or we poll for commands from the extension
+  try {
+    // Connect to MCP server WebSocket
+    wsConnection = new WebSocket(`ws://localhost:${port}`);
 
-  // For Firefox, we'll use a hybrid approach:
-  // 1. Listen for native messaging connections from MCP server
-  // 2. Handle commands via message passing
+    wsConnection.onopen = () => {
+      console.log('[Browser MCP] Connected to MCP server');
+      isServerRunning = true;
+      reconnectAttempts = 0;
+    };
 
-  isServerRunning = true;
-  console.log('[Browser MCP] Server ready for MCP connections');
+    wsConnection.onmessage = async (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        console.log('[Browser MCP] Received command from MCP:', message);
+
+        // Check kill switch before processing
+        if (!isKillSwitchEnabled) {
+          wsConnection.send(JSON.stringify({
+            success: false,
+            error: 'Kill switch is disabled. Enable it via the extension popup to resume MCP communications.'
+          }));
+          return;
+        }
+
+        // Handle MCP commands
+        if (message.type === 'mcpCommand') {
+          const result = await handleBrowserCommand(message.command, message.params);
+          wsConnection.send(JSON.stringify(result));
+        }
+      } catch (error) {
+        console.error('[Browser MCP] Error processing message:', error);
+        if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
+          wsConnection.send(JSON.stringify({
+            success: false,
+            error: error.message
+          }));
+        }
+      }
+    };
+
+    wsConnection.onclose = () => {
+      console.log('[Browser MCP] WebSocket connection closed');
+      isServerRunning = false;
+      wsConnection = null;
+
+      // Attempt reconnection if kill switch is still enabled
+      if (isKillSwitchEnabled && reconnectAttempts < CONFIG.MAX_RECONNECT_ATTEMPTS) {
+        reconnectAttempts++;
+        console.log(`[Browser MCP] Attempting reconnect ${reconnectAttempts}/${CONFIG.MAX_RECONNECT_ATTEMPTS}`);
+        reconnectTimer = setTimeout(() => {
+          startWebSocketServer(port);
+        }, CONFIG.RECONNECT_INTERVAL);
+      }
+    };
+
+    wsConnection.onerror = (error) => {
+      console.error('[Browser MCP] WebSocket error:', error);
+      isServerRunning = false;
+    };
+
+  } catch (error) {
+    console.error('[Browser MCP] Failed to start WebSocket:', error);
+    isServerRunning = false;
+  }
 }
 
 /**
@@ -268,12 +328,36 @@ function waitForTabLoad(tabId) {
 }
 
 /**
+ * Stop the WebSocket server (kill switch off)
+ */
+function stopWebSocketServer() {
+  if (wsConnection) {
+    try {
+      wsConnection.close();
+    } catch (error) {
+      console.error('[Browser MCP] Error closing WebSocket:', error);
+    }
+    wsConnection = null;
+  }
+  isServerRunning = false;
+  console.log('[Browser MCP] WebSocket server stopped (kill switch)');
+}
+
+/**
  * Handle messages from content scripts
  */
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('[Browser MCP] Message received:', message);
 
   if (message.type === 'mcpCommand') {
+    // Gate all commands behind kill switch
+    if (!isKillSwitchEnabled) {
+      sendResponse({
+        success: false,
+        error: 'Kill switch is disabled. Enable it via the extension popup to resume MCP communications.'
+      });
+      return false;
+    }
     handleBrowserCommand(message.command, message.params)
       .then(result => sendResponse({ success: true, result }))
       .catch(error => sendResponse({ success: false, error: error.message }));
@@ -283,8 +367,32 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'getStatus') {
     sendResponse({
       isServerRunning,
-      reconnectAttempts
+      reconnectAttempts,
+      isKillSwitchEnabled
     });
+    return false;
+  }
+
+  if (message.type === 'toggleKillSwitch') {
+    isKillSwitchEnabled = !isKillSwitchEnabled;
+    console.log('[Browser MCP] Kill switch toggled:', isKillSwitchEnabled ? 'ENABLED' : 'DISABLED');
+    
+    if (!isKillSwitchEnabled) {
+      // Kill switch turned OFF - stop server
+      stopWebSocketServer();
+    } else {
+      // Kill switch turned ON - restart server
+      loadPortFromStorage().then(port => {
+        startWebSocketServer(port);
+      });
+    }
+    
+    sendResponse({ isEnabled: isKillSwitchEnabled });
+    return false;
+  }
+
+  if (message.type === 'getKillSwitchState') {
+    sendResponse({ isEnabled: isKillSwitchEnabled });
     return false;
   }
 
