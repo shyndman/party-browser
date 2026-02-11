@@ -410,11 +410,39 @@ function startWebSocketServer(port) {
           return;
         }
 
-        // Handle MCP commands
+        // Handle MCP commands (wrapped in mcpCommand envelope)
         if (message.type === 'mcpCommand') {
           const result = await handleBrowserCommand(message.command, message.params);
           wsConnection.send(JSON.stringify(result));
+          return;
         }
+
+        // Handle direct browser_* message types from MCP tools
+        const directMessageTypes = {
+          'browser_get_network_requests': 'getNetworkRequests',
+          'browser_get_console_messages': 'getConsoleMessages',
+          'browser_export_selectors': 'export_selectors'
+        };
+
+        if (directMessageTypes[message.type]) {
+          const command = directMessageTypes[message.type];
+          const result = await handleBrowserCommand(command, message.payload || {});
+          wsConnection.send(JSON.stringify({
+            id: message.id,
+            result: result,
+            error: result.success ? undefined : result.error,
+            errorCode: result.errorCode
+          }));
+          return;
+        }
+
+        // Unknown message type
+        wsConnection.send(JSON.stringify({
+          id: message.id,
+          success: false,
+          error: `Unknown message type: ${message.type}`,
+          errorCode: ErrorCodes.COMMAND_FAILED
+        }));
       } catch (error) {
         console.error('[Browser MCP] Error processing message:', error);
         if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
