@@ -5,7 +5,7 @@
 
 /// <reference path="../../src/types/global.d.ts" />
 
-import type { StatusResponse, KillSwitchResponse } from '../src/types/messages';
+import type { StatusResponse, KillSwitchResponse } from '../../src/types/messages';
 
 interface PopupElements {
   refreshBtn: HTMLButtonElement;
