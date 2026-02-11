@@ -9,6 +9,7 @@ export default defineConfig({
     permissions: [
       'activeTab',
       'tabs',
+      'tabGroups',
       'storage',
       'webRequest',
       'ws://localhost:3456/',
