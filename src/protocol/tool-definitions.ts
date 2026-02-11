@@ -237,48 +237,4 @@ export const ConsoleMessagesTool = z.object({
 
 export type ConsoleMessagesTool = z.infer<typeof ConsoleMessagesTool>;
 
-// ExportSelectors tool - export discovered selectors as JSON artifact
-export const ExportSelectorsTool = z.object({
-  name: z.literal("browser_export_selectors"),
-  description: z.literal(
-    "Export discovered selectors as a JSON artifact for downstream procedural scraping"
-  ),
-  arguments: z.object({
-    name: z.string().describe("Name/title for the workflow"),
-    steps: z
-      .array(
-        z.object({
-          action: z
-            .enum(["navigate", "click", "type", "select", "wait", "extract"])
-            .describe("Type of action to perform"),
-          target: z
-            .string()
-            .optional()
-            .describe("Target selector (for click, type, select, extract)"),
-          value: z
-            .string()
-            .optional()
-            .describe("Value to type or select (for type, select actions)"),
-          description: z
-            .string()
-            .optional()
-            .describe("Human-readable description of this step"),
-        })
-      )
-      .describe("Array of workflow steps"),
-    includeMetadata: z
-      .boolean()
-      .optional()
-      .describe("Include session metadata (default: true)"),
-    includeConsole: z
-      .boolean()
-      .optional()
-      .describe("Include recent console logs (default: false)"),
-    includeNetwork: z
-      .boolean()
-      .optional()
-      .describe("Include recent network requests (default: false)"),
-  }),
-});
 
-export type ExportSelectorsTool = z.infer<typeof ExportSelectorsTool>;

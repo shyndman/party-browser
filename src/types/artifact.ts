@@ -207,23 +207,4 @@ export interface InputStep {
   description?: string;
 }
 
-/**
- * WebSocket message payload for browser_export_selectors
- */
-export interface ExportSelectorsMessage {
-  name: string;
-  steps: InputStep[];
-  includeMetadata?: boolean;
-  includeConsole?: boolean;
-  includeNetwork?: boolean;
-}
 
-/**
- * WebSocket response for browser_export_selectors
- */
-export interface ExportSelectorsResponse {
-  success: boolean;
-  artifact?: SelectorArtifact;
-  error?: string;
-  errorCode?: string;
-}

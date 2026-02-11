@@ -46,20 +46,6 @@ export interface SocketMessageMap {
     since?: number;
   };
 
-  // Selector export message (Phase 03.2)
-  browser_export_selectors: {
-    name: string;
-    steps: Array<{
-      action: "navigate" | "click" | "type" | "select" | "wait" | "extract";
-      target?: string;
-      value?: string;
-      description?: string;
-    }>;
-    includeMetadata?: boolean;
-    includeConsole?: boolean;
-    includeNetwork?: boolean;
-  };
-
   // Page state messages
   getUrl: undefined;
   getTitle: undefined;
