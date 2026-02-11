@@ -10,9 +10,9 @@ See: `.planning/PROJECT.md` (updated 2026-02-09)
 ## Current Position
 
 Phase: 03-handoff-and-repeatable-execution-readiness
-Plan: 06 (Missing Handler Functions Gap Closure - COMPLETE)
-Status: Gap closure plans 03-05 and 03-06 complete; Protocol unit alignment documented for 03-07
-Last activity: 2026-02-11 - Completed plan 05: Fixed getConsoleLogs parsing and timeout audit
+Plan: 07 (Wait For Unit Conversion Gap Closure - COMPLETE)
+Status: Gap closure plans 03-05, 03-06, and 03-07 complete; All wait_for unit conversion issues resolved
+Last activity: 2026-02-11 - Completed plan 07: Fixed wait_for unit conversion (mode=time, mode=text, mode=text_gone)
 
 Progress: [████████████████████] 100%
 
@@ -106,6 +106,9 @@ Recent decisions affecting current work:
 - [Phase 03-05]: API Layer uses seconds for user ergonomics, Extension Layer uses milliseconds for JavaScript native compatibility
 - [Phase 03-05]: Unit conversion happens at MCP server layer before sending to extension (not at extension boundary)
 - [Phase 03-05]: Defensive response parsing handles both array (legacy) and object (current) response formats via Array.isArray check
+- [Phase 03-07]: Timeout values from MCP server are in SECONDS (user-facing API), internal code uses MILLISECONDS
+- [Phase 03-07]: TIMEOUT CONTRACT documented: conversion happens at function entry via timeoutMs = timeoutSeconds * 1000
+- [Phase 03-07]: handleWaitFor in content-script.js owns all unit conversion for wait_for tool
 
 ### Roadmap Evolution
 
@@ -133,6 +136,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-11 11:17
-Stopped at: Completed 03-05-PLAN.md - Protocol Unit Alignment Gap Closure
+Last session: 2026-02-11 11:46
+Stopped at: Completed 03-07-PLAN.md - Wait For Unit Conversion Gap Closure
 Resume file: None
