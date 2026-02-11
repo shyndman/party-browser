@@ -431,8 +431,7 @@ function startWebSocketServer(port) {
           'getTitle': 'getTitle',
           // Phase 3 features
           'browser_get_network_requests': 'getNetworkRequests',
-          'browser_get_console_messages': 'getConsoleMessages',
-          'browser_export_selectors': 'export_selectors'
+          'browser_get_console_messages': 'getConsoleMessages'
         };
 
         if (directMessageTypes[message.type]) {
@@ -548,9 +547,6 @@ async function handleBrowserCommand(command, params) {
 
       case 'getConsoleMessages':
         return await handleGetConsoleMessages(params);
-
-      case 'export_selectors':
-        return await handleExportSelectors(params);
 
       case 'go_back':
         return await handleGoBack(params);
@@ -906,161 +902,6 @@ async function handleGetConsoleMessages(params = {}) {
       timestamp: l.timestamp,
       stack: l.stack
     }))
-  };
-}
-
-/**
- * Export selectors as JSON artifact
- */
-async function handleExportSelectors(params) {
-  // Check if session exists
-  if (!sessionId) {
-    return {
-      success: false,
-      error: 'Session not initialized. Run browser_navigate first to create a session.',
-      errorCode: ErrorCodes.SESSION_NOT_INITIALIZED
-    };
-  }
-
-  const targetTabId = await resolveTargetTabId(params);
-
-  const {
-    name,
-    steps,
-    includeMetadata = true,
-    includeConsole = false,
-    includeNetwork = false
-  } = params;
-
-  // Validate name
-  if (!name || typeof name !== 'string') {
-    return {
-      success: false,
-      error: 'Name parameter is required',
-      errorCode: ErrorCodes.COMMAND_FAILED
-    };
-  }
-
-  // Sanitize name for filename use
-  const sanitizedName = name.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 50);
-
-  // Get current URL for initialUrl
-  let initialUrl = '';
-  try {
-    const tab = await browser.tabs.get(targetTabId);
-    initialUrl = tab.url || '';
-  } catch (error) {
-    console.log('[Browser MCP] Could not get tab URL:', error.message);
-  }
-
-  // Map input steps to SelectorStep format
-  const mappedSteps = steps.map((step, index) => {
-    const baseStep = {
-      type: step.action,
-      description: step.description || `${step.action} step ${index + 1}`
-    };
-
-    switch (step.action) {
-      case 'navigate':
-        return {
-          ...baseStep,
-          url: step.value || step.target || initialUrl
-        };
-
-      case 'click':
-        return {
-          ...baseStep,
-          selectors: [parseSelector(step.target)]
-        };
-
-      case 'type':
-        return {
-          ...baseStep,
-          selectors: [parseSelector(step.target)],
-          value: step.value || ''
-        };
-
-      case 'select':
-        return {
-          ...baseStep,
-          selectors: [parseSelector(step.target)],
-          option: step.value || ''
-        };
-
-      case 'wait':
-        // Wait can be time-based (numeric) or selector-based
-        const isTimeBased = step.value && !isNaN(parseInt(step.value));
-        return {
-          ...baseStep,
-          mode: isTimeBased ? 'time' : 'selector',
-          value: isTimeBased ? parseInt(step.value) : (step.target || step.value || '')
-        };
-
-      case 'extract':
-        return {
-          ...baseStep,
-          name: step.target || `extract_${index}`,
-          selectors: [parseSelector(step.target)]
-        };
-
-      default:
-        return baseStep;
-    }
-  });
-
-  // Calculate session duration
-  const sessionDuration = sessionStartTime ? Date.now() - sessionStartTime : 0;
-
-  // Aggregate metadata
-  const networkLogs = sessionNetworkLogs.get(targetTabId) || [];
-  const consoleLogs = sessionConsoleLogs.get(targetTabId) || [];
-
-  const metadata = {
-    networkRequestCount: networkLogs.length,
-    consoleErrorCount: consoleLogs.filter(l => l.level === 'error').length,
-    consoleWarnCount: consoleLogs.filter(l => l.level === 'warn').length,
-    sessionDuration
-  };
-
-  // Build artifact
-  const artifact = {
-    version: '1.0',
-    title: sanitizedName,
-    createdAt: new Date().toISOString(),
-    sessionId,
-    initialUrl,
-    steps: mappedSteps,
-    metadata
-  };
-
-  // Optionally include recent console logs (last 50)
-  if (includeConsole && consoleLogs.length > 0) {
-    artifact.console = consoleLogs.slice(-50).map(l => ({
-      level: l.level,
-      message: l.message,
-      timestamp: l.timestamp,
-      stack: l.stack
-    }));
-  }
-
-  // Optionally include recent network requests (last 50)
-  if (includeNetwork && networkLogs.length > 0) {
-    artifact.network = networkLogs.slice(-50).map(r => ({
-      requestId: r.requestId,
-      url: r.url,
-      method: r.method,
-      type: r.type,
-      timestamp: r.timestamp,
-      statusCode: r.statusCode,
-      error: r.error
-    }));
-  }
-
-  console.log(`[Browser MCP] Exported artifact: ${sanitizedName} (${mappedSteps.length} steps)`);
-
-  return {
-    success: true,
-    artifact
   };
 }
 
