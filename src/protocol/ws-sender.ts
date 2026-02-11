@@ -1,5 +1,6 @@
 import { WebSocket } from "ws";
 
+import { debugLog } from "@/utils/log";
 import type { MessagePayload, MessageType, SocketMessageMap } from "./ws-messages";
 
 /**
@@ -56,6 +57,7 @@ export function createSocketMessageSender<T extends SocketMessageMap>(ws: WebSoc
         try {
           const response = JSON.parse(data.toString());
           if (response.id === messageId) {
+            debugLog("[WS] ← Received:", type, messageId, "result:", response.result || "(error)");
             cleanup();
             if (response.error) {
               reject(new CodedError(response.error, response.errorCode || "UNKNOWN_ERROR"));
@@ -85,6 +87,7 @@ export function createSocketMessageSender<T extends SocketMessageMap>(ws: WebSoc
       };
 
       if (ws.readyState === WebSocket.OPEN) {
+        debugLog("[WS] → Sending:", type, messageId, payload);
         ws.send(JSON.stringify(message));
       } else {
         cleanup();
