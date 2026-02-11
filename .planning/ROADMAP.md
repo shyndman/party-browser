@@ -10,10 +10,10 @@ This roadmap delivers a selector-first pre-scraping workflow where an LLM perfor
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-- [ ] **Phase 1: Runtime and Deterministic Core** - Local operability plus stable navigation, waiting, snapshot, and session closure.
-- [ ] **Phase 2: Interactive Selector Discovery** - Discovery-time interactions and LLM-guided selector generation.
-- [ ] **Phase 02.1: Session and Transport Stabilization (INSERTED)** - Bridge-oriented session ownership and deterministic tab targeting.
-- [ ] **Phase 02.2: Message Routing Completion (INSERTED)** - Complete extension message routing for all MCP tools.
+- [x] **Phase 1: Runtime and Deterministic Core** - Local operability plus stable navigation, waiting, snapshot, and session closure.
+- [x] **Phase 2: Interactive Selector Discovery** - Discovery-time interactions and LLM-guided selector generation.
+- [x] **Phase 02.1: Session and Transport Stabilization (INSERTED)** - Bridge-oriented session ownership and deterministic tab targeting.
+- [x] **Phase 02.2: Message Routing Completion (INSERTED)** - Complete extension message routing for all MCP tools.
 - [ ] **Phase 3: Handoff and Repeatable Execution Readiness** - Inspection visibility and exportable handoff for no-LLM procedural execution.
 
 ## Phase Details
@@ -94,7 +94,7 @@ Live testing revealed that `extension/background.js` only routes 3 message types
 **Plans:** 1 plan in 1 wave
 
 Plans:
-- [ ] 02.2-01-PLAN.md — Complete message routing infrastructure: extend directMessageTypes map, add missing handler functions, implement content script handlers
+- [x] 02.2-01-PLAN.md — Complete message routing infrastructure: extend directMessageTypes map, add missing handler functions, implement content script handlers
 
 ### Phase 3: Handoff and Repeatable Execution Readiness
 **Goal**: Discovery results can be inspected, packaged, and handed off for procedural scraping without LLM involvement.
@@ -112,14 +112,14 @@ Plans:
    1. User can inspect captured network activity from discovery sessions to debug selector and timing behavior.
    2. User can inspect browser console output from discovery sessions to diagnose failures.
    3. User can persist or export a selector handoff artifact that a procedural scraping stage can execute without LLM involvement.
-**Plans**: 2 plans in 2 waves
-
-Plans: 3 plans in 2 waves
+**Plans**: 5 plans in 3 waves (2 original + 3 gap closure)
 
 Plans:
 - [x] 03-01-PLAN.md — Session-scoped network and console capture infrastructure (browser_network_requests, browser_console_messages tools)
 - [x] 03-02-PLAN.md — Selector artifact export for procedural scraping handoff (removed selector export tool tool, JSON artifact format)
-- [ ] 03-03-PLAN.md — Gap closure: Protocol alignment for inspection and export tools (fixes VERIFICATION.md gaps)
+- [x] 03-03-PLAN.md — Gap closure: Protocol alignment for inspection and export tools (direct message type routing)
+- [x] 03-04-PLAN.md — Gap closure: Complete message routing for all 21 browser_* message types
+- [ ] 03-05-PLAN.md — Gap closure: Protocol unit alignment for getConsoleLogs and wait_for tools (fixes UAT gaps)
 
 ## Progress
 
@@ -131,5 +131,5 @@ Phases execute in numeric order: 1 -> 2 -> 02.1 -> 02.2 -> 3
 | 1. Runtime and Deterministic Core | 3/3 | ✓ Complete | 2026-02-09 |
 | 2. Interactive Selector Discovery | 4/4 | ✓ Complete | 2026-02-09 |
 | 02.1 Session and Transport Stabilization (INSERTED) | 6/6 | ✓ Complete | 2026-02-10 |
-| 02.2 Message Routing Completion (INSERTED) | 0/1 | ○ Planning | - |
-| 3. Handoff and Repeatable Execution Readiness | 2/3 | ⚠ Gaps Found | - |
+| 02.2 Message Routing Completion (INSERTED) | 1/1 | ✓ Complete | 2026-02-11 |
+| 3. Handoff and Repeatable Execution Readiness | 4/5 | ⚠ Gaps Found | - |
