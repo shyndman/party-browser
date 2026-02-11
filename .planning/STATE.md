@@ -12,7 +12,7 @@ See: `.planning/PROJECT.md` (updated 2026-02-09)
 Phase: 02.2-message-routing-completion
 Plan: 01 (Message Routing Completion - COMPLETE)
 Status: All 21 message types now route successfully from MCP tools to extension handlers
-Last activity: 2026-02-11 - Completed Plan 02.2-01: Message Routing Completion
+Last activity: 2026-02-11 - Completed quick task 4: Add complete outbound/inbound WebSocket response logging in extension/background.js to match MCP-side visibility
 
 Progress: [██████████] 100%
 
@@ -122,7 +122,7 @@ None yet.
 | 1 | Improve the build process so it produces a well-formed Firefox XPI ready to install in Firefox Developer Edition | 2026-02-10 | 8fce0a3 | [1-improve-the-build-process-so-it-produces](./quick/1-improve-the-build-process-so-it-produces/) |
 | 2 | Gate all communications behind a single extension-icon kill switch that tears down and restarts the socket server | 2026-02-10 | 916717e | [2-gate-all-communications-behind-a-single-](./quick/2-gate-all-communications-behind-a-single-/) |
 | 3 | Add comprehensive logging that prints command responses for better debugging and observability | 2026-02-11 | 330bc0b | [3-add-logging-that-prints-command-response](./quick/3-add-logging-that-prints-command-response/) |
-| 4 | Add complete outbound/inbound WebSocket response logging and AGENTS.md target ambiguity guidance | 2026-02-10 | f2df31b | [4-add-complete-outbound-inbound-websocket-](./quick/4-add-complete-outbound-inbound-websocket-/) |
+| 4 | Add complete outbound/inbound WebSocket response logging and AGENTS.md target ambiguity guidance | 2026-02-11 | e37633b | [4-add-complete-outbound-inbound-websocket-](./quick/4-add-complete-outbound-inbound-websocket-/) |
 
 ## Session Continuity
 
