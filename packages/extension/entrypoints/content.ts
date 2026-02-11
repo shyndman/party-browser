@@ -1,6 +1,6 @@
 /**
- * Content script for Blindflight Firefox extension
- * Handles DOM interaction and accessibility tree generation
+ * Content script entrypoint for Blindflight Firefox extension
+ * Handles DOM interaction and console log capture
  */
 
 /// <reference path="../src/types/global.d.ts" />
@@ -8,15 +8,9 @@
 import { defineContentScript } from 'wxt/utils/define-content-script';
 import type { ContentScriptContext } from 'wxt/utils/content-script-context';
 import type { CommandResult } from '../src/types/commands';
+import { ConsoleCapture } from '../src/session/console-capture';
 
 const MAX_CONSOLE_LOGS = 1000;
-
-interface ConsoleLogEntry {
-  level: 'log' | 'error' | 'warn' | 'info';
-  message: string;
-  timestamp: number;
-  stack?: string;
-}
 
 interface ElementInfo {
   ref: string;
@@ -36,86 +30,8 @@ export default defineContentScript({
   main(ctx: ContentScriptContext) {
     console.log('[Blindflight] Content script loaded on', window.location.href);
 
-    // Ring buffer for console logs
-    const consoleLogs: ConsoleLogEntry[] = [];
-
-    // Store original console methods
-    const originalConsole = {
-      log: console.log,
-      error: console.error,
-      warn: console.warn,
-      info: console.info
-    };
-
-    /**
-     * Push log entry to ring buffer
-     */
-    function pushConsoleLog(level: ConsoleLogEntry['level'], args: unknown[]): void {
-      const entry: ConsoleLogEntry = {
-        level,
-        message: args.map((arg) => {
-          if (typeof arg === 'object') {
-            try {
-              return JSON.stringify(arg);
-            } catch {
-              return String(arg);
-            }
-          }
-          return String(arg);
-        }).join(' '),
-        timestamp: Date.now(),
-        stack: level === 'error' ? new Error().stack : undefined
-      };
-
-      consoleLogs.push(entry);
-
-      if (consoleLogs.length > MAX_CONSOLE_LOGS) {
-        consoleLogs.shift();
-      }
-    }
-
-    // Override console methods
-    console.log = function(...args: unknown[]) {
-      pushConsoleLog('log', args);
-      originalConsole.log.apply(console, args);
-    };
-
-    console.error = function(...args: unknown[]) {
-      pushConsoleLog('error', args);
-      originalConsole.error.apply(console, args);
-    };
-
-    console.warn = function(...args: unknown[]) {
-      pushConsoleLog('warn', args);
-      originalConsole.warn.apply(console, args);
-    };
-
-    console.info = function(...args: unknown[]) {
-      pushConsoleLog('info', args);
-      originalConsole.info.apply(console, args);
-    };
-
-    // Capture uncaught errors
-    window.onerror = function(message, source, lineno, colno) {
-      pushConsoleLog('error', [`Uncaught: ${message} at ${source}:${lineno}:${colno}`]);
-      return false;
-    };
-
-    // Capture unhandled promise rejections
-    window.onunhandledrejection = function(event) {
-      pushConsoleLog('error', [`Unhandled Promise Rejection: ${event.reason}`]);
-    };
-
-    /**
-     * Get console logs with optional clear
-     */
-    function getConsoleLogs(clear = false): ConsoleLogEntry[] {
-      const logs = [...consoleLogs];
-      if (clear) {
-        consoleLogs.length = 0;
-      }
-      return logs;
-    }
+    // Initialize console capture
+    const consoleCapture = new ConsoleCapture();
 
     // ============================================================
     // Element Finding
@@ -649,7 +565,7 @@ export default defineContentScript({
 
     browser.runtime.onMessage.addListener(((
       message: unknown,
-      sender: browser.Runtime.MessageSender,
+      _sender: browser.Runtime.MessageSender,
       sendResponse: (response?: unknown) => void
     ): boolean => {
       const msg = message as { type?: string; command?: string; params?: Record<string, unknown>; clear?: boolean };
@@ -667,11 +583,16 @@ export default defineContentScript({
       }
 
       if (msg.type === 'getConsoleLogs') {
-        const logs = getConsoleLogs(msg.clear);
+        const logs = consoleCapture.getLogs(msg.clear);
         sendResponse({
           success: true,
           logs: logs
         });
+        return false;
+      }
+
+      if (msg.type === 'ping') {
+        sendResponse({ success: true });
         return false;
       }
 
@@ -681,6 +602,7 @@ export default defineContentScript({
     // Cleanup on HMR
     ctx.onInvalidated(() => {
       console.log('[Blindflight] Content script invalidated');
+      consoleCapture.dispose();
     });
 
     // Signal ready
