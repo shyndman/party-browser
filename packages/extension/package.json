@@ -9,6 +9,7 @@
     "build:firefox": "wxt build -b firefox",
     "zip": "wxt zip -b firefox",
     "compile": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
     "postinstall": "wxt prepare",
     "clean": "rm -rf .output .wxt",
     "test": "echo 'Tests not yet implemented - Phase 9' && exit 0",
