@@ -111,7 +111,7 @@ None. All verification passed on first check.
 | Capture | browser_screenshot, browser_snapshot, browser_get_console_logs | ✅ Routed |
 | Evaluation | browser_evaluate | ✅ Routed |
 | Inspection | browser_get_network_requests, browser_get_console_messages | ✅ Routed |
-| Export | browser_export_selectors | ✅ Routed |
+| Export | removed selector export tool | ✅ Routed |
 | Session | browser_close | ✅ Routed |
 | State Query | getUrl, getTitle | ✅ Routed |
 

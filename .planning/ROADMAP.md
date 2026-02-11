@@ -118,7 +118,7 @@ Plans: 3 plans in 2 waves
 
 Plans:
 - [x] 03-01-PLAN.md — Session-scoped network and console capture infrastructure (browser_network_requests, browser_console_messages tools)
-- [x] 03-02-PLAN.md — Selector artifact export for procedural scraping handoff (browser_export_selectors tool, JSON artifact format)
+- [x] 03-02-PLAN.md — Selector artifact export for procedural scraping handoff (removed selector export tool tool, JSON artifact format)
 - [ ] 03-03-PLAN.md — Gap closure: Protocol alignment for inspection and export tools (fixes VERIFICATION.md gaps)
 
 ## Progress

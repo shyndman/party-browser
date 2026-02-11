@@ -10,7 +10,7 @@ requires:
     provides: "Session-scoped network and console capture infrastructure"
 provides:
   - Selector artifact TypeScript type definitions
-  - browser_export_selectors MCP tool
+  - removed selector export tool MCP tool
   - Extension-side artifact generation with metadata aggregation
   - Session ID generation and tracking
   - Support for Chrome DevTools Recorder-compatible format
@@ -31,9 +31,9 @@ tech-stack:
 key-files:
   created:
     - src/types/artifact.ts - TypeScript type definitions for selector artifact format
-    - src/tools/export.ts - browser_export_selectors MCP tool implementation
+    - src/tools/export.ts - removed selector export tool MCP tool implementation
   modified:
-    - src/protocol/ws-messages.ts - Added browser_export_selectors message type
+    - src/protocol/ws-messages.ts - Added removed selector export tool message type
     - src/protocol/tool-definitions.ts - Added ExportSelectorsTool Zod schema
     - src/index.ts - Registered exportSelectors in snapshotTools
     - extension/background.js - Implemented handleExportSelectors and session ID tracking
@@ -70,7 +70,7 @@ completed: 2026-02-10T17:27:45Z
 ## Accomplishments
 
 - Complete TypeScript type definitions for selector artifacts (229 lines)
-- MCP tool `browser_export_selectors` with validation and formatted output
+- MCP tool `removed selector export tool` with validation and formatted output
 - Extension-side artifact generation with session ID tracking
 - Support for 6 action types: navigate, click, type, select, wait, extract
 - Metadata aggregation from session-scoped network and console capture
@@ -81,7 +81,7 @@ completed: 2026-02-10T17:27:45Z
 Each task was committed atomically:
 
 1. **Task 1: Define selector artifact TypeScript types** - `55426ca` (feat)
-2. **Task 2: Create browser_export_selectors MCP tool** - `3943103` (feat)
+2. **Task 2: Create removed selector export tool MCP tool** - `3943103` (feat)
 3. **Task 3: Implement artifact generation in extension** - `7a60429` (feat)
 
 **Plan metadata:** `{metadata_commit}` (docs: complete plan)
@@ -93,7 +93,7 @@ Each task was committed atomically:
 - `src/tools/export.ts` - MCP tool implementation with validation, error handling, formatted JSON output
 
 ### Modified
-- `src/protocol/ws-messages.ts` - Added browser_export_selectors message type to SocketMessageMap
+- `src/protocol/ws-messages.ts` - Added removed selector export tool message type to SocketMessageMap
 - `src/protocol/tool-definitions.ts` - Added ExportSelectorsTool Zod schema with step validation
 - `src/index.ts` - Imported and registered exportSelectors in snapshotTools array
 - `extension/background.js` - Added sessionId/sessionStartTime tracking, handleExportSelectors command, parseSelector helper
@@ -127,7 +127,7 @@ None - no external service configuration required.
 ## Verification Results
 
 ✅ Build passes: `npm run build` succeeds
-✅ Tool registered: `npm run smoke:tools` shows 18 tools (including browser_export_selectors)
+✅ Tool registered: `npm run smoke:tools` shows 18 tools (including removed selector export tool)
 ✅ TypeScript compilation: No type errors
 
 ## Artifact Format Example

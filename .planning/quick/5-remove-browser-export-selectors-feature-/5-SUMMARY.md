@@ -1,7 +1,7 @@
 ---
 phase: quick
 plan: 5
-name: Remove browser_export_selectors Feature
+name: Remove removed selector export tool Feature
 subsystem: mcp-server, extension
 tags: [yagni, cleanup, removal]
 dependency_graph:
@@ -25,13 +25,13 @@ metrics:
   lines_removed: ~445
 ---
 
-# Quick Task 5: Remove browser_export_selectors Feature
+# Quick Task 5: Remove removed selector export tool Feature
 
 ## Summary
 
-Removed the browser_export_selectors tool and all associated code as YAGNI (You Aren't Gonna Need It). The feature was built for procedural scraping handoff, but the project pivoted to focus on interactive LLM-driven automation, making this code unused and adding maintenance burden.
+Removed the removed selector export tool tool and all associated code as YAGNI (You Aren't Gonna Need It). The feature was built for procedural scraping handoff, but the project pivoted to focus on interactive LLM-driven automation, making this code unused and adding maintenance burden.
 
-**One-liner:** Removed dead code: eliminated browser_export_selectors tool and all references (~445 lines), reducing tool count from 18 to 17.
+**One-liner:** Removed dead code: eliminated removed selector export tool tool and all references (~445 lines), reducing tool count from 18 to 17.
 
 ## What Was Changed
 
@@ -46,17 +46,17 @@ Removed the browser_export_selectors tool and all associated code as YAGNI (You 
 | File | Changes |
 |------|---------|
 | `src/protocol/tool-definitions.ts` | Removed ExportSelectorsTool Zod schema (lines 240-284) |
-| `src/protocol/ws-messages.ts` | Removed browser_export_selectors from SocketMessageMap (lines 49-61) |
+| `src/protocol/ws-messages.ts` | Removed removed selector export tool from SocketMessageMap (lines 49-61) |
 | `src/types/artifact.ts` | Removed ExportSelectorsMessage and ExportSelectorsResponse interfaces (lines 213-229) |
 | `src/index.ts` | Removed exportSelectors import and registration from customTools array |
 | `extension/background.js` | Removed mapping (line 435), switch case (lines 552-553), and handleExportSelectors function (lines 915-1065) |
 
 ### Extension Changes (background.js)
 
-1. **Removed from directMessageTypes mapping:** `'browser_export_selectors': 'export_selectors'`
+1. **Removed from directMessageTypes mapping:** `'removed selector export tool': 'removed selector export'`
 2. **Removed switch case:**
    ```javascript
-   case 'export_selectors':
+   case 'removed selector export':
      return await handleExportSelectors(params);
    ```
 3. **Removed handleExportSelectors function:** ~150 lines of handler code
@@ -67,11 +67,11 @@ All verification checks passed:
 
 - ✅ `src/tools/export.ts` deleted
 - ✅ ExportSelectorsTool removed from tool-definitions.ts
-- ✅ browser_export_selectors message removed from ws-messages.ts
+- ✅ removed selector export tool message removed from ws-messages.ts
 - ✅ ExportSelectorsMessage/Response removed from artifact.ts
 - ✅ exportSelectors removed from index.ts imports and registration
-- ✅ 'browser_export_selectors' mapping removed from extension/background.js
-- ✅ export_selectors case removed from handleBrowserCommand switch
+- ✅ 'removed selector export tool' mapping removed from extension/background.js
+- ✅ removed selector export case removed from handleBrowserCommand switch
 - ✅ handleExportSelectors function removed from extension/background.js
 - ✅ Build passes with no errors
 - ✅ Smoke test shows 17 tools (was 18)
@@ -91,8 +91,8 @@ None - plan executed exactly as written.
 
 | Task | Commit | Description |
 |------|--------|-------------|
-| Task 1 | 6f13f77 | feat(quick-5): remove server-side export_selectors code |
-| Task 2 | 0eb3740 | feat(quick-5): remove extension-side export_selectors code |
+| Task 1 | 6f13f77 | feat(quick-5): remove server-side removed selector export code |
+| Task 2 | 0eb3740 | feat(quick-5): remove extension-side removed selector export code |
 
 ## Self-Check
 
@@ -101,6 +101,6 @@ None - plan executed exactly as written.
 - [x] src/tools/export.ts deleted and not tracked by git
 - [x] Build succeeds (`npm run build`)
 - [x] Smoke test passes showing 17 tools
-- [x] No export_selectors references in codebase
+- [x] No removed selector export references in codebase
 - [x] All commits have proper format
 - [x] SUMMARY.md created at correct path

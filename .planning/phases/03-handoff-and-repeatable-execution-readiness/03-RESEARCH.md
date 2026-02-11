@@ -203,7 +203,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 ### Pattern 3: Selector Handoff Artifact Format
 **What:** JSON structure capturing discovery results for procedural execution
-**When to use:** After discovery completes, user calls `browser_export_selectors`
+**When to use:** After discovery completes, user calls `removed selector export tool`
 **Format (inspired by Chrome DevTools Recorder):**
 
 ```json
@@ -402,7 +402,7 @@ export const getConsoleMessages: Tool = {
 
 export const exportSelectors: Tool = {
   schema: {
-    name: "browser_export_selectors",
+    name: "removed selector export tool",
     description: "Export discovered selectors as a handoff artifact",
     inputSchema: zodToJsonSchema(z.object({
       name: z.string().describe("Name for this selector workflow"),
@@ -416,7 +416,7 @@ export const exportSelectors: Tool = {
   },
   handle: async (context, params) => {
     const artifact = await context.sendSocketMessage(
-      "browser_export_selectors",
+      "removed selector export tool",
       { 
         name: params.name,
         selectors: params.selectors,

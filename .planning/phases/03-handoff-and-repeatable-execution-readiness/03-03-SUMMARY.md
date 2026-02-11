@@ -12,7 +12,7 @@ requires:
 provides:
   - Direct message type routing for browser_get_network_requests
   - Direct message type routing for browser_get_console_messages
-  - Direct message type routing for browser_export_selectors
+  - Direct message type routing for removed selector export tool
   - Protocol bridge between MCP tools and extension handlers
 
 affects:
@@ -66,7 +66,7 @@ completed: 2026-02-10
 Each task was committed atomically:
 
 1. **Task 1: Add direct message type routing** - `42487cc` (feat)
-2. **Task 2: export_selectors switch case** - Already complete from 03-02 (no commit needed)
+2. **Task 2: removed selector export switch case** - Already complete from 03-02 (no commit needed)
 3. **Task 3: Remove stale TODO comments** - `f9e5ed9` (docs)
 4. **Task 4: Verify protocol alignment** - Verification only (no code changes)
 
@@ -91,7 +91,7 @@ None - all tasks completed smoothly.
 ## Next Phase Readiness
 
 - Protocol alignment complete for Phase 3 inspection and export tools
-- browser_get_network_requests, browser_get_console_messages, and browser_export_selectors tools should now work end-to-end
+- browser_get_network_requests, browser_get_console_messages, and removed selector export tool tools should now work end-to-end
 - Ready for integration testing with actual browser sessions
 
 ---
