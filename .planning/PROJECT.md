@@ -1,50 +1,48 @@
 # Browser MCP Pre-Scraping Interface
 
+## Current State
+
+- **Shipped milestone:** v1.0 MVP (2026-02-11)
+- **Archive:** `.planning/milestones/v1.0-ROADMAP.md`, `.planning/milestones/v1.0-REQUIREMENTS.md`, `.planning/milestones/v1.0-MILESTONE-AUDIT.md`
+- **Core value:** An LLM can consistently derive actionable selectors from live page context so downstream procedural scraping is reliable.
+
 ## What This Is
 
-This project evolves `browser-mcp` into a reliable pre-scraping system that can be driven by an LLM. The goal is to let an LLM inspect real pages, determine robust selectors, and hand those selectors to a procedural scraping stage for repeatable extraction. The initial scope focuses on getting the current repo running cleanly and shipping a critical Playwright-MCP-like tool interface for this selector-discovery workflow.
-
-## Core Value
-
-An LLM can consistently derive actionable selectors from live page context so downstream procedural scraping is reliable.
+`browser-mcp` is a selector-first browser automation interface for pre-scraping workflows. It provides deterministic page control, interaction primitives, and discovery-time inspection tools so operators can reason about pages and reliably prepare downstream extraction automation.
 
 ## Requirements
 
 ### Validated
 
-(None yet — ship to validate)
+- ✓ Reproducible local build and startup workflow for operators — v1.0
+- ✓ Deterministic core browser controls and wait semantics for repeatable runs — v1.0
+- ✓ Interactive selector discovery tooling surface (`click`, `type`, `select`, `press_key`, `evaluate`, `screenshot`) — v1.0
+- ✓ Session-scoped inspection for network and console debugging — v1.0
 
 ### Active
 
-- [ ] Get this repository running locally in a reproducible way despite current dependency/friction points.
-- [ ] Expose a critical pre-scraping MCP toolset compatible with Playwright-MCP-style usage (`navigate`, `wait_for`, `snapshot`, `click`, `type`, `select_option`, `press_key`, `evaluate`, `network_requests`, `screenshot`, `console_messages`, `close`).
-- [ ] Enable a practical two-stage scraping workflow: LLM selector discovery first, procedural extraction second.
-- [ ] Keep tool semantics deterministic and automation-safe for repeated scraping runs.
+- [ ] Define next milestone requirements and outcomes.
 
 ### Out of Scope
 
-- CDP/DevTools-protocol-dependent dialog handling — explicitly excluded due detectability and user preference.
-- Arbitrary code execution tooling equivalent to `browser_run_code` — deferred for safety and scope control.
-- Coordinate/vision-first interaction tools (`*_xy`, wheel/drag-by-coordinates) — deferred because they are brittle for selector-centric scraping.
-
-## Context
-
-This codebase already contains an MCP server architecture with WebSocket-based browser interaction and several existing browser tools. The immediate product direction is to prioritize pre-scraping capabilities instead of broad test automation parity. A critical design input from the user is avoiding CDP-based mechanisms; this affects which Playwright-like features are feasible in v1.
-
-## Constraints
-
-- **Detection/Security**: No CDP/DevTools Protocol usage for core features — avoid detectable debugger attachment patterns.
-- **Scope**: Focus on pre-scraping selector discovery, not full browser testing parity.
-- **Architecture**: Build on existing MCP + WebSocket tool architecture already in this repository.
-- **Safety**: Avoid introducing unconstrained arbitrary-code browser execution in initial scope.
+- CDP/DevTools-protocol-dependent features for core workflow behavior.
+- Arbitrary browser code execution tooling beyond controlled inspection.
+- Coordinate/vision-first interactions as a primary control model.
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Prioritize a critical first tool set for pre-scraping | Fastest path to selector-discovery value with minimal surface area | — Pending |
-| Exclude CDP-based dialog handling | User explicitly rejects CDP due detectability concerns | — Pending |
-| Defer coordinate-only and arbitrary code execution tools | Not critical for selector-first workflow and increases risk/complexity | — Pending |
+| Selector-first toolset prioritized over broad test parity | Fastest path to reliable pre-scraping value | ✓ Good |
+| Session-owned tab model with no active-tab fallback | Deterministic targeting and safer automation behavior | ✓ Good |
+| Machine-readable coded errors and strict transport behavior | Better automation observability and failure handling | ✓ Good |
+| Selector export handoff removed from v1 scope | YAGNI for current shipped value | ✓ Good |
+
+## Next Milestone Goals
+
+1. Define v1.1 user outcomes and requirement set.
+2. Re-assess deferred technical debt from v1.0 (for example legacy `browser_wait` timeout unit behavior).
+3. Plan and sequence phases for the next milestone roadmap.
 
 ---
-*Last updated: 2026-02-09 after initialization*
+*Last updated: 2026-02-11 after v1.0 milestone completion*
