@@ -14,7 +14,7 @@
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "tsup src/index.ts --format esm && shx chmod +x dist/*.js",
+    "build": "tsup && shx chmod +x dist/index.js",
     "watch": "tsup src/index.ts --format esm --watch",
     "clean": "rm -rf dist",
     "test": "echo 'Tests not yet implemented - Phase 9' \u0026\u0026 exit 0",
