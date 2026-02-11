@@ -26,30 +26,12 @@
  * PHASE 3 INTEGRATION POINTS (Handoff and Repeatable Execution)
  * =============================================================
  *
- * TODO(Phase3): Add session ID generation on first navigate
- *   - Generate unique session ID (UUID or timestamp-based)
- *   - Include session ID in all command responses
- *   - Store session metadata (creation time, initial URL)
- *
- * TODO(Phase3): Hook console log capture to session lifecycle
- *   - Capture console.* calls from content script
- *   - Buffer logs per session with timestamps
- *   - Provide endpoint to retrieve logs for session ID
- *
- * TODO(Phase3): Hook network activity capture to session lifecycle
- *   - Use webRequest API to capture network calls
- *   - Store request/response data per session
- *   - Filter to relevant domains (exclude analytics/CDNs)
- *
- * TODO(Phase3): Add session export endpoint
- *   - Export selector artifacts from discovery
- *   - Include console logs and network activity
- *   - Generate replayable script format
- *
- * TODO(Phase3): Support multiple concurrent sessions
- *   - Map session IDs to tab IDs
- *   - Route commands to correct session
- *   - Isolate session state (logs, network, selectors)
+ * Phase 3 features implemented:
+ * - Session ID generation on first navigate (timestamp + random suffix)
+ * - Console message capture via content script with ring buffer (1000 entries)
+ * - Network activity capture via webRequest API per session tab
+ * - Selector artifact export with metadata, console, and network data
+ * - Session-scoped storage with automatic cleanup on tab close/transport drop
  */
 
 // Error codes for machine-readable failure reasons
