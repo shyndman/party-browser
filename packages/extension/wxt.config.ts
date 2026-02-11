@@ -1,4 +1,5 @@
 import { defineConfig } from 'wxt';
+import path from 'path';
 
 export default defineConfig({
   manifestVersion: 2,
@@ -31,5 +32,12 @@ export default defineConfig({
         strict_min_version: '109.0'
       }
     }
-  }
+  },
+  vite: () => ({
+    resolve: {
+      alias: {
+        '@': path.resolve(__dirname, 'src')
+      }
+    }
+  })
 });

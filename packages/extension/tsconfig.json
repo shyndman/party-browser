@@ -5,8 +5,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
-    },
-    "types": ["@types/webextension-polyfill"]
+    }
   },
   "include": ["src/**/*", "entrypoints/**/*", ".wxt/wxt.d.ts"]
 }
