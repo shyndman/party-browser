@@ -11,7 +11,7 @@ This milestone delivers a behavior-stable structural migration: move to a two-pa
 
 ## Phases
 
-- [ ] **Phase 6: Workspace Foundation** - Establish the locked two-package workspace baseline and root automation.
+- [x] **Phase 6: Workspace Foundation** - Establish the locked two-package workspace baseline and root automation. (completed 2026-02-11)
 - [ ] **Phase 7: TS/WXT Migration + Modularization** - Migrate extension/runtime structure while preserving MV2 behavior and splitting oversized modules.
 - [ ] **Phase 8: Clean-Break Rename + Rebrand** - Remove all `browser_` tool naming and rebrand maintained identifiers to `blindflight`.
 - [ ] **Phase 9: Behavior Parity Validation Gate** - Enforce release gating that proves behavior parity after structural changes.
@@ -29,12 +29,12 @@ This milestone delivers a behavior-stable structural migration: move to a two-pa
 **Plans**: 2 plans in 2 waves
 
 Plans:
-- [ ] **06-01** — Establish pnpm workspace topology and package boundaries
+- [x] **06-01** — Establish pnpm workspace topology and package boundaries
   - Wave 1 | 7 tasks | Autonomous
   - Creates: `pnpm-workspace.yaml`, `packages/mcp/`, `packages/extension/`
   - Migrates: root `src/` → `packages/mcp/src/`, root `extension/` → `packages/extension/`
   
-- [ ] **06-02** — Wire root install/build/test scripts for milestone flows
+- [x] **06-02** — Wire root install/build/test scripts for milestone flows
   - Wave 2 | 9 tasks | Autonomous | Depends on 06-01
   - Creates: Root script surface (build/build:mcp/build:extension, test, dev, etc.)
   - Creates: `scripts/dev-orchestrator.mjs` for parallel dev execution
@@ -89,7 +89,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 6. Workspace Foundation | v1.1 | 0/2 | Planned | - |
+| 6. Workspace Foundation | v1.1 | 2/2 | Complete | 2026-02-11 |
 | 7. TS/WXT Migration + Modularization | v1.1 | 0/2 | Not started | - |
 | 8. Clean-Break Rename + Rebrand | v1.1 | 0/2 | Not started | - |
 | 9. Behavior Parity Validation Gate | v1.1 | 0/2 | Not started | - |
