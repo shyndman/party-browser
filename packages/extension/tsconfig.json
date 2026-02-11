@@ -1,7 +1,12 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "types": ["./.wxt/types"]
+    "strict": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
+    "types": ["./.wxt/types", "@types/webextension-polyfill"]
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*", "entrypoints/**/*", ".wxt/**/*"]
 }
