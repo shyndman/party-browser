@@ -49,7 +49,7 @@ Plans:
   3. Developers can work in focused extension background modules instead of one oversized file.
   4. Developers can work in MCP server modules with clear ownership for tool registration, protocol handling, and runtime orchestration.
   5. Developers can modify one module area with limited cross-module edits and no behavior change.
-**Plans**: 5 plans in 1 wave (3 gap closure plans added after verification)
+**Plans**: 6 plans in 1 wave (4 gap closure plans added after verification)
 
 Plans:
 - [x] **07-01** — TypeScript WXT Migration
@@ -63,7 +63,7 @@ Plans:
   - Creates: MCP server session/, messaging/, tools/ index files
   - Reduces: background.ts from 1059 to 195 lines
 
-- [ ] **07-03** — Fix Extension Compile/Build + Permissions (Gap Closure)
+- [x] **07-03** — Fix Extension Compile/Build + Permissions (Gap Closure)
   - Wave 1 | 4 tasks | Autonomous
   - Fixes: popup type import path, browser namespace types
   - Adds: tabGroups permission to wxt.config.ts
@@ -80,6 +80,12 @@ Plans:
   - Creates: tsup.config.ts with @/ alias resolution
   - Wires: session/ and messaging/ index modules into runtime
   - Verifies: MCP package builds, types resolve, boundaries aligned
+
+- [ ] **07-06** — Add Explicit Firefox .xpi Packaging Workflow (Gap Closure)
+  - Wave 1 | 3 tasks | Autonomous
+  - Adds: extension-level zip-to-xpi packaging command
+  - Adds: workspace-root CI/local entrypoint for xpi packaging
+  - Verifies: packages/extension/.output emits firefox .xpi artifact
 
 ### Phase 8: Clean-Break Rename + Rebrand
 **Goal**: The runtime, tooling, and maintained project surfaces use unprefixed tool names and consistent `blindflight` branding with no legacy compatibility aliases.
@@ -116,6 +122,6 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 6. Workspace Foundation | v1.1 | 2/2 | Complete | 2026-02-11 |
-| 7. TS/WXT Migration + Modularization | v1.1 | 4/5 | In Progress (plan 07-03 pending) | - |
+| 7. TS/WXT Migration + Modularization | v1.1 | 5/6 | In Progress (plan 07-06 pending) | - |
 | 8. Clean-Break Rename + Rebrand | v1.1 | 0/2 | Not started | - |
 | 9. Behavior Parity Validation Gate | v1.1 | 0/2 | Not started | - |
