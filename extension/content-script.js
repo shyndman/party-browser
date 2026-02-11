@@ -499,6 +499,166 @@ async function selectOption(params) {
 }
 
 /**
+ * Press a key (keyboard event simulation)
+ */
+async function pressKey(params) {
+  const { key } = params;
+
+  // Dispatch keydown and keyup events
+  const keydownEvent = new KeyboardEvent('keydown', {
+    key,
+    bubbles: true,
+    cancelable: true
+  });
+  document.dispatchEvent(keydownEvent);
+
+  const keyupEvent = new KeyboardEvent('keyup', {
+    key,
+    bubbles: true,
+    cancelable: true
+  });
+  document.dispatchEvent(keyupEvent);
+
+  return { success: true, key };
+}
+
+/**
+ * Wait for condition (time, text appearance, or text disappearance)
+ */
+async function waitForCondition(params) {
+  const { mode, value, timeout = 30000 } = params;
+  const startTime = Date.now();
+
+  if (mode === 'time') {
+    // Simple time-based wait
+    const ms = parseInt(value, 10) || 1000;
+    await new Promise(resolve => setTimeout(resolve, ms));
+    return { success: true, mode, waited: ms };
+  }
+
+  if (mode === 'text') {
+    // Wait for text to appear in DOM
+    return new Promise((resolve, reject) => {
+      const checkInterval = setInterval(() => {
+        const bodyText = document.body.innerText || '';
+        const elapsed = Date.now() - startTime;
+
+        if (bodyText.includes(value)) {
+          clearInterval(checkInterval);
+          resolve({ success: true, mode, waited: elapsed });
+        }
+
+        if (elapsed >= timeout) {
+          clearInterval(checkInterval);
+          reject(new Error(`Timeout waiting for text: ${value}`));
+        }
+      }, 100);
+    });
+  }
+
+  if (mode === 'text_gone') {
+    // Wait for text to disappear from DOM
+    return new Promise((resolve, reject) => {
+      const checkInterval = setInterval(() => {
+        const bodyText = document.body.innerText || '';
+        const elapsed = Date.now() - startTime;
+
+        if (!bodyText.includes(value)) {
+          clearInterval(checkInterval);
+          resolve({ success: true, mode, waited: elapsed });
+        }
+
+        if (elapsed >= timeout) {
+          clearInterval(checkInterval);
+          reject(new Error(`Timeout waiting for text to disappear: ${value}`));
+        }
+      }, 100);
+    });
+  }
+
+  throw new Error(`Unknown wait mode: ${mode}`);
+}
+
+/**
+ * Drag element from source to target
+ */
+async function dragElement(params) {
+  const { startElement, endElement } = params;
+
+  const startEl = findElement(startElement);
+  const endEl = findElement(endElement);
+
+  if (!startEl) {
+    throw new Error(`Start element not found: ${startElement}`);
+  }
+  if (!endEl) {
+    throw new Error(`End element not found: ${endElement}`);
+  }
+
+  const startRect = startEl.getBoundingClientRect();
+  const endRect = endEl.getBoundingClientRect();
+
+  // Calculate center points
+  const startX = startRect.left + startRect.width / 2;
+  const startY = startRect.top + startRect.height / 2;
+  const endX = endRect.left + endRect.width / 2;
+  const endY = endRect.top + endRect.height / 2;
+
+  // Simulate drag: mousedown on start, mousemove to end, mouseup on end
+  startEl.dispatchEvent(new MouseEvent('mousedown', {
+    bubbles: true,
+    cancelable: true,
+    clientX: startX,
+    clientY: startY
+  }));
+
+  await new Promise(resolve => setTimeout(resolve, 50));
+
+  document.dispatchEvent(new MouseEvent('mousemove', {
+    bubbles: true,
+    cancelable: true,
+    clientX: endX,
+    clientY: endY
+  }));
+
+  await new Promise(resolve => setTimeout(resolve, 50));
+
+  endEl.dispatchEvent(new MouseEvent('mouseup', {
+    bubbles: true,
+    cancelable: true,
+    clientX: endX,
+    clientY: endY
+  }));
+
+  return { success: true, startElement, endElement };
+}
+
+/**
+ * Hover over element
+ */
+async function hoverElement(params) {
+  const { element } = params;
+  const el = findElement(element);
+
+  if (!el) {
+    throw new Error(`Element not found: ${element}`);
+  }
+
+  // Dispatch mouseover and mouseenter events
+  el.dispatchEvent(new MouseEvent('mouseover', {
+    bubbles: true,
+    cancelable: true
+  }));
+
+  el.dispatchEvent(new MouseEvent('mouseenter', {
+    bubbles: true,
+    cancelable: true
+  }));
+
+  return { success: true, element };
+}
+
+/**
  * Execute command handler
  */
 async function executeCommand(message) {
@@ -519,6 +679,18 @@ async function executeCommand(message) {
 
     case 'select_option':
       return await selectOption(params);
+
+    case 'press_key':
+      return await pressKey(params);
+
+    case 'wait_for':
+      return await waitForCondition(params);
+
+    case 'drag':
+      return await dragElement(params);
+
+    case 'hover':
+      return await hoverElement(params);
 
     default:
       throw new Error(`Unknown command: ${command}`);
