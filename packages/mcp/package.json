@@ -17,8 +17,11 @@
     "build": "tsup src/index.ts --format esm && shx chmod +x dist/*.js",
     "watch": "tsup src/index.ts --format esm --watch",
     "clean": "rm -rf dist",
-    "test": "echo 'Tests not yet implemented - Phase 9' && exit 0",
-    "test:watch": "echo 'Tests not yet implemented - Phase 9' && exit 0"
+    "test": "echo 'Tests not yet implemented - Phase 9' \u0026\u0026 exit 0",
+    "test:watch": "echo 'Tests not yet implemented - Phase 9' \u0026\u0026 exit 0",
+    "dev": "mcp web node dist/index.js --port 6277",
+    "dev:shell": "mcp shell node dist/index.js",
+    "tools": "mcp tools node dist/index.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
