@@ -9,12 +9,12 @@ See: `.planning/PROJECT.md` (updated 2026-02-09)
 
 ## Current Position
 
-Phase: 03-handoff-and-repeatable-execution-readiness
-Plan: 03 (Protocol Alignment - COMPLETE)
-Status: Protocol bridge complete - MCP tools can send direct browser_* message types that route to extension handlers
-Last activity: 2026-02-10 - Completed Plan 03-03: Protocol Alignment for Direct Message Types
+Phase: 02.2-message-routing-completion
+Plan: 01 (Message Routing Completion - COMPLETE)
+Status: All 21 message types now route successfully from MCP tools to extension handlers
+Last activity: 2026-02-11 - Completed Plan 02.2-01: Message Routing Completion
 
-Progress: [███░░░░░░░] 50%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -45,6 +45,7 @@ Progress: [███░░░░░░░] 50%
 | Phase 02.1-single-browser-bridge-session-owned-tab-model-no-active-tab-fallback-no-per-call-tabid-overrides P05 | 2min | 2 tasks | 1 files |
 | Phase 02.1-single-browser-bridge-session-owned-tab-model-no-active-tab-fallback-no-per-call-tabid-overrides P06 | 2min | 1 tasks | 1 files |
 | Phase 03-handoff-and-repeatable-execution-readiness P03 | 5min | 4 tasks | 1 files |
+| Phase 02.2-message-routing-completion P01 | 1 min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -96,6 +97,9 @@ Recent decisions affecting current work:
 - [Phase 03-02]: Artifact format inspired by Chrome DevTools Recorder for broad compatibility
 - [Phase 03-02]: Optional console/network data bounded to last 50 entries to prevent huge artifacts
 - [Phase 03-03]: Direct message types use message.payload not message.params — ws-sender sends direct types with payload field, while mcpCommand uses params field
+- [Phase 02.2-01]: DOM operations (click, type, evaluate, snapshot, select_option, press_key, wait_for, drag, hover) forwarded to content script for proper DOM access
+- [Phase 02.2-01]: Browser API used for history navigation (tabs.goBack/goForward) not JavaScript history API
+- [Phase 02.2-01]: Console logs accessible via dual path: getConsoleLogs (direct) and getConsoleMessages (Phase 3 infrastructure)
 
 ### Roadmap Evolution
 
@@ -120,6 +124,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-10 17:32
-Stopped at: Completed Plan 03-03: Protocol Alignment for Direct Message Types
+Last session: 2026-02-11 02:55
+Stopped at: Completed Plan 02.2-01: Message Routing Completion
 Resume file: None
