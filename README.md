@@ -138,6 +138,11 @@ node dist/index.js
 2. Ensure the extension shows "Connected" status
 3. Have at least one browser tab open
 
+Session targeting note:
+- Browser MCP binds to a single session tab when the extension connects to the MCP transport.
+- Focus the tab you want to automate before enabling/connecting the extension.
+- Per-call `tabId` overrides are not supported in this mode.
+
 ### Using with OpenCode (local checkout)
 
 If this repo is already checked out on your machine, you can point OpenCode at this local build directly.
@@ -192,6 +197,8 @@ Notes:
 | Issue | Cause | Solution |
 |-------|-------|----------|
 | `browser_navigate` fails with connection error | No browser tab connected | Open browser extension, ensure it shows "Connected" |
+| Commands fail with "Session tab unavailable" | The bound session tab was closed or never bound | Focus target tab and reconnect Browser MCP session |
+| Tool calls fail with "Browser transport unavailable" and port-in-use message | Another Browser MCP process already owns the WebSocket port | Close other Browser MCP sessions, then restart this MCP process |
 | Smoke test fails with "Server binary not found" | Build artifacts missing | Run `npm run build` first |
 | Extension shows "Disconnected" | Server not running or port issue | Verify server is running, check extension settings |
 | **Firefox:** "Extension could not be installed" | Using regular Firefox | Use Firefox Developer Edition for unsigned extensions |
