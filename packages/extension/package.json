@@ -10,7 +10,9 @@
     "zip": "wxt zip -b firefox",
     "compile": "tsc --noEmit",
     "postinstall": "wxt prepare",
-    "clean": "rm -rf .output .wxt"
+    "clean": "rm -rf .output .wxt",
+    "test": "echo 'Tests not yet implemented - Phase 9' && exit 0",
+    "test:e2e": "echo 'E2E tests not yet implemented - Phase 9' && exit 0"
   },
   "dependencies": {},
   "devDependencies": {
