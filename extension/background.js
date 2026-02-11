@@ -1070,6 +1070,141 @@ async function handleExportSelectors(params) {
 }
 
 /**
+ * Navigate back in history
+ */
+async function handleGoBack(params) {
+  const targetTabId = await resolveTargetTabId(params);
+  await browser.tabs.goBack(targetTabId);
+  return { success: true };
+}
+
+/**
+ * Navigate forward in history
+ */
+async function handleGoForward(params) {
+  const targetTabId = await resolveTargetTabId(params);
+  await browser.tabs.goForward(targetTabId);
+  return { success: true };
+}
+
+/**
+ * Press a key (simulates keyboard key press)
+ */
+async function handlePressKey(params) {
+  const { key } = params;
+  const targetTabId = await resolveTargetTabId(params);
+
+  const results = await browser.tabs.sendMessage(targetTabId, {
+    type: 'executeCommand',
+    command: 'press_key',
+    params: { key }
+  });
+
+  return results;
+}
+
+/**
+ * Wait for condition (time, text appearance, or text disappearance)
+ */
+async function handleWaitFor(params) {
+  const { mode, value, timeout } = params;
+  const targetTabId = await resolveTargetTabId(params);
+
+  const results = await browser.tabs.sendMessage(targetTabId, {
+    type: 'executeCommand',
+    command: 'wait_for',
+    params: { mode, value, timeout }
+  });
+
+  return results;
+}
+
+/**
+ * Drag element from source to target
+ */
+async function handleDrag(params) {
+  const { startElement, endElement } = params;
+  const targetTabId = await resolveTargetTabId(params);
+
+  const results = await browser.tabs.sendMessage(targetTabId, {
+    type: 'executeCommand',
+    command: 'drag',
+    params: { startElement, endElement }
+  });
+
+  return results;
+}
+
+/**
+ * Hover over element
+ */
+async function handleHover(params) {
+  const { element } = params;
+  const targetTabId = await resolveTargetTabId(params);
+
+  const results = await browser.tabs.sendMessage(targetTabId, {
+    type: 'executeCommand',
+    command: 'hover',
+    params: { element }
+  });
+
+  return results;
+}
+
+/**
+ * Close session and terminate tab
+ */
+async function handleClose(params) {
+  const targetTabId = await resolveTargetTabId(params);
+  await stopWebSocketServer('user_close');
+  return { success: true, message: 'Session closed' };
+}
+
+/**
+ * Get current URL
+ */
+async function handleGetUrl(params) {
+  const targetTabId = await resolveTargetTabId(params);
+  const tab = await browser.tabs.get(targetTabId);
+  return { success: true, url: tab.url };
+}
+
+/**
+ * Get page title
+ */
+async function handleGetTitle(params) {
+  const targetTabId = await resolveTargetTabId(params);
+  const tab = await browser.tabs.get(targetTabId);
+  return { success: true, title: tab.title };
+}
+
+/**
+ * Get console logs for current session
+ */
+async function handleGetConsoleLogs(params) {
+  const targetTabId = await resolveTargetTabId(params);
+
+  const response = await browser.tabs.sendMessage(targetTabId, {
+    type: 'getConsoleLogs',
+    clear: false
+  });
+
+  if (!response || !response.success) {
+    return {
+      success: false,
+      error: 'Failed to get console logs',
+      errorCode: ErrorCodes.COMMAND_FAILED
+    };
+  }
+
+  return {
+    success: true,
+    count: response.logs.length,
+    logs: response.logs
+  };
+}
+
+/**
  * Parse a selector string into SelectorDefinition format
  * Supports prefixes: css:, xpath:, text:, and eN (element ref) format
  */
