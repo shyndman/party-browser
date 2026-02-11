@@ -8,6 +8,7 @@
     "build": "wxt build -b firefox",
     "build:firefox": "wxt build -b firefox",
     "zip": "wxt zip -b firefox",
+    "xpi": "wxt zip -b firefox && node ./scripts/zip-to-xpi.mjs",
     "compile": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "postinstall": "wxt prepare",
