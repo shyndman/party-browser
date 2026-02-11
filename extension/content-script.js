@@ -530,8 +530,9 @@ async function waitForCondition(params) {
   const startTime = Date.now();
 
   if (mode === 'time') {
-    // Simple time-based wait
-    const ms = parseInt(value, 10) || 1000;
+    // TIMEOUT CONTRACT: API value is in SECONDS, setTimeout expects MILLISECONDS
+    const seconds = parseInt(value, 10) || 1;
+    const ms = seconds * 1000;
     await new Promise(resolve => setTimeout(resolve, ms));
     return { success: true, mode, waited: ms };
   }
