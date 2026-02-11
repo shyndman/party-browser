@@ -5,37 +5,37 @@
 See: `.planning/PROJECT.md` (updated 2026-02-11)
 
 **Core value:** An LLM can consistently derive actionable selectors from live page context so downstream procedural scraping is reliable.
-**Current focus:** Phase 7 - TS/WXT Migration + Modularization
+**Current focus:** Phase 8 - Clean-Break Rename + Rebrand
 
 ## Current Position
 
 Milestone: v1.1 pre-v2.0-structural-improvements
-Phase: 7 of 9 (TS/WXT Migration + Modularization)
-Plan: 6 of 6 in current phase (COMPLETE)
-Status: Ready for phase re-verification
-Last activity: 2026-02-11 - Completed Plan 06 (xpi packaging workflow)
+Phase: 8 of 9 (Clean-Break Rename + Rebrand)
+Plan: 0 of 2 in current phase
+Status: Ready to plan
+Last activity: 2026-02-11 - Phase 7 execution complete and human-approved
 
-Progress: [██████░░░░░░░░░░░░░░] 33%
+Progress: [██████████░░░░░░░░░░] 50%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7 (v1.1)
-- Average duration: 16.7min
-- Total execution time: 1.95 hours
+- Total plans completed: 8 (v1.1)
+- Average duration: 14.9min
+- Total execution time: 1.98 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 6 | 2 | 2 | 2.5min |
-| 7 | 5 | 5 | 22.2min |
+| 7 | 6 | 6 | 19.0min |
 | 8 | 0 | - | - |
 | 9 | 0 | - | - |
 
 **Recent Trend:**
 - Last 5 plans: Phase 07-ts-wxt-migration (5 plans)
-- Trend: Gap-closure work in Phase 7 completed; ready for verification
+- Trend: Phase 7 complete; ready to plan Phase 8
 | Phase 06-workspace-foundation P02 | 3min | 9 tasks | 4 files |
 | Phase 07-ts-wxt-migration P01 | 45min | 3 tasks | 15 files |
 | Phase 07-ts-wxt-migration P02 | 12min | 3 tasks | 16 files |
@@ -72,10 +72,10 @@ None yet.
 
 ### Blockers/Concerns
 
-None currently.
+None currently; next action is phase-level planning for Phase 8.
 
 ## Session Continuity
 
-Last session: 2026-02-11 (07-06 xpi packaging workflow)
-Stopped at: Completed 07-06-PLAN.md
+Last session: 2026-02-11 (Phase 7 completion)
+Stopped at: Phase 07 complete and human-approved; ready to plan Phase 08
 Resume file: None

@@ -12,7 +12,7 @@ This milestone delivers a behavior-stable structural migration: move to a two-pa
 ## Phases
 
 - [x] **Phase 6: Workspace Foundation** - Establish the locked two-package workspace baseline and root automation. (completed 2026-02-11)
-- [ ] **Phase 7: TS/WXT Migration + Modularization** - Migrate extension/runtime structure while preserving MV2 behavior and splitting oversized modules.
+- [x] **Phase 7: TS/WXT Migration + Modularization** - Migrate extension/runtime structure while preserving MV2 behavior and splitting oversized modules. (completed 2026-02-11)
 - [ ] **Phase 8: Clean-Break Rename + Rebrand** - Remove all `browser_` tool naming and rebrand maintained identifiers to `blindflight`.
 - [ ] **Phase 9: Behavior Parity Validation Gate** - Enforce release gating that proves behavior parity after structural changes.
 
@@ -81,7 +81,7 @@ Plans:
   - Wires: session/ and messaging/ index modules into runtime
   - Verifies: MCP package builds, types resolve, boundaries aligned
 
-- [ ] **07-06** — Add Explicit Firefox .xpi Packaging Workflow (Gap Closure)
+- [x] **07-06** — Add Explicit Firefox .xpi Packaging Workflow (Gap Closure)
   - Wave 1 | 3 tasks | Autonomous
   - Adds: extension-level zip-to-xpi packaging command
   - Adds: workspace-root CI/local entrypoint for xpi packaging
@@ -122,6 +122,6 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 6. Workspace Foundation | v1.1 | 2/2 | Complete | 2026-02-11 |
-| 7. TS/WXT Migration + Modularization | v1.1 | 5/6 | In Progress (plan 07-06 pending) | - |
+| 7. TS/WXT Migration + Modularization | v1.1 | 6/6 | Complete | 2026-02-11 |
 | 8. Clean-Break Rename + Rebrand | v1.1 | 0/2 | Not started | - |
 | 9. Behavior Parity Validation Gate | v1.1 | 0/2 | Not started | - |
