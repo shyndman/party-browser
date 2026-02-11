@@ -26,11 +26,18 @@ This milestone delivers a behavior-stable structural migration: move to a two-pa
   1. Developers can run install from the workspace root and resolve exactly two workspace packages: `packages/mcp` and `packages/extension`.
   2. Developers can build MCP and extension packages independently via workspace package scripts.
   3. Developers can run milestone build/test flows from workspace-level scripts without ad hoc package-local steps.
-**Plans**: TBD
+**Plans**: 2 plans in 2 waves
 
 Plans:
-- [ ] 06-01: Establish pnpm workspace topology and package boundaries
-- [ ] 06-02: Wire root install/build/test scripts for milestone flows
+- [ ] **06-01** — Establish pnpm workspace topology and package boundaries
+  - Wave 1 | 7 tasks | Autonomous
+  - Creates: `pnpm-workspace.yaml`, `packages/mcp/`, `packages/extension/`
+  - Migrates: root `src/` → `packages/mcp/src/`, root `extension/` → `packages/extension/`
+  
+- [ ] **06-02** — Wire root install/build/test scripts for milestone flows
+  - Wave 2 | 9 tasks | Autonomous | Depends on 06-01
+  - Creates: Root script surface (build/build:mcp/build:extension, test, dev, etc.)
+  - Creates: `scripts/dev-orchestrator.mjs` for parallel dev execution
 
 ### Phase 7: TS/WXT Migration + Modularization
 **Goal**: Operators and developers can use a TypeScript + WXT extension and modularized runtime code while preserving Firefox MV2 behavior and existing workflows.
@@ -82,7 +89,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 6. Workspace Foundation | v1.1 | 0/2 | Not started | - |
+| 6. Workspace Foundation | v1.1 | 0/2 | Planned | - |
 | 7. TS/WXT Migration + Modularization | v1.1 | 0/2 | Not started | - |
 | 8. Clean-Break Rename + Rebrand | v1.1 | 0/2 | Not started | - |
 | 9. Behavior Parity Validation Gate | v1.1 | 0/2 | Not started | - |
