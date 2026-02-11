@@ -526,7 +526,12 @@ async function pressKey(params) {
  * Wait for condition (time, text appearance, or text disappearance)
  */
 async function waitForCondition(params) {
-  const { mode, value, timeout = 30000 } = params;
+  const { mode, value, timeout: timeoutSeconds = 30 } = params;
+  // TIMEOUT CONTRACT: All timeout values received from MCP server are in SECONDS
+  // All internal comparisons with Date.now() use MILLISECONDS
+  // All setTimeout/setInterval calls receive MILLISECONDS
+  // Conversion: timeoutMs = timeoutSeconds * 1000
+  const timeoutMs = timeoutSeconds * 1000;
   const startTime = Date.now();
 
   if (mode === 'time') {
@@ -549,7 +554,7 @@ async function waitForCondition(params) {
           resolve({ success: true, mode, waited: elapsed });
         }
 
-        if (elapsed >= timeout) {
+        if (elapsed >= timeoutMs) {
           clearInterval(checkInterval);
           reject(new Error(`Timeout waiting for text: ${value}`));
         }
@@ -569,7 +574,7 @@ async function waitForCondition(params) {
           resolve({ success: true, mode, waited: elapsed });
         }
 
-        if (elapsed >= timeout) {
+        if (elapsed >= timeoutMs) {
           clearInterval(checkInterval);
           reject(new Error(`Timeout waiting for text to disappear: ${value}`));
         }
