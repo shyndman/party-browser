@@ -5,26 +5,23 @@
 See: `.planning/PROJECT.md` (updated 2026-02-11)
 
 **Core value:** An LLM can consistently derive actionable selectors from live page context so downstream procedural scraping is reliable.
-**Current focus:** Plan next milestone
+**Current focus:** Milestone v1.1 requirements definition
 
 ## Current Position
 
-Milestone: v1.0 MVP
-Status: Complete and archived
-Last activity: 2026-02-11 - Milestone archived (roadmap/requirements/audit) and planning docs reset for next milestone
+Milestone: v1.1 pre-v2.0-structural-improvements
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-02-11 - Milestone v1.1 started
 
-Progress: [████████████████████] 100%
+Progress: [░░░░░░░░░░░░░░░░░░░░] 0%
 
 ## Milestone Summary
 
-- Phases completed: 5
-- Plans completed: 21
-- Tasks completed: 67
-- Audit result: passed (15/15 requirements)
-- Archives:
-  - `.planning/milestones/v1.0-ROADMAP.md`
-  - `.planning/milestones/v1.0-REQUIREMENTS.md`
-  - `.planning/milestones/v1.0-MILESTONE-AUDIT.md`
+- Previous milestone: v1.0 MVP (complete, archived)
+- Current milestone goal: cleaner architecture baseline before v2.0
+- Focus areas: TypeScript/WXT migration, modularization, protocol hardening
 
 ## Notable Decisions (v1.0)
 
@@ -34,8 +31,8 @@ Progress: [████████████████████] 100%
 
 ## Open Follow-ups
 
-- Revisit legacy `browser_wait` timeout-unit behavior in next milestone scope review.
-- Define v1.1 requirements and roadmap via `/gsd-new-milestone`.
+- Revisit legacy `browser_wait` timeout-unit behavior during v1.1 planning.
+- Define v1.1 requirements and roadmap phases.
 
 ## Session Continuity
 
