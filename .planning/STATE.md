@@ -121,6 +121,7 @@ None yet.
 |---|-------------|------|--------|-----------|
 | 1 | Improve the build process so it produces a well-formed Firefox XPI ready to install in Firefox Developer Edition | 2026-02-10 | 8fce0a3 | [1-improve-the-build-process-so-it-produces](./quick/1-improve-the-build-process-so-it-produces/) |
 | 2 | Gate all communications behind a single extension-icon kill switch that tears down and restarts the socket server | 2026-02-10 | 916717e | [2-gate-all-communications-behind-a-single-](./quick/2-gate-all-communications-behind-a-single-/) |
+| 3 | Add comprehensive logging that prints command responses for better debugging and observability | 2026-02-11 | 330bc0b | [3-add-logging-that-prints-command-response](./quick/3-add-logging-that-prints-command-response/) |
 
 ## Session Continuity
 
