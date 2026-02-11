@@ -13,6 +13,7 @@ import type { Resource } from "@/resources/resource";
 import type { Tool } from "@/tools/tool";
 import { CodedError } from "@/protocol/ws-sender";
 import { createWebSocketServer } from "@/ws";
+import { debugLog } from "@/utils/log";
 
 type Options = {
   name: string;
@@ -86,6 +87,7 @@ export async function createServerWithTools(options: Options): Promise<Server> {
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    debugLog("[MCP] Tool called:", request.params.name, request.params.arguments);
     const tool = tools.find((tool) => tool.schema.name === request.params.name);
     if (!tool) {
       const error = new CodedError(
@@ -120,8 +122,10 @@ export async function createServerWithTools(options: Options): Promise<Server> {
 
     try {
       const result = await tool.handle(context, request.params.arguments);
+      debugLog("[MCP] Tool result:", request.params.name, result);
       return result;
     } catch (error) {
+      debugLog("[MCP] Tool error:", request.params.name, error);
       // Include errorCode if available from CodedError, otherwise use INTERNAL_TOOL_ERROR fallback
       const errorCode = (error as Error & { errorCode?: string }).errorCode;
       const errorMessage = String(error);
