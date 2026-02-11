@@ -5,9 +5,20 @@ export async function captureAriaSnapshot(
   context: Context,
   status: string = "",
 ): Promise<ToolResult> {
-  const url = await context.sendSocketMessage("getUrl", undefined);
-  const title = await context.sendSocketMessage("getTitle", undefined);
-  const snapshot = await context.sendSocketMessage("browser_snapshot", {});
+  const urlResult = await context.sendSocketMessage("getUrl", undefined);
+  const titleResult = await context.sendSocketMessage("getTitle", undefined);
+  const snapshotResult = await context.sendSocketMessage("browser_snapshot", {});
+  
+  // Extract actual values from result objects
+  const url = urlResult?.url ?? "[unknown]";
+  const title = titleResult?.title ?? "[unknown]";
+  const snapshot = snapshotResult?.tree ?? snapshotResult ?? {};
+  
+  // Format snapshot as YAML-like structure
+  const snapshotYaml = Array.isArray(snapshot) 
+    ? snapshot.map((el: any) => `  - ${el.ref} ${el.role || el.tagName}: ${el.name}`).join('\n')
+    : JSON.stringify(snapshot, null, 2);
+  
   return {
     content: [
       {
@@ -17,7 +28,7 @@ export async function captureAriaSnapshot(
 - Page Title: ${title}
 - Page Snapshot
 \`\`\`yaml
-${snapshot}
+${snapshotYaml}
 \`\`\`
 `,
       },
