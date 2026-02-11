@@ -1,12 +1,235 @@
 # Stack Research
 
-**Domain:** MCP-compatible browser pre-scraping system
-**Researched:** 2026-02-09
+**Domain:** MCP-compatible browser pre-scraping system  
+**Researched:** 2026-02-09 (v1.0), 2026-02-11 (v1.1)  
 **Confidence:** HIGH
 
 ## Executive Summary
 
+### v1.0 (Shipped)
 The 2025 standard stack for MCP-compatible browser pre-scraping prioritizes **WebDriver BiDi** as the CDP alternative, **MCP SDK v1.26.0** for protocol compliance, and **Playwright v1.51.0** for browser automation. This stack enables LLM-assisted selector discovery through semantic DOM snapshots while maintaining strict protocol boundaries via MCP's tool/resource/prompt abstractions.
+
+### v1.1 (Current Milestone: Structural Improvements)
+This milestone migrates the existing browser-mcp project from a single-package npm structure to a **pnpm workspace monorepo** with full **TypeScript adoption for the Firefox extension**. The extension migrates from vanilla JavaScript to **WXT framework** with preserved Firefox MV2 compatibility. Key additions: **pnpm 10.x**, **WXT 0.20.x**, **webext-bridge 6.x**, and **Node.js 22.x**.
+
+---
+
+# v1.1 Stack Additions: Structural Migration
+
+## New Toolchain Requirements
+
+| Technology | Version/Range | Purpose | Why |
+|------------|---------------|---------|-----|
+| **pnpm** | ^10.x | Package manager & workspace orchestration | Native workspace support, disk-efficient, strict dependency management. Required for workspace protocol (`workspace:*`) |
+| **Node.js** | ^22.x | Runtime | LTS with native ESM support, required by WXT 0.20+ |
+| **TypeScript** | ^5.7.x | Type system | Latest stable, supports `verbatimModuleSyntax`, compatible with WXT's generated types |
+| **WXT** | ^0.20.x | Extension framework | File-based entrypoints, automatic MV2/MV3 manifest conversion, HMR, built-in build pipeline |
+| **webext-bridge** | ^6.x | Background/content messaging | Type-safe messaging wrapper around browser extension APIs. Recommended by WXT docs, simpler than tRPC for this use case |
+| **@types/firefox-webext-browser** | ^120.x | Firefox API types | Mozilla-maintained types for Firefox-specific APIs |
+
+### Workspace Structure
+
+```
+blindflight/
+├── pnpm-workspace.yaml          # Workspace definition
+├── package.json                 # Root workspace (dev tools, scripts)
+├── tsconfig.base.json           # Shared TS config
+├── packages/
+│   ├── extension/               # WXT-based Firefox extension
+│   │   ├── entrypoints/
+│   │   │   ├── background.ts    # Main background script
+│   │   │   ├── content.ts       # Content script
+│   │   │   └── popup/           # Popup UI
+│   │   ├── wxt.config.ts        # WXT configuration
+│   │   ├── tsconfig.json        # Extends .wxt/tsconfig.json
+│   │   └── package.json         # @blindflight/extension
+│   │
+│   ├── mcp/                     # MCP server
+│   │   ├── src/
+│   │   │   ├── index.ts         # Entry point
+│   │   │   ├── mcp-server/      # Server implementation
+│   │   │   └── browser-api/     # Browser control abstraction
+│   │   ├── tsconfig.json
+│   │   └── package.json         # @blindflight/mcp
+│   │
+│   └── shared/                  # Shared types & protocol
+│       ├── src/
+│       │   ├── types/           # Protocol message types
+│       │   ├── errors/          # Error codes & handling
+│       │   └── schemas/         # Zod schemas
+│       └── package.json         # @blindflight/shared
+│
+└── scripts/                     # Build/publish utilities
+```
+
+### Installation Commands
+
+```bash
+# Root setup
+corepack enable
+corepack prepare pnpm@latest --activate
+
+# Extension package
+cd packages/extension
+pnpm add -D wxt@^0.20.15 typescript@^5.7.3
+pnpm add webext-bridge@^6.0.1
+pnpm add -D @types/firefox-webext-browser@^120.0.0
+
+# Shared package
+cd packages/shared
+pnpm add zod@^3.24.2
+pnpm add -D typescript@^5.7.3
+
+# MCP depends on shared
+cd packages/mcp
+pnpm add @blindflight/shared@workspace:*
+```
+
+### Root Configuration
+
+**pnpm-workspace.yaml:**
+```yaml
+packages:
+  - 'packages/*'
+
+saveWorkspaceProtocol: rolling
+preferWorkspacePackages: true
+sharedWorkspaceLockfile: true
+```
+
+**Root package.json:**
+```json
+{
+  "name": "@blindflight/monorepo",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.2.0",
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "pnpm --filter @blindflight/extension dev",
+    "dev:firefox": "pnpm --filter @blindflight/extension dev:firefox",
+    "build:extension": "pnpm --filter @blindflight/extension build",
+    "build:mcp": "pnpm --filter @blindflight/mcp build",
+    "typecheck": "pnpm -r typecheck"
+  }
+}
+```
+
+## Firefox MV2 Preservation with WXT
+
+### Critical Configuration
+
+**wxt.config.ts:**
+```typescript
+import { defineConfig } from 'wxt';
+
+export default defineConfig({
+  manifest: {
+    name: 'Blindflight',
+    description: 'Browser automation extension',
+    permissions: [
+      'activeTab',
+      'tabs', 
+      'storage',
+      'webRequest',
+      '<all_urls>',
+    ],
+    action: {},  // WXT converts to browser_action for MV2
+    browser_specific_settings: {
+      gecko: {
+        id: 'blindflight@blindflight.dev',
+        strict_min_version: '109.0',
+      },
+    },
+  },
+  browser: 'firefox',
+  manifestVersion: 2,
+});
+```
+
+### WXT MV2/MV3 Compatibility
+
+| MV2 Requirement | WXT Handling | Config Approach |
+|----------------|--------------|-----------------|
+| `manifest_version: 2` | Explicit in config | `manifestVersion: 2` |
+| `browser_action` | Auto-converts from `action` | Use MV3 `action` in config |
+| `background.scripts` | Auto-generates based on version | No config needed |
+| `web_request` API | Available in MV2 | Add to permissions |
+| `applications.gecko` | Use `browser_specific_settings` | WXT converts for Firefox |
+
+## Migration Sequencing
+
+### Phase 1: Workspace Foundation
+1. Create `pnpm-workspace.yaml`
+2. Move `src/` → `packages/mcp/src/`
+3. Move `extension/` → `packages/extension/`
+4. Run `pnpm install` from root
+
+### Phase 2: WXT Migration
+1. Install WXT in extension package
+2. Create `entrypoints/` structure:
+   - `background.ts` (from background.js)
+   - `content.ts` (from content-script.js)
+   - `popup/` (from popup.html/js)
+3. Wrap scripts in WXT format:
+   - Background: `defineBackground(() => { ... })`
+   - Content: `defineContentScript({ matches: ['<all_urls>'], main() { ... } })`
+4. Run `wxt prepare` to generate types
+5. Configure `tsconfig.json` extending `.wxt/tsconfig.json`
+
+### Phase 3: Protocol Hardening
+1. Create `@blindflight/shared` package
+2. Extract message types, error codes, schemas
+3. Add `webext-bridge` for type-safe messaging
+4. Update MCP to use shared validation
+
+### Phase 4: Rebrand
+1. Rename packages: `@blindflight/*`
+2. Update manifest IDs
+3. Remove `browser_` prefixes from tools
+4. Rename bin command
+
+## Tool Rename Mapping
+
+| Old Name | New Name |
+|----------|----------|
+| `browser_navigate` | `navigate` |
+| `browser_click` | `click` |
+| `browser_type` | `type` |
+| `browser_select` | `select` |
+| `browser_press_key` | `press_key` |
+| `browser_evaluate` | `evaluate` |
+| `browser_screenshot` | `screenshot` |
+| `browser_get_console_logs` | `get_console_logs` |
+| `browser_get_network_logs` | `get_network_logs` |
+| `browser_kill` | `kill_session` |
+
+## What NOT to Add
+
+| Avoid | Why | Use Instead |
+|-------|-----|-------------|
+| **React/Vue/Svelte in extension** | Overkill for popup, adds bundle size | Vanilla TypeScript |
+| **tRPC** | Too heavy for extension-MCP comms | webext-bridge |
+| **Vite directly** | WXT wraps Vite, causes conflicts | WXT's built-in Vite config |
+| **ESLint/Prettier** (new) | Adds overhead, not required | Add in v2.0 if needed |
+| **Vitest for extension** | Needs browser environment | E2E with playwright later |
+| **ws npm package in extension** | Extension uses native WebSocket API | Native WebSocket |
+| **Dynamic imports** | Complicates manifest | Static imports |
+| **Custom WebSocket libs** | Unnecessary abstraction | Native WebSocket API |
+
+## Version Pinning Strategy
+
+| Category | Strategy |
+|----------|----------|
+| Node.js | `.nvmrc` or `engines` field |
+| pnpm | Pin in `packageManager` field |
+| WXT | `^0.20.x` - follow semver minors |
+| TypeScript | `^5.7.x` - match WXT requirements |
+| Dependencies | Exact versions after validation |
+
+---
+
+# v1.0 Stack (Retained)
 
 ## Recommended Stack
 

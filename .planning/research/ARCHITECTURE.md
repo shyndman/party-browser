@@ -1,401 +1,589 @@
-# Architecture Patterns
+# Architecture Research: v1.1 Structural Milestone
 
-**Domain:** Browser Pre-Scraping MCP Server
-**Researched:** February 2026
+**Project:** blindflight (browser-mcp rebrand)  
+**Milestone:** v1.1 pre-v2.0-structural-improvements  
+**Researched:** 2026-02-11  
 **Confidence:** HIGH
 
-## Standard Architecture
+## Executive Summary
+
+The v1.1 milestone restructures browser-mcp from a monolithic single-package repo to a pnpm workspace with clear separation between MCP server (`packages/mcp`) and browser extension (`packages/extension`). This enables independent versioning, parallel development, and cleaner protocol boundaries while preserving existing runtime behavior.
+
+**Key architectural shifts:**
+1. **Package split**: Single package → workspace with `packages/mcp` and `packages/extension`
+2. **Extension modernization**: Plain JS + hand-rolled manifest → TypeScript + WXT with MV2 output preservation
+3. **Protocol hardening**: Untyped message passing → strict message contracts with coded errors
+4. **Naming clean break**: `browser_` prefix removal across tool names and protocol messages
+5. **Rebrand**: `browsermcp` identifiers → `blindflight` across packages, binaries, and manifests
+
+---
+
+## Current Architecture (Pre-v1.1)
 
 ### System Overview
 
-MCP-style browser pre-scraping systems follow a layered architecture that separates the LLM-driven discovery phase from the procedural extraction phase. This separation is critical for reliability, maintainability, and scaling.
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           MCP Server (Node.js/TS)                        │
+│  ┌──────────────────────────────────────────────────────────────────┐   │
+│  │                      src/index.ts (Entry)                         │   │
+│  │  - Registers tools with MCP SDK                                   │   │
+│  │  - Starts WebSocket server on port 3456                           │   │
+│  └──────────────────────────────────────────────────────────────────┘   │
+│                                    │                                     │
+│  ┌──────────────────┬──────────────┼──────────────┬──────────────────┐   │
+│  │ Tool Definitions │ Tool Impl    │ Protocol     │ Context          │   │
+│  │ (Zod schemas)    │ (handlers)   │ (WS msgs)    │ (connection mgmt)│   │
+│  └──────────────────┴──────────────┴──────────────┴──────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                               WebSocket
+                              (ws://localhost:3456)
+                                    │
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         Firefox Extension (MV2)                          │
+│  ┌──────────────────────────────────────────────────────────────────┐   │
+│  │                    background.js (Event Page)                     │   │
+│  │  - WebSocket client connecting to MCP server                      │   │
+│  │  - Session tab management (create/reuse/cleanup)                  │   │
+│  │  - Command routing to content scripts                             │   │
+│  │  - Network capture via webRequest API                             │   │
+│  │  - Kill switch state management                                   │   │
+│  └──────────────────────────────────────────────────────────────────┘   │
+│                                    │                                     │
+│  ┌──────────────────┬──────────────┼──────────────┬──────────────────┐   │
+│  │ content-script.js│   popup.js   │  icons/      │  manifest.json   │   │
+│  │ (DOM interaction)│ (UI toggle)  │  (states)    │  (MV2 config)    │   │
+│  └──────────────────┴──────────────┴──────────────┴──────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Component Responsibilities (Current)
+
+| Component | Responsibility | Key Files |
+|-----------|---------------|-----------|
+| MCP Server | MCP protocol handler, WebSocket server, tool dispatch | `src/server.ts`, `src/index.ts` |
+| Tool Layer | Zod schema definitions, tool handlers | `src/tools/`, `src/protocol/tool-definitions.ts` |
+| Protocol Layer | Message type definitions, WS sender | `src/protocol/ws-messages.ts`, `src/protocol/ws-sender.ts` |
+| Context | WebSocket connection lifecycle | `src/context.ts` |
+| Extension Background | WebSocket client, session management, command routing | `extension/background.js` |
+| Content Script | DOM manipulation, element finding, snapshot generation | `extension/content-script.js` |
+| Manifest | Extension permissions, entry points | `extension/manifest.json` |
+
+### Data Flow
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    MCP Host (LLM/Agent)                          │
-│              ┌──────────────┐    ┌──────────────┐              │
-│              │ Discovery    │    │ Extraction   │              │
-│              │ Client       │    │ Client       │              │
-│              └──────┬───────┘    └──────┬───────┘              │
-├─────────────────────┴────────────────────┴──────────────────────┤
-│                    MCP Server (browser-mcp)                      │
-│  ┌─────────────────┐  ┌─────────────┐  ┌─────────────────────┐ │
-│  │ Session Manager │  │ Page Controller │  │ Selector Store  │ │
-│  │                 │  │             │  │                     │ │
-│  │ - Context mgmt  │  │ - Navigation │  │ - Persistent refs   │ │
-│  │ - Tab lifecycle │  │ - Actions    │  │ - Confidence scores │ │
-│  │ - State sync    │  │ - Evaluation │  │ - Version history   │ │
-│  └────────┬────────┘  └──────┬──────┘  └──────────┬──────────┘ │
-│           │                  │                     │            │
-│           └──────────────────┼─────────────────────┘            │
-│                              ▼                                  │
-│  ┌───────────────────────────────────────────────────────────┐ │
-│  │               Browser Engine (Playwright)                  │ │
-│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │ │
-│  │  │ Context  │  │  Page    │  │ Accessibility│  │ Console  │   │ │
-│  │  │ Manager  │  │  Controller  │  │   Tree     │  │  Monitor │   │ │
-│  │  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │ │
-│  └───────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Component Responsibilities
-
-| Component | Responsibility | Typical Implementation |
-|-----------|----------------|----------------------|
-| **Session Manager** | Manages browser contexts, tab lifecycle, and state persistence | Playwright BrowserContext, storage state management |
-| **Page Controller** | Handles page navigation, element interaction, and action execution | Playwright Page API, action queue |
-| **Selector Store** | Persists discovered selectors with metadata for reliable extraction | JSON/Database with versioning and confidence scores |
-| **Accessibility Tree** | Provides LLM-friendly DOM representation for discovery | Playwright accessibility snapshot |
-| **Action Executor** | Executes procedural extraction scripts using stored selectors | Playwright locator API, retry logic |
-| **Handoff Manager** | Coordinates the transition from LLM discovery to procedural extraction | State machine, validation layer |
-
-## Data Flow
-
-### Discovery Phase (LLM-Driven)
-
-```
-User Request ("Extract product data from site.com")
+User LLM → MCP Tool Call
     ↓
-MCP Host → tools/list → Discovery Tools (browser_navigate, browser_snapshot)
+MCP Server (src/server.ts)
     ↓
-Page loads → Accessibility tree captured → Serialized snapshot
+Tool Handler (src/tools/*.ts)
     ↓
-LLM analyzes snapshot → Identifies extraction targets
+Context.sendSocketMessage()
     ↓
-LLM generates selectors → Selector Store (with confidence metadata)
-```
-
-### Handoff Phase
-
-```
-Discovery Complete → Validate selectors against page
+WebSocket → extension/background.js
     ↓
-Generate extraction plan → Store with selectors
+handleBrowserCommand()
     ↓
-Return extraction handle → LLM/Host confirms handoff
+Content Script Message (tabs.sendMessage)
     ↓
-Mark as "ready for procedural execution"
-```
-
-### Extraction Phase (Procedural)
-
-```
-Stored extraction handle → Retrieve selectors
+DOM Operation (content-script.js)
     ↓
-Procedural executor → Navigate to page
-    ↓
-Apply selectors → Extract data (retry on failure)
-    ↓
-Return structured data → No LLM involvement
+Response bubbles back up
 ```
 
-## Key Data Flows
+---
 
-1. **Discovery Flow:** LLM uses `browser_snapshot` (accessibility tree) → analyzes → generates selectors via `browser_evaluate` or action sequences
-2. **Validation Flow:** Selectors tested against live page → confidence scores assigned → invalid selectors flagged
-3. **Handoff Flow:** Valid selectors + extraction instructions → serialized plan → stored for later execution
-4. **Extraction Flow:** Procedural executor reads plan → executes without LLM → returns structured data
+## Target Architecture (Post-v1.1)
 
-## Architectural Patterns
-
-### Pattern 1: Selector-Centric Separation
-
-**What:** The system maintains a clear boundary between selector discovery (LLM-driven) and selector execution (procedural).
-
-**When to use:** When you need reliable repeated extraction from the same site structure, but discovery requires semantic understanding.
-
-**Trade-offs:**
-- ✅ Reliable, fast repeated extractions
-- ✅ Token-efficient for batch operations
-- ⚠️ Requires validation layer to catch selector drift
-- ⚠️ Adds complexity for handling dynamic site changes
-
-**Example:**
-```typescript
-// Discovery phase (LLM-driven)
-const selectors = await mcpClient.callTool('browser_evaluate', {
-  function: () => {
-    // LLM generates this code
-    return {
-      productName: '[data-testid="product-title"]',
-      price: '.price-display > span:first-child'
-    };
-  }
-});
-
-// Store with metadata
-await selectorStore.save({
-  url: 'site.com/products',
-  selectors,
-  confidence: 0.95,
-  discoveredAt: Date.now()
-});
-
-// Extraction phase (procedural - no LLM)
-const data = await proceduralExtractor.extract({
-  url: 'site.com/products',
-  selectorHandle: selectorId
-});
-```
-
-### Pattern 2: Snapshot-Based Interaction
-
-**What:** Uses accessibility tree snapshots instead of screenshots for LLM interaction. Playwright's accessibility tree provides a serialized representation of interactive elements that's token-efficient and LLM-friendly.
-
-**When to use:** For all LLM-driven discovery phases. Avoids vision model costs and provides semantic element descriptions.
-
-**Trade-offs:**
-- ✅ Much more token-efficient than screenshots
-- ✅ Provides semantic element descriptions
-- ✅ No vision model needed
-- ⚠️ Loses visual layout context
-- ⚠️ Some dynamic content may not be captured
-
-**Example:**
-```typescript
-// Capture accessibility snapshot
-const snapshot = await page.accessibility.snapshot({
-  interestingOnly: true  // Only interactive elements
-});
-
-// LLM receives structured data like:
-// - role: "button", name: "Add to Cart", ref: "e42"
-// - role: "link", name: "Product Details", ref: "e43"
-```
-
-### Pattern 3: Capability-Based Tool Exposure
-
-**What:** MCP server exposes tools based on configured capabilities (core, vision, pdf, devtools). Host negotiates capabilities during initialization.
-
-**When to use:** For security and feature control. Different use cases need different tool sets.
-
-**Trade-offs:**
-- ✅ Fine-grained security control
-- ✅ Clear contract between host and server
-- ⚠️ Requires capability negotiation logic
-- ⚠️ Feature discovery complexity
-
-**Example:**
-```typescript
-// Server configuration
-const server = new McpServer({
-  capabilities: {
-    tools: {
-      listChanged: true
-    },
-    // Only expose core + vision tools
-    enabledTools: ['core', 'vision']
-  }
-});
-
-// Host discovers available tools
-const tools = await session.listTools();
-// Only receives tools matching enabled capabilities
-```
-
-### Pattern 4: Non-CDP Browser Control
-
-**What:** Uses Playwright's high-level APIs rather than Chrome DevTools Protocol directly. Provides cross-browser support and cleaner abstraction.
-
-**When to use:** For all browser automation unless you specifically need low-level CDP features.
-
-**Trade-offs:**
-- ✅ Cross-browser support (Chromium, Firefox, WebKit)
-- ✅ More stable API surface
-- ✅ Automatic waiting and retry logic
-- ⚠️ Less control over low-level browser behavior
-- ⚠️ May miss some CDP-specific features
-
-**Example:**
-```typescript
-// Playwright high-level approach (recommended)
-const element = await page.locator('[data-testid="submit"]').first();
-await element.click();  // Auto-waits, auto-retries
-
-// CDP approach (avoid unless necessary)
-// await client.send('Input.dispatchMouseEvent', {...});
-```
-
-## Recommended Project Structure
+### Workspace Structure
 
 ```
-src/
-├── mcp/                      # MCP protocol layer
-│   ├── server.ts             # Main MCP server setup
-│   ├── tools/                # Tool implementations
-│   │   ├── navigation.ts     # browser_navigate, etc.
-│   │   ├── interaction.ts    # browser_click, browser_fill, etc.
-│   │   ├── extraction.ts     # browser_evaluate, browser_snapshot
-│   │   └── extraction-plan.ts # Procedural extraction tools
-│   └── resources/            # MCP resources (if any)
-├── browser/                  # Browser automation layer
-│   ├── session-manager.ts    # Context and tab lifecycle
-│   ├── page-controller.ts    # Page-level operations
-│   ├── snapshot-manager.ts   # Accessibility tree handling
-│   └── action-executor.ts    # Procedural action execution
-├── selectors/                # Selector management
-│   ├── store.ts              # Selector persistence
-│   ├── validator.ts          # Selector validation
-│   └── resolver.ts           # Dynamic selector resolution
-├── extraction/               # Procedural extraction
-│   ├── planner.ts            # Extraction plan generation
-│   ├── executor.ts           # Procedural execution engine
-│   └── scheduler.ts          # Batch extraction scheduling
-└── types/                    # Shared type definitions
+blindflight/
+├── package.json                 # Root workspace config (pnpm workspaces)
+├── pnpm-workspace.yaml          # Workspace definitions
+├── packages/
+│   ├── mcp/                     # MCP Server Package
+│   │   ├── package.json         # @blindflight/mcp
+│   │   ├── src/
+│   │   │   ├── index.ts         # Entry point
+│   │   │   ├── server.ts        # MCP server implementation
+│   │   │   ├── protocol/        # Protocol contracts
+│   │   │   │   ├── messages.ts  # Renamed from ws-messages.ts
+│   │   │   │   ├── sender.ts    # Renamed from ws-sender.ts
+│   │   │   │   └── errors.ts    # NEW: Coded error definitions
+│   │   │   ├── tools/           # Tool implementations
+│   │   │   │   ├── common.ts    # navigate, wait, press_key, etc.
+│   │   │   │   ├── snapshot.ts  # snapshot, click, type, etc.
+│   │   │   │   ├── inspection.ts# network, console tools
+│   │   │   │   ├── evaluate.ts  # evaluate tool
+│   │   │   │   └── custom.ts    # screenshot, console logs
+│   │   │   ├── config/
+│   │   │   │   └── mcp.config.ts # Server config
+│   │   │   └── context.ts       # Connection management
+│   │   └── tsconfig.json
+│   │
+│   └── extension/               # Browser Extension Package
+│       ├── package.json         # @blindflight/extension
+│       ├── wxt.config.ts        # WXT configuration (MV2 output)
+│       ├── entrypoints/
+│       │   ├── background.ts    # Background service worker (was background.js)
+│       │   ├── content.ts       # Content script (was content-script.js)
+│       │   └── popup/
+│       │       ├── index.html   # Popup HTML
+│       │       ├── main.ts      # Popup logic (was popup.js)
+│       │       └── App.vue      # Vue popup UI (if adopting WXT-Vue)
+│       ├── components/          # Vue components (optional)
+│       ├── public/
+│       │   └── icons/           # Extension icons
+│       └── tsconfig.json
+│
+├── scripts/                     # Build/release scripts
+│   ├── build-xpi.mjs           # XPI packaging (delegates to WXT)
+│   └── version-sync.mjs        # NEW: Sync versions across packages
+│
+└── .planning/                   # Project planning (unchanged)
 ```
 
-### Structure Rationale
+### Package Boundaries
 
-- **mcp/:** Contains MCP-specific protocol handling. Separation allows testing transport layer independently.
-- **browser/:** Encapsulates Playwright interactions. Can be swapped for other automation frameworks.
-- **selectors/:** Centralizes selector lifecycle management. Critical for handoff reliability.
-- **extraction/:** Pure procedural execution. No LLM dependencies, enabling fast batch operations.
+| Package | Type | Responsibility | Public API |
+|---------|------|---------------|------------|
+| `@blindflight/mcp` | Node.js library/binary | MCP server implementation | CLI binary, programmatic API (future) |
+| `@blindflight/extension` | WebExtension | Browser automation runtime | Extension XPI artifact |
 
-## Build Order and Dependencies
-
-### Phase 1: Foundation (Weeks 1-2)
-**Build order:**
-1. **MCP Server skeleton** - Basic server setup, transport layer
-2. **Browser session manager** - Context creation, tab management
-3. **Core navigation tools** - browser_navigate, browser_close
-4. **Basic snapshot tool** - browser_snapshot returning accessibility tree
-
-**Dependencies:** None (external).
-**Enables:** Discovery phase functionality.
-
-### Phase 2: Discovery Tools (Weeks 3-4)
-**Build order:**
-1. **Interaction tools** - browser_click, browser_fill, browser_type
-2. **Evaluation tool** - browser_evaluate for custom scripts
-3. **Selector capture** - Tooling to record and store selectors
-4. **Selector store** - Persistence layer
-
-**Dependencies:** Phase 1 complete.
-**Enables:** Full LLM-driven discovery workflow.
-
-### Phase 3: Handoff Layer (Weeks 5-6)
-**Build order:**
-1. **Selector validator** - Validate selectors against live page
-2. **Extraction planner** - Generate extraction plans from validated selectors
-3. **Plan store** - Persist extraction plans
-4. **Handoff API** - Tools for LLM to confirm and trigger handoff
-
-**Dependencies:** Phase 2 complete, Selector store operational.
-**Enables:** Discovery-to-extraction transition.
-
-### Phase 4: Procedural Extraction (Weeks 7-8)
-**Build order:**
-1. **Procedural executor** - Execute stored plans without LLM
-2. **Batch scheduler** - Handle multiple extractions
-3. **Retry logic** - Handle transient failures and selector drift
-4. **Result formatter** - Structured output
-
-**Dependencies:** Phase 3 complete.
-**Enables:** Production extraction workflows.
-
-### Phase 5: Production Hardening (Weeks 9-10)
-**Build order:**
-1. **Error recovery** - Handle partial failures
-2. **Monitoring** - Track success rates, selector drift
-3. **Rate limiting** - Respect target sites
-4. **Documentation** - API docs, usage patterns
-
-**Dependencies:** All previous phases.
-**Enables:** Production deployment.
-
-## Critical Implementation Path
-
-The core architectural dependency chain is:
+### Inter-Package Contracts
 
 ```
-MCP Transport Layer
-        ↓
-Browser Session Management
-        ↓
-Snapshot/Discovery Tools ←─ Can test standalone
-        ↓
-Selector Store + Validation
-        ↓
-Handoff Manager
-        ↓
-Procedural Executor ←─ Independent of LLM
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        Inter-Package Contract                            │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  @blindflight/mcp                      @blindflight/extension           │
+│  ─────────────────                     ─────────────────────            │
+│                                                                          │
+│  Protocol Contract (TypeScript):                                        │
+│  ───────────────────────────────                                        │
+│  Defined in: packages/mcp/src/protocol/messages.ts                      │
+│                                                                          │
+│  interface ExtensionMessage {                                           │
+│    type: 'navigate' | 'click' | 'type' | ... (no browser_ prefix)       │
+│    payload: unknown                                                      │
+│  }                                                                       │
+│                                                                          │
+│  WebSocket Contract:                                                    │
+│  ───────────────────                                                    │
+│  - Transport: WebSocket (ws://localhost:3456)                           │
+│  - Serialization: JSON                                                   │
+│  - Message envelope: { id, type, payload }                              │
+│  - Response envelope: { id, result, error, errorCode }                  │
+│                                                                          │
+│  Error Codes (shared):                                                  │
+│  ─────────────────────                                                  │
+│  Defined in: packages/mcp/src/protocol/errors.ts                        │
+│  Copied to: packages/extension/src/protocol/errors.ts (build-time)      │
+│                                                                          │
+│  SESSION_NOT_INITIALIZED                                                │
+│  SESSION_TAB_CLOSED                                                     │
+│  TRANSPORT_UNAVAILABLE                                                  │
+│  COMMAND_FAILED                                                         │
+│  ... etc                                                                 │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Critical path:** Transport → Session → Discovery → Handoff → Executor
+---
 
-Each layer must be functional before the next can be properly tested.
+## Protocol Rename Path (browser_ Removal)
 
-## Anti-Patterns to Avoid
+### Tool Name Mapping
 
-### Anti-Pattern 1: CDP-First Implementation
+| Current (v1.0) | New (v1.1) | Package |
+|----------------|------------|---------|
+| `browser_navigate` | `navigate` | MCP |
+| `browser_go_back` | `go_back` | MCP |
+| `browser_go_forward` | `go_forward` | MCP |
+| `browser_click` | `click` | MCP |
+| `browser_drag` | `drag` | MCP |
+| `browser_hover` | `hover` | MCP |
+| `browser_type` | `type` | MCP |
+| `browser_press_key` | `press_key` | MCP |
+| `browser_select_option` | `select_option` | MCP |
+| `browser_wait` | `wait` | MCP |
+| `browser_wait_for` | `wait_for` | MCP |
+| `browser_snapshot` | `snapshot` | MCP |
+| `browser_screenshot` | `screenshot` | MCP |
+| `browser_get_console_logs` | `get_console_logs` | MCP |
+| `browser_evaluate` | `evaluate` | MCP |
+| `browser_close` | `close` | MCP |
+| `browser_get_network_requests` | `get_network_requests` | MCP |
+| `browser_get_console_messages` | `get_console_messages` | MCP |
 
-**What people do:** Implement browser control using Chrome DevTools Protocol directly.
+### Protocol Message Mapping
 
-**Why it's wrong:**
-- Ties you to Chromium
-- Loses Playwright's automatic waiting and retry logic
-- More brittle, requires handling low-level browser quirks
+| Current Message Type | New Message Type | Direction |
+|---------------------|------------------|-----------|
+| `browser_navigate` | `navigate` | MCP → Extension |
+| `browser_click` | `click` | MCP → Extension |
+| ... | ... | ... |
 
-**Instead:** Use Playwright's high-level APIs. Only use CDP for specific features not exposed in Playwright.
+### Implementation Strategy
 
-### Anti-Pattern 2: Screenshot-Based Discovery
+**Clean Break Approach** (recommended):
+1. Rename all identifiers in single sweep
+2. No backward compatibility aliases
+3. Update all tool definitions simultaneously
+4. Update extension message handlers simultaneously
+5. Single commit for rename (separate from workspace migration)
 
-**What people do:** Use `browser_screenshot` for LLM analysis instead of accessibility snapshots.
+---
 
-**Why it's wrong:**
-- Massive token costs
-- Requires vision model (more expensive, slower)
-- Loses semantic element information
+## Build and Release Flows
 
-**Instead:** Use `browser_snapshot` with accessibility tree. Only use screenshots for visual validation.
+### Development Build Flow
 
-### Anti-Pattern 3: Tight Coupling of Discovery and Extraction
+```
+Root: pnpm install
+    │
+    ├────► packages/mcp: tsup build
+    │      - Output: packages/mcp/dist/
+    │      - Entry: index.js (CLI binary)
+    │
+    └────► packages/extension: wxt build -b firefox
+           - WXT generates MV2 manifest
+           - Output: packages/extension/.output/firefox/
+```
 
-**What people do:** LLM directly controls extraction in production, or extraction logic embedded in discovery code.
+### Production Build Flow
 
-**Why it's wrong:**
-- Unreliable for batch operations
-- Expensive (LLM tokens for every extraction)
-- Slow (LLM latency per extraction)
+```
+Root: pnpm run build:all
+    │
+    ├────► pnpm -r build
+    │      (builds all packages in dependency order)
+    │
+    ├────► pnpm --filter @blindflight/mcp build
+    │      - Produces: packages/mcp/dist/index.js
+    │      - Binary: dist/index.js (chmod +x)
+    │
+    ├────► pnpm --filter @blindflight/extension build:firefox
+    │      - WXT produces: .output/firefox-mv2-prod/
+    │      - Manifest: MV2 format for Firefox
+    │
+    └────► scripts/build-xpi.mjs
+           - Input: packages/extension/.output/firefox-mv2-prod/
+           - Output: dist/blindflight-firefox.xpi
+```
 
-**Instead:** Explicit handoff. Discovery produces a declarative plan. Extraction executes procedurally.
+### Release Flow
 
-### Anti-Pattern 4: Storing Selectors Without Metadata
+```
+1. Version bump (root package.json)
+   └── scripts/version-sync.mjs
+       ├── Updates packages/mcp/package.json
+       ├── Updates packages/extension/package.json
+       └── Updates extension manifest version
 
-**What people do:** Store just the selector strings without context.
+2. Build
+   └── pnpm run build:all
 
-**Why it's wrong:**
-- Can't detect selector drift
-- Can't rank selectors by reliability
-- Can't retry with alternatives
+3. Test
+   └── pnpm test (smoke, integration)
 
-**Instead:** Store with confidence scores, discovery timestamp, page context, alternative selectors.
+4. Publish packages
+   ├── pnpm --filter @blindflight/mcp publish
+   └── Extension XPI artifact (GitHub release)
+```
+
+---
+
+## Migration Build Order
+
+### Phase 1: Workspace Foundation (Low Risk)
+
+```
+Step 1.1: Create workspace structure
+├── Create packages/ directory
+├── Create packages/mcp/ with existing code
+├── Create packages/extension/ (empty WXT scaffold)
+├── Update root package.json (workspaces)
+└── Create pnpm-workspace.yaml
+
+Step 1.2: Verify workspace builds
+├── pnpm install at root
+├── Verify packages/mcp builds
+└── Verify packages/extension (WXT) builds
+```
+
+### Phase 2: Extension Migration (Medium Risk)
+
+```
+Step 2.1: Port background.js to TypeScript
+├── Create packages/extension/entrypoints/background.ts
+├── Port session management logic
+├── Port WebSocket client logic
+├── Port command handlers
+└── Port network capture logic
+
+Step 2.2: Port content-script.js to TypeScript
+├── Create packages/extension/entrypoints/content.ts
+├── Port DOM interaction logic
+├── Port element finding utilities
+├── Port accessibility tree generation
+└── Port console capture logic
+
+Step 2.3: Configure WXT for MV2 output
+├── wxt.config.ts: target firefox, mv2
+├── Port manifest.json values to wxt.config.ts
+└── Verify manifest output matches MV2 requirements
+
+Step 2.4: Port popup
+├── Create popup entrypoint
+├── Port existing popup.js logic
+└── Port popup.html structure
+
+Step 2.5: Update build scripts
+├── Modify scripts/build-xpi.mjs
+│   └── Source from .output/firefox-mv2-prod/
+└── Add extension build to root build:all
+```
+
+### Phase 3: Protocol Hardening (Medium Risk)
+
+```
+Step 3.1: Extract shared protocol types
+├── Create packages/mcp/src/protocol/errors.ts
+│   └── CodedError definitions
+├── Create packages/mcp/src/protocol/messages.ts
+│   └── SocketMessageMap (renamed from ws-messages.ts)
+└── Create protocol export for extension consumption
+
+Step 3.2: Harden message contracts
+├── Strict message validation on both sides
+├── Add message ID correlation
+├── Add timeout handling
+└── Add error code consistency
+```
+
+### Phase 4: Clean-Break Rename (High Risk)
+
+```
+Step 4.1: Rename tool definitions
+├── Update all tool names in tool-definitions.ts
+├── Update tool handler registrations
+└── Update tool schema names
+
+Step 4.2: Rename protocol messages
+├── Update SocketMessageMap keys
+├── Update extension message handlers
+└── Update background.ts command routing
+
+Step 4.3: Rename package identifiers
+├── Root: @browsermcp/mcp → @blindflight/mcp
+├── Extension package: → @blindflight/extension
+├── Binary: mcp-server-browsermcp → blindflight-mcp
+└── Config keys: browsermcp.* → blindflight.*
+```
+
+### Phase 5: Integration & Verification (Validation)
+
+```
+Step 5.1: End-to-end testing
+├── Tool smoke tests
+├── Extension connection tests
+├── Session lifecycle tests
+└── Error code verification
+
+Step 5.2: Build verification
+├── Clean build from scratch
+├── XPI packaging verification
+├── Binary execution verification
+└── Manifest validation
+
+Step 5.3: Documentation updates
+├── Update README.md references
+├── Update package descriptions
+└── Update installation instructions
+```
+
+---
+
+## New vs Modified Components
+
+### New Components
+
+| Component | Package | Purpose |
+|-----------|---------|---------|
+| `packages/` directory | Root | Workspace container |
+| `@blindflight/extension` | packages/extension | New WXT-based extension |
+| `wxt.config.ts` | packages/extension | WXT configuration |
+| `packages/extension/entrypoints/` | packages/extension | WXT entry point structure |
+| `errors.ts` | packages/mcp/src/protocol/ | Centralized error codes |
+| `scripts/version-sync.mjs` | scripts | Cross-package version sync |
+
+### Modified Components
+
+| Component | Changes |
+|-----------|---------|
+| `package.json` | Convert to workspace root, add pnpm-workspace.yaml |
+| `packages/mcp/src/` | Move existing src/ from root |
+| Tool names | Remove `browser_` prefix |
+| Message types | Remove `browser_` prefix |
+| `scripts/build-xpi.mjs` | Source from WXT output directory |
+| Binary name | `mcp-server-browsermcp` → `blindflight-mcp` |
+
+### Removed Components
+
+| Component | Replacement |
+|-----------|-------------|
+| Root `src/` | `packages/mcp/src/` |
+| Root `extension/` | `packages/extension/` |
+| `extension/manifest.json` | WXT-generated manifest |
+| Manual XPI build (partial) | WXT zip output + XPI repack |
+
+---
 
 ## Integration Points
 
-### External Services
+### MCP Server → Extension Communication
 
-| Service | Integration Pattern | Notes |
-|---------|---------------------|-------|
-| **Playwright** | Direct library use | Core browser automation |
-| **MCP SDK** | Server/Client SDK | Protocol implementation |
-| **Browser CDP** | Avoid direct use | Use via Playwright unless absolutely necessary |
+| Integration | Protocol | Contract Location |
+|-------------|----------|-------------------|
+| WebSocket connection | ws://localhost:3456 | `packages/mcp/src/protocol/` |
+| Message serialization | JSON | `messages.ts` |
+| Error codes | String constants | `errors.ts` |
+| Command routing | Message type → handler | Extension `background.ts` |
 
-### Internal Boundaries
+### Extension → Content Script Communication
 
-| Boundary | Communication | Notes |
-|----------|---------------|-------|
-| **MCP Layer ↔ Browser Layer** | Direct function calls | Keep thin, delegate to browser layer |
-| **Browser Layer ↔ Selector Store** | Async I/O | Could be database or file system |
-| **Selector Store ↔ Executor** | Read-only after handoff | Executor should not write to store |
-| **Discovery Tools ↔ Extraction Tools** | Handoff via stored plan | Explicit state transition |
+| Integration | Protocol | Notes |
+|-------------|----------|-------|
+| Command execution | `browser.tabs.sendMessage()` | Standard WebExtension API |
+| Response handling | Promise-based | Async/await pattern |
+| Console log retrieval | `getConsoleLogs` message | Content script manages ring buffer |
+
+### Build System Integration
+
+| Integration | Tool | Purpose |
+|-------------|------|---------|
+| Workspace management | pnpm workspaces | Monorepo structure |
+| Extension bundling | WXT | MV2 generation, HMR |
+| Server bundling | tsup | ESM output, TypeScript |
+| XPI packaging | Custom script | ZIP signing prep |
+| Version sync | Custom script | Cross-package consistency |
+
+---
+
+## Architecture Patterns
+
+### Pattern 1: Workspace Package Separation
+
+**What:** Split code into publishable packages with clear boundaries  
+**When:** When server and extension have independent release cycles  
+**Trade-offs:**
+- ✅ Independent versioning and publishing
+- ✅ Clear dependency boundaries
+- ✅ Parallel development possible
+- ❌ Cross-package changes require coordination
+- ❌ Build complexity increases
+
+**Example:**
+```
+packages/mcp/ - Published to npm as @blindflight/mcp
+packages/extension/ - Built as XPI artifact
+```
+
+### Pattern 2: Protocol Contract Sharing
+
+**What:** Define protocol types once, consume in both packages  
+**When:** Server and extension must agree on message shapes  
+**Approach:**
+1. Define in `packages/mcp/src/protocol/`
+2. Export as package export (`@blindflight/mcp/protocol`)
+3. Extension imports as dev dependency
+
+**Trade-offs:**
+- ✅ Single source of truth
+- ✅ Type safety across boundary
+- ❌ Extension depends on MCP package (build-time only)
+
+### Pattern 3: WXT for Cross-Browser Extension Building
+
+**What:** Use WXT framework for extension development  
+**When:** Need TypeScript + multiple manifest versions  
+**Configuration for MV2 preservation:**
+```typescript
+// wxt.config.ts
+export default defineConfig({
+  manifest: {
+    manifest_version: 2,
+    browser_specific_settings: {
+      gecko: {
+        id: 'blindflight@blindflight.io'
+      }
+    }
+  }
+});
+```
+
+**Trade-offs:**
+- ✅ TypeScript support
+- ✅ HMR during development
+- ✅ Automatic MV2/MV3 generation
+- ✅ Built-in zip packaging
+- ❌ Additional build dependency
+- ❌ Must configure for MV2 output explicitly
+
+---
+
+## Anti-Patterns to Avoid
+
+### Anti-Pattern 1: Gradual Rename
+
+**What:** Keep `browser_` aliases during transition period  
+**Why it's wrong:** Creates technical debt, doubles testing surface  
+**Do this instead:** Clean break rename in single phase with comprehensive testing
+
+### Anti-Pattern 2: Shared Source Import
+
+**What:** Extension imports from `../mcp/src/` directly  
+**Why it's wrong:** Breaks package boundaries, causes circular dependency risks  
+**Do this instead:** Protocol types exported from MCP package, imported as package dependency
+
+### Anti-Pattern 3: Runtime Manifest Modification
+
+**What:** Script modifies WXT-generated manifest.json post-build  
+**Why it's wrong:** Fragile, breaks with WXT updates  
+**Do this instead:** Configure WXT correctly to generate desired manifest
+
+### Anti-Pattern 4: Preserving Old Build Scripts
+
+**What:** Keep old manual XPI build alongside WXT  
+**Why it's wrong:** Confusion about which build to use, maintenance burden  
+**Do this instead:** Migrate fully to WXT, adapt XPI script to consume WXT output
+
+---
+
+## Scalability Considerations
+
+| Scale | Architecture Adjustment |
+|-------|------------------------|
+| Current (single user) | Monorepo workspace is appropriate |
+| Multiple extension versions | Add `packages/extension-legacy/` for parallel MV2/MV3 |
+| Additional browsers | WXT supports Chrome, Edge, Safari with config |
+| Plugin architecture | Extract `packages/protocol/` as shared package |
+
+---
 
 ## Sources
 
-- [MCP Architecture Overview](https://modelcontextprotocol.io/docs/learn/architecture) - Official MCP architecture docs
-- [MCP TypeScript SDK](https://context7.com/modelcontextprotocol/typescript-sdk/llms.txt) - SDK implementation patterns
-- [Microsoft Playwright MCP](https://github.com/microsoft/playwright-mcp) - Reference implementation
-- [Browser Automation MCP Servers Guide](https://www.skyvern.com/blog/browser-automation-mcp-servers-guide/) - Ecosystem overview
-- [Stagehand Breakdown](https://memo.d.foundation/breakdown/stagehand) - Accessibility tree processing patterns
-- [DOM Downsampling for LLM-Based Web Agents](https://www.webfuse.com/blog/dom-downsampling-for-llm-based-web-agents) - Snapshot optimization
+- Current codebase analysis (src/, extension/, scripts/)
+- WXT documentation: https://wxt.dev/
+- pnpm workspaces: https://pnpm.io/workspaces
+- Firefox MV2 manifest format: https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json
+- Reference implementation: tmp/blindflight-extension/ (WXT + Vue starter)
+
+---
+
+*Architecture research for: blindflight v1.1 structural milestone*  
+*Researched: 2026-02-11*

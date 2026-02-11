@@ -1,229 +1,211 @@
-# Feature Landscape
+# Feature Landscape: v1.1 Structural Improvements
 
-**Domain:** Browser MCP Pre-Scraping Tooling (LLM-Guided Selector Discovery)
-**Researched:** February 9, 2026
-**Confidence:** HIGH (based on official MCP specs, Playwright MCP implementation, and ecosystem analysis)
+**Domain:** Browser MCP / blindflight Pre-Scraping Tooling
+**Milestone:** v1.1 pre-v2.0-structural-improvements
+**Researched:** February 11, 2026
+**Confidence:** HIGH (based on existing v1.0 implementation analysis and WXT/Firefox MV2 documentation)
 
-## Feature Landscape
+## Scope Context
 
-### Table Stakes (Users Expect These)
+This is a **structural milestone** on a shipped v1.0 product. The goal is establishing a cleaner architecture baseline before v2.0 feature work. **Zero net-new end-user capabilities.** All changes are internal restructuring with strict behavior stability requirements.
 
-Features users assume exist. Missing these = product feels incomplete.
+## Feature Categories for v1.1
 
-| Feature | Why Expected | Complexity | Notes |
+### Table Stakes (Must Complete for Milestone Success)
+
+These are non-negotiable structural improvements. Missing any = milestone failure.
+
+| Feature | Why Required | Complexity | Notes |
 |---------|--------------|------------|-------|
-| **navigate** | Core browser operation—must load pages | LOW | All MCP browser servers implement this; standard across ecosystem |
-| **click** | Essential interaction primitive | LOW | Standard tool in Playwright MCP, browser-use, Skyvern |
-| **type** | Form input is fundamental | LOW | Included in all browser MCP implementations |
-| **snapshot** | LLM needs page state to reason | LOW | Accessibility tree snapshots are table stakes for non-vision approaches (Microsoft Playwright MCP default) |
-| **wait_for** | Pages load asynchronously | LOW | Critical for timing—wait for element, text, or timeout |
-| **evaluate** | Run JavaScript for custom extraction | MEDIUM | Required for complex data extraction beyond accessibility tree |
-| **network_requests** | Debug and monitor HTTP traffic | MEDIUM | Standard in Playwright MCP; essential for API scraping workflows |
-| **console_messages** | Debug JavaScript errors | LOW | Included in Microsoft Playwright MCP; useful for troubleshooting |
-| **close** | Clean up resources | LOW | Basic lifecycle management |
-| **screenshot** | Visual verification and debugging | LOW | Not for actions (use snapshot), but essential for verification |
-| **select_option** | Dropdown interaction | LOW | Standard form control operation |
-| **press_key** | Keyboard shortcuts and special keys | LOW | Arrow keys, Enter, Escape essential for navigation |
+| **TypeScript migration (extension)** | Foundation for all other structural work; eliminates untyped JS surface | MEDIUM | Convert `extension/background.js`, `content-script.js`, `popup.js` to `.ts` with strict types |
+| **WXT build system adoption** | Modern extension dev experience; handles manifest generation, HMR, cross-browser builds | MEDIUM | Replace manual manifest.json with WXT config; preserve Firefox MV2 output |
+| **pnpm workspace split** | Clean package boundaries for independent MCP/extension versioning | MEDIUM | `packages/mcp/` + `packages/extension/` with shared types package |
+| **browser_ prefix removal** | Clean-break naming alignment with blindflight rebrand | LOW | Rename all `browser_*` tools to remove prefix; breaking change requiring major version |
+| **blindflight rebrand** | Consistent project identity across packages, docs, and user-facing surfaces | LOW | Package names, binary names, manifest names, documentation |
+| **MV2 compatibility preservation** | Firefox is primary target; MV3 migration is future work (v2.0+) | MEDIUM | WXT must output MV2-compatible builds; test against Firefox 109+ |
 
-### Differentiators (Competitive Advantage)
+### Differentiators (Strategic Value Adds)
 
-Features that set the product apart. Not required, but valuable.
+These structural improvements provide long-term competitive advantage but aren't strictly required for milestone completion.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| **LLM-guided selector discovery** | Discover robust selectors before writing procedural code—reduces maintenance by 80% when sites change | MEDIUM | Core value prop for pre-scraping phase; Skyvern, Stagehand, and browser-use lead here |
-| **Accessibility tree snapshots** | 2-5KB vs 500KB for screenshots—faster inference, works with any LLM (no vision required) | MEDIUM | Microsoft's approach; 80% less context than vision-based alternatives |
-| **Shadow DOM piercing** | Access elements inside Web Components (Lit, Shoelace)—critical for modern apps | HIGH | Standard accessibility trees miss these; requires raw JS eval or Playwright's shadow-piercing selectors |
-| **Session persistence** | Reuse login state across runs—eliminates re-authentication overhead | MEDIUM | `--user-data-dir` in Playwright MCP; essential for authenticated workflows |
-| **Human handoff (pause & attach)** | AI stops at CAPTCHA/MFA, human solves, AI continues—bridges automation gaps | MEDIUM | Only `playwriter` MCP server supports this natively in 2026 |
-| **Anti-bot detection evasion** | Stealth headers, fingerprint rotation, proxy rotation—avoid blocks | HIGH | Differentiator for Skyvern, Browserbase, specialized tools |
-| **Parallel agent execution** | Run multiple selectors discovery tasks simultaneously—faster at scale | MEDIUM | Cloud solutions (Skyvern, Browserbase) offer this |
-| **Hybrid vision mode** | Auto-switch to screenshots for canvas/WebGL when accessibility tree fails | MEDIUM | Playwright MCP 2026 update added `--vision auto` |
-| **Natural language element targeting** | "Click the blue submit button" instead of CSS selectors—self-healing when UI changes | HIGH | Stagehand, Skyvern differentiator; reduces brittle selector maintenance |
-| **Self-healing selectors** | Auto-adapt when target element moves or changes attributes | HIGH | AI-powered adaptation vs brittle XPath/CSS |
-| **Incremental snapshots** | Only send changed page state between actions—further reduce context | MEDIUM | Playwright MCP `--snapshot-mode incremental` |
-| **Storage state management** | Save/load cookies, localStorage—restore sessions programmatically | LOW | `--storage-state` in Playwright MCP |
-| **Network interception/mocking** | Modify requests/responses—useful for testing and bypassing restrictions | MEDIUM | Playwright core capability |
-| **Console-level filtering** | Filter by error/warning/info—reduce noise | LOW | `--console-level` in Playwright MCP |
-| **Code generation** | Output TypeScript/JavaScript for discovered workflows | MEDIUM | Playwright MCP `--codegen typescript` |
+| **Protocol contract hardening** | Typed message boundaries prevent entire classes of integration bugs | MEDIUM | Zod schemas for all WebSocket messages; explicit error codes; runtime validation |
+| **Codebase modularization** | Reduces maintenance risk; enables parallel work; clearer ownership | MEDIUM | Split oversized files (background.js ~1300 lines) into focused modules |
+| **Shared types package** | Single source of truth for protocol types; eliminates drift between MCP and extension | LOW | `packages/types/` with message definitions, error codes, schemas |
+| **Build artifact parity** | WXT produces equivalent XPI to current manual build | LOW | File list, icon paths, permission sets must match v1.0 output |
 
-### Anti-Features (Commonly Requested, Often Problematic)
+### Anti-Features (Explicitly Out of Scope)
 
-Features that seem good but create problems.
+These would add risk without advancing the structural goals. Explicitly excluded to prevent scope creep.
 
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| **Full CDP (Chrome DevTools Protocol) dependency** | Access to all browser internals | Violates project constraint; locks to Chrome; complex to maintain without Devtools | Use Playwright's abstraction layer; CDP only for extension mode if needed |
-| **Vision-only approach** | Works with any visual model | 100x more tokens (500KB screenshot vs 2-5KB snapshot); slower inference; unnecessary cost | Accessibility tree primary, vision fallback for canvas/WebGL only |
-| **Brittle XPath selectors** | Precise targeting | Break with every UI update; 19.2% of IT budgets wasted on script maintenance (industry stat) | LLM-guided semantic targeting; natural language element descriptions |
-| **Recording-based automation** | Easy creation | Creates brittle scripts; doesn't adapt to changes; high maintenance burden | AI-powered semantic understanding; self-healing workflows |
-| **Multi-browser support** | Cover all bases | Adds complexity; Chrome/Chromium covers 95% of use cases; Firefox/WebKit often unnecessary | Start with Chrome; add others only when demand justifies cost |
-| **Real-time collaboration** | Multiple users on same session | Complex state synchronization; security concerns; rare use case | Session sharing via storage state export; separate sessions per user |
-| **Built-in CAPTCHA solving** | Unattended automation | Arms race with CAPTCHA providers; legal gray area; often unreliable | Human handoff pattern; pause and attach for manual solving |
-| **Automatic form submission** | Speed up workflows | Risk of unintended data changes; compliance issues | Explicit confirmation step; dry-run mode for safety |
+| Anti-Feature | Why Requested | Why Excluded | What to Do Instead |
+|--------------|---------------|--------------|-------------------|
+| **MV3 migration** | Modern standard; Chrome Web Store requirement | Increases complexity; requires extensive testing; not required for Firefox | Defer to v2.0; maintain MV2-only for v1.1 |
+| **New browser tools** | "While we're refactoring..." | Violates behavior stability mandate; scope creep | Create v1.2 feature milestone |
+| **Protocol version negotiation** | Future-proofing for protocol evolution | Over-engineering for current needs; no protocol changes planned | Add when v2.0 protocol changes actually needed |
+| **Chrome/Chromium support** | Broader browser coverage | Doubles testing matrix; not required for current users | Evaluate post-rebrand based on user demand |
+| **Extension UI redesign** | Modernize popup interface | Out of scope for structural milestone; purely cosmetic | Defer to v2.0 UX milestone |
+| **Automated E2E testing framework** | Regression prevention | High setup cost; manual testing sufficient for behavior stability validation | Add in v1.2 as separate initiative |
+
+## Behavior Stability: Acceptance Outcomes
+
+These criteria prove the restructuring didn't break user-facing behavior. All must pass for milestone completion.
+
+### Tool Semantics Stability (Critical)
+
+| Tool | v1.0 Behavior | v1.1 Acceptance Criteria | Test Approach |
+|------|---------------|------------------------|---------------|
+| `navigate` (→ `bf_navigate` or similar) | Creates session tab at about:blank, navigates, prefixes title with "OC | " | Same behavior; only name changes | Execute via MCP; verify tab creation, navigation, title prefix |
+| `click` (→ `bf_click`) | Sends click command to content script via tab messaging | Same behavior; only name changes | Click element; verify DOM mutation |
+| `type` (→ `bf_type`) | Sends type command with element + value | Same behavior; only name changes | Type into input; verify value set |
+| `snapshot` (→ `bf_snapshot`) | Returns accessibility tree snapshot via content script | Same tree format; same element ref generation | Capture snapshot; compare structure to v1.0 output |
+| `wait_for` (→ `bf_wait_for`) | Supports time/text/text_gone modes with timeout | Same modes; same timeout behavior | Test all three modes; verify resolution/rejection timing |
+| `evaluate` (→ `bf_evaluate`) | Executes script in page context, returns JSON-serializable result | Same execution context; same return format | Execute script; compare return values |
+| `screenshot` (→ `bf_screenshot`) | Returns base64 PNG via `tabs.captureTab` | Same image format; same dimensions | Capture screenshot; verify PNG decode, dimensions |
+| `network_requests` (→ `bf_network_requests`) | Returns captured requests from webRequest API | Same filter options; same response format | Navigate to page; verify request capture |
+| `console_messages` (→ `bf_console_messages`) | Returns console logs from content script ring buffer | Same log format; same level filtering | Trigger console logs; verify capture and filtering |
+| `close` (→ `bf_close`) | Closes session tab, clears session state | Same cleanup behavior | Execute close; verify tab removal |
+
+### Protocol Stability (Critical)
+
+| Aspect | v1.0 Behavior | v1.1 Acceptance Criteria | Test Approach |
+|--------|---------------|------------------------|---------------|
+| **WebSocket message format** | `{ type: string, payload?: object, id?: string }` | Identical structure; field names unchanged | Inspect wire protocol; verify JSON shape |
+| **Error response format** | `{ success: false, error: string, errorCode: string }` | Identical structure; same error codes | Trigger errors; verify response shape |
+| **Success response format** | `{ success: true, ...result }` | Identical structure | Execute successful commands; verify response |
+| **Session lifecycle** | Navigate creates tab; disconnect clears session; reconnect requires fresh navigate | Same state machine transitions | Test connect → navigate → disconnect → reconnect flow |
+| **Kill switch behavior** | Toolbar click toggles; disables WebSocket; updates icon | Same toggle logic; same icon states | Click icon; verify state changes |
+
+### Extension Behavior Stability (Critical)
+
+| Aspect | v1.0 Behavior | v1.1 Acceptance Criteria | Test Approach |
+|--------|---------------|------------------------|---------------|
+| **Manifest permissions** | activeTab, tabs, storage, webRequest, `<all_urls>`, ws://localhost:3456/ | Identical permission set | Build XPI; inspect manifest.json |
+| **Content script injection** | document_end, all_frames, `<all_urls>` | Same injection timing; same match patterns | Load extension; verify script injection |
+| **WebSocket reconnection** | 5s interval, 10 max attempts | Same retry logic; same backoff | Kill MCP server; verify reconnection attempts |
+| **Network capture scope** | Session-tab only via webRequest API | Same tab-scoped capture | Navigate; verify only session tab requests captured |
+| **Console capture scope** | Content script ring buffer (1000 entries) | Same buffer size; same cleanup | Generate logs; verify buffer limits |
+
+### Build Output Stability (Important)
+
+| Aspect | v1.0 Behavior | v1.1 Acceptance Criteria | Test Approach |
+|--------|---------------|------------------------|---------------|
+| **XPI file structure** | manifest.json, background.js, content-script.js, popup.js, icons/ | Equivalent structure; WXT-generated manifest matches | Extract XPI; compare file list |
+| **Binary name** | `mcp-server-browsermcp` | New name: `mcp-server-blindflight` (breaking change documented) | Build; verify binary name in `dist/` |
+| **Package name** | `@browsermcp/mcp` | New name: `@blindflight/mcp` | Check package.json; verify npm publish |
 
 ## Feature Dependencies
 
 ```
-[LLM-guided selector discovery]
-    └──requires──> [snapshot]
-        └──requires──> [navigate]
+[TypeScript migration]
+    └──requires──> [WXT adoption]
+        └──requires──> [pnpm workspace split]
+            └──enables──> [Protocol hardening]
+                └──enables──> [Modularization]
 
-[Shadow DOM piercing]
-    └──requires──> [evaluate]
-        └──requires──> [snapshot]
+[browser_ prefix removal]
+    └──conflicts──> [Behavior stability]
+        └──mitigated by──> [Comprehensive acceptance testing]
 
-[Session persistence]
-    └──requires──> [close]
-        └──requires──> [navigate]
-
-[Human handoff]
-    └──requires──> [headed mode]
-        └──enhances──> [session persistence]
-
-[Anti-bot evasion]
-    └──enhances──> [navigate]
-    └──conflicts──> [headless mode] (some detect headless)
-
-[Hybrid vision mode]
-    └──requires──> [snapshot]
-    └──requires──> [screenshot]
-        └──fallback──> [evaluate] (for canvas/WebGL)
-
-[Natural language targeting]
-    └──requires──> [LLM-guided selector discovery]
-        └──requires──> [snapshot]
-
-[Self-healing selectors]
-    └──requires──> [natural language targeting]
-        └──requires──> [LLM-guided selector discovery]
+[blindflight rebrand]
+    └──requires──> [Package rename]
+        └──requires──> [Binary rename]
+            └──requires──> [Documentation update]
 ```
 
 ### Dependency Notes
 
-- **LLM-guided selector discovery requires snapshot:** The LLM needs current page state (accessibility tree or DOM) to identify and suggest selectors
-- **Shadow DOM piercing requires evaluate:** Standard snapshots miss shadow DOM; need JavaScript execution to access `shadowRoot`
-- **Session persistence requires close:** Must properly close/save browser context to persist state to disk
-- **Human handoff requires headed mode:** User needs visible browser to interact with; can't handoff in headless
-- **Anti-bot conflicts with headless:** Many bot detection systems specifically check for headless indicators
-- **Hybrid vision requires both snapshot and screenshot:** Need accessibility tree for efficiency, screenshot fallback for visual content
+- **TypeScript migration requires WXT adoption:** WXT provides the TypeScript build pipeline for extensions; manual TS setup is fragile
+- **WXT adoption requires pnpm workspace:** Clean separation of concerns; extension becomes independent package
+- **browser_ prefix removal conflicts with behavior stability:** This is an intentional breaking change; mitigation is exhaustive testing that only names changed, not semantics
+- **Protocol hardening enables modularization:** Strong contracts make it safe to split code into smaller modules
 
-## MVP Definition
+## Phase Ordering Recommendations
 
-### Launch With (v1)
+Based on dependencies and risk profile:
 
-Minimum viable product—what's needed to validate the concept.
+### Phase 1: Foundation (Low Risk, Enables Everything)
+1. **pnpm workspace setup** — Create `packages/mcp/`, `packages/extension/`, `packages/types/`
+2. **Move existing code** — Pure file moves; no logic changes
+3. **Verify builds work** — Ensure both packages build independently
 
-1. **navigate** — Core primitive; can't do anything without loading pages
-2. **snapshot** — Essential for LLM to see page state; use accessibility tree approach
-3. **click** — Basic interaction for selector discovery validation
-4. **type** — Form input for testing discovered selectors
-5. **wait_for** — Handle async page loads and transitions
-6. **evaluate** — JavaScript execution for custom extraction and Shadow DOM access
-7. **LLM-guided selector discovery** — Core differentiator; discover selectors procedurally before committing
-8. **close** — Resource cleanup
+### Phase 2: Extension Modernization (Medium Risk, Well-Understood)
+1. **WXT configuration** — Set up WXT with Firefox MV2 target
+2. **TypeScript migration** — Convert background.js, content-script.js, popup.js
+3. **Manifest generation** — Ensure WXT outputs equivalent manifest to v1.0
+4. **Build parity testing** — Compare XPI structure to v1.0
 
-### Add After Validation (v1.x)
+### Phase 3: Protocol Hardening (Medium Risk, Critical for Stability)
+1. **Shared types package** — Extract message definitions to `packages/types/`
+2. **Zod schema validation** — Add runtime validation to WebSocket messages
+3. **Error code standardization** — Document all error codes; ensure consistency
 
-Features to add once core is working.
+### Phase 4: Rebrand and Breaking Changes (High Risk, Requires Testing)
+1. **Package renaming** — `@browsermcp/mcp` → `@blindflight/mcp`
+2. **Tool prefix removal** — `browser_navigate` → `bf_navigate` (or similar)
+3. **Binary renaming** — `mcp-server-browsermcp` → `mcp-server-blindflight`
+4. **Documentation update** — README, examples, all references
 
-1. **screenshot** — Visual verification; trigger when specifically requested
-2. **network_requests** — Debug API calls; useful for advanced scraping workflows
-3. **console_messages** — Troubleshooting JavaScript errors
-4. **session persistence** — Reuse logins; high value for authenticated workflows
-5. **press_key** — Keyboard navigation; special keys (Escape, Tab, Arrows)
-6. **select_option** — Dropdown interaction; common in forms
+### Phase 5: Modularization (Low Risk, Internal Quality)
+1. **Background script splitting** — Break ~1300 line background.js into modules
+2. **Tool organization** — Group tools by domain (navigation, interaction, inspection)
+3. **Utility extraction** — Shared helpers to `packages/types/` or internal packages
 
-### Future Consideration (v2+)
+### Phase 6: Validation (Critical Gate)
+1. **Acceptance test execution** — Run all behavior stability criteria
+2. **Smoke testing** — Build + basic functionality verification
+3. **Regression testing** — Compare against v1.0 behavior baselines
 
-Features to defer until product-market fit is established.
+## Risk Assessment
 
-1. **Human handoff** — Complex UX; solve CAPTCHA/MFA blockers
-2. **Anti-bot evasion** — Specialized need; adds significant complexity
-3. **Parallel execution** — Scale feature; needs infrastructure
-4. **Natural language targeting** — Requires mature selector discovery first
-5. **Self-healing selectors** — Advanced adaptation; build on solid base
-6. **Hybrid vision mode** — Fallback for canvas/WebGL edge cases
-7. **Code generation** — Export to Playwright/Puppeteer scripts
+| Phase | Risk Level | Primary Risk | Mitigation |
+|-------|------------|--------------|------------|
+| Phase 1: Foundation | LOW | Workspace misconfiguration | CI builds for both packages from start |
+| Phase 2: Extension Modernization | MEDIUM | WXT manifest differences | Automated manifest comparison; manual XPI inspection |
+| Phase 3: Protocol Hardening | MEDIUM | Runtime validation overhead | Benchmark message throughput; optimize if needed |
+| Phase 4: Rebrand/Breaking Changes | HIGH | Tool rename breaks clients | Exhaustive acceptance testing; clear migration guide |
+| Phase 5: Modularization | LOW | Import cycles | Lint rules; code review |
+| Phase 6: Validation | HIGH | Undetected behavior changes | Comprehensive test matrix; v1.0 baseline comparison |
 
-## Feature Prioritization Matrix
+## MVP for v1.1 (Minimum Viable Restructure)
 
-| Feature | User Value | Implementation Cost | Priority |
-|---------|------------|---------------------|----------|
-| navigate | HIGH | LOW | P1 |
-| snapshot | HIGH | LOW | P1 |
-| click | HIGH | LOW | P1 |
-| type | HIGH | LOW | P1 |
-| wait_for | HIGH | LOW | P1 |
-| evaluate | HIGH | MEDIUM | P1 |
-| LLM-guided selector discovery | HIGH | MEDIUM | P1 |
-| close | HIGH | LOW | P1 |
-| screenshot | MEDIUM | LOW | P2 |
-| network_requests | MEDIUM | MEDIUM | P2 |
-| console_messages | LOW | LOW | P2 |
-| session persistence | HIGH | MEDIUM | P2 |
-| press_key | MEDIUM | LOW | P2 |
-| select_option | MEDIUM | LOW | P2 |
-| Shadow DOM piercing | MEDIUM | HIGH | P2 |
-| human handoff | MEDIUM | MEDIUM | P3 |
-| anti-bot evasion | MEDIUM | HIGH | P3 |
-| parallel execution | MEDIUM | HIGH | P3 |
-| natural language targeting | HIGH | HIGH | P3 |
-| self-healing selectors | HIGH | HIGH | P3 |
+The minimum successful v1.1 delivers:
 
-**Priority key:**
-- **P1:** Must have for launch—core functionality
-- **P2:** Should have—add after validation
-- **P3:** Nice to have—future consideration
+1. **TypeScript + WXT extension** — Modern foundation, MV2-compatible
+2. **pnpm workspace** — Clean package boundaries
+3. **Tool rename** — `browser_` prefix removed (breaking change)
+4. **blindflight rebrand** — Consistent naming
+5. **Behavior stability verified** — All acceptance criteria pass
 
-## Competitor Feature Analysis
+Deferred to v1.2 or v2.0:
+- Protocol hardening with Zod (can be added incrementally)
+- Deep modularization (internal quality; not user-visible)
+- MV3 support (not required for Firefox)
+- Chrome support (evaluate based on demand)
 
-| Feature | Microsoft Playwright MCP | browser-use | Skyvern | Stagehand | Our Approach |
-|---------|-------------------------|-------------|---------|-----------|--------------|
-| **Core automation** (click, type, navigate) | ✅ 25+ tools | ✅ | ✅ | ✅ | ✅ P1 |
-| **Accessibility tree snapshots** | ✅ Default | ❌ Vision-based | ✅ | ✅ | ✅ P1 (tree default) |
-| **LLM-guided selector discovery** | ❌ | ✅ Core feature | ✅ | ✅ | ✅ P1 (core value) |
-| **Shadow DOM support** | ⚠️ Limited | ✅ Full API | ✅ | ✅ | ✅ P2 (via evaluate) |
-| **Session persistence** | ✅ `--user-data-dir` | ✅ | ✅ Cloud | ✅ | ✅ P2 |
-| **Human handoff** | ❌ Manual only | ❌ | ❌ | ❌ | ⚠️ P3 (nice to have) |
-| **Anti-bot evasion** | ❌ | ⚠️ Stealth | ✅ Built-in | ⚠️ Partial | ⚠️ P3 (defer) |
-| **Natural language targeting** | ❌ | ✅ | ✅ | ✅ | ⚠️ P3 (build on base) |
-| **Code generation** | ✅ TypeScript | ❌ | ❌ | ❌ | ⚠️ P3 |
-| **No CDP required** | ✅ | ✅ | ⚠️ Uses CDP | ✅ | ✅ (constraint) |
+## Explicit Exclusions (Scope Creep Prevention)
 
-**Legend:** ✅ Full support | ⚠️ Partial/limited | ❌ Not supported
+The following are **explicitly not in v1.1 scope**, regardless of how easy they seem "while we're touching the code":
 
-## Key Insights from Research
-
-### Industry Trends (2025-2026)
-
-1. **MCP is the winning standard** — OpenAI, Google, and Microsoft all adopted MCP in 2025. Anthropic donated it to Linux Foundation December 2025. Custom protocols are legacy.
-
-2. **Accessibility trees beat screenshots for most use cases** — Microsoft's Playwright MCP proved 2-5KB structured data outperforms 500KB screenshots for LLM reasoning. Vision reserved for edge cases (canvas, WebGL).
-
-3. **Selector brittleness is the #1 pain point** — Industry data shows 19.2% of IT budgets wasted maintaining brittle XPath/CSS scripts. LLM-guided discovery is the solution.
-
-4. **Session persistence separates toys from tools** — Production workflows require authenticated access. Re-authenticating on every run doesn't scale.
-
-5. **Shadow DOM is the silent killer** — Modern design systems (Lit, Shoelace, Stencil) hide elements in shadow roots. Accessibility trees miss them. Raw JavaScript access essential.
-
-### Architecture Implications
-
-- **No CDP for core features** — Project constraint aligns with Playwright MCP approach (accessibility tree). CDP only needed for extension mode.
-- **Prioritize selector discovery over execution** — Pre-scraping phase focuses on finding robust selectors, not just running them.
-- **Tree-first, vision-fallback** — Follow Microsoft's proven approach for efficiency.
+1. **New browser tools** — No additional automation capabilities
+2. **UI redesign** — Extension popup stays as-is
+3. **Settings/configuration UI** — Extension options page deferred
+4. **Session persistence improvements** — Storage state management deferred
+5. **Anti-bot evasion** — Stealth features deferred
+6. **Parallel session support** — Multi-tab automation deferred
+7. **Vision mode** — Screenshot-based interaction deferred
+8. **Code generation** — Export to Playwright/Puppeteer scripts deferred
 
 ## Sources
 
-- Microsoft Playwright MCP (github.com/microsoft/playwright-mcp) — Official implementation, 25+ browser tools, accessibility tree approach
-- "6 most popular Playwright MCP servers for AI testing in 2026" (Bug0, January 2026) — Competitive analysis of MCP servers
-- "Browser Automation MCP Servers Guide" (Skyvern, October 2025) — Enterprise patterns, anti-bot, CAPTCHA handling
-- "The Agentic Browser Landscape in 2026" (No Hacks Podcast, January 2026) — Consumer and developer ecosystem overview
-- "The Best MCP Servers for Developers in 2026" (Builder.io, December 2025) — MCP ecosystem survey, security best practices
-- browser-use documentation (browser-use.com) — Open-source agent library patterns
-- Stagehand documentation (stagehand.dev) — Natural language automation approach
-- Web scraping industry reports — 19.2% maintenance cost statistic
+- Existing v1.0 implementation: `src/`, `extension/` directories
+- WXT documentation (wxt.dev) — Modern WebExtension build tool
+- Firefox Extension Workshop (extensionworkshop.com) — MV2 vs MV3 guidance
+- pnpm workspaces documentation (pnpm.io) — Monorepo patterns
+- Project reference: `/tmp/blindflight-extension/` — WXT + Vue starter template
 
 ---
-*Feature research for: Browser MCP Pre-Scraping Tooling*
-*Researched: February 9, 2026*
+
+*Feature research for: v1.1 Structural Improvements milestone*
+*Researched: February 11, 2026*

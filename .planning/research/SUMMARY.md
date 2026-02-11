@@ -1,158 +1,165 @@
 # Project Research Summary
 
-**Project:** Browser MCP Pre-Scraping Interface
-**Domain:** MCP-compatible browser pre-scraping and selector discovery
-**Researched:** 2026-02-09
-**Confidence:** MEDIUM
+**Project:** blindflight
+**Domain:** MCP server + Firefox extension structural migration (v1.1)
+**Researched:** 2026-02-11
+**Confidence:** HIGH
 
 ## Executive Summary
 
-This is a selector-first browser automation product: an LLM explores live pages, discovers robust selectors from accessibility snapshots, and then hands off to deterministic procedural extraction. The consistent pattern across research is to treat discovery and extraction as separate systems, connected by a validated selector/extraction-plan handoff. Teams that ship this reliably keep LLM usage in discovery only and avoid LLM-in-the-loop production extraction.
+This milestone is a structural re-platform of an already shipped system, not a product expansion. The winning approach across `STACK.md`, `FEATURES.md`, `ARCHITECTURE.md`, and `PITFALLS.md` is: migrate to a pnpm workspace, move the extension to TypeScript on WXT, preserve Firefox MV2 behavior, and perform a single clean-break rename to `blindflight` with `browser_` prefixes removed everywhere.
 
-The recommended approach is a Playwright + MCP SDK stack using WebDriver BiDi-oriented browser control and MCP-native tool boundaries (`navigate`, `snapshot`, `wait_for`, `click`, `type`, `evaluate`, etc.). The stack should be tree-first (accessibility snapshots) with explicit fallback paths for hard cases (for example Shadow DOM and visual-only content), while preserving the project constraint to avoid CDP-dependent core features.
+The strongest roadmap signal is dependency order. Workspace foundation comes first, then extension TS+WXT migration, then protocol hardening and naming/rebrand sweep, then full behavior-parity validation. This order minimizes breakage because WXT/MV2 and package boundaries are prerequisites for safe protocol and naming changes.
 
-The highest execution risks are selector drift, flaky timing, silent bad data, and resource leaks under sustained load. Mitigation is architectural, not cosmetic: store multiple selectors with confidence metadata, enforce condition-based waits (never fixed sleeps), validate extracted data schemas on every run, and instrument browser lifecycle/resource controls from day one.
+The major risks are migration-specific, not feature-specific: WXT entrypoint lifecycle mistakes, MV2 background persistence/regression in `webRequest`, schema drift between server and extension, and breakage from renamed tools. Mitigation is explicit phase gates with parity tests, strict protocol contract checks, and no scope creep beyond behavior-preserving refactor work.
 
 ## Key Findings
 
 ### Recommended Stack
 
-`STACK.md` supports a conservative, production-oriented stack centered on MCP SDK v1.26.0 and Playwright v1.51.0. This aligns with protocol compliance, cross-browser automation, and the repo constraint to avoid CDP-first implementation patterns.
+`STACK.md` supports a conservative stack tuned for this milestone's constraints.
 
 **Core technologies:**
-- **`@modelcontextprotocol/server@^1.26.0`**: MCP protocol layer - stable v1 API with strong tool/resource abstractions and compatibility with current MCP ecosystem.
-- **`playwright@^1.51.0`**: Browser automation layer - mature high-level APIs, cross-browser support, and better operational ergonomics than low-level protocol handling.
-- **`zod@^3.25.4`**: Schema/typing layer - stable runtime validation for tool inputs/outputs and extraction schemas.
-- **`ws@^8.19.0`**: Transport layer - battle-tested WebSocket implementation for MCP/browser connectivity.
-- **`cheerio@^1.0.0`**: Snapshot/DOM post-processing - fast semantic extraction and compression before LLM analysis.
+- `pnpm@10.x`: workspace orchestration with strict local dependency boundaries.
+- `Node.js@22.x`: target runtime for WXT 0.20+ and modern ESM tooling.
+- `TypeScript@5.7+`: full extension migration and stronger MCP-extension contracts.
+- `WXT@0.20.x`: extension framework for TS build pipeline with explicit Firefox MV2 output.
+- `@modelcontextprotocol/server@1.26.x`, `playwright@1.51.x`, `ws@8.x`, `zod@3.25+`: retain stable runtime behavior from v1.0.
 
-**Critical version requirements:**
-- Keep MCP packages on `1.26.x` for stability; do not move to v2 pre-alpha.
-- Keep Node runtime at `>=18` for `ws@8` compatibility.
-- Prefer stable Zod path (`3.25.x`) unless MCP dependency constraints force explicit v4 migration.
+**Critical versions/constraints:**
+- Pin MCP SDK to stable v1.x (`1.26.x`), not v2 pre-alpha.
+- Keep Firefox MV2 output explicit in WXT config.
+- Keep WebSocket transport and protocol envelopes behavior-compatible.
 
 ### Expected Features
 
-`FEATURES.md` is clear that v1 must feel like a real browser MCP surface, not a demo: core navigation/interactions plus discovery-specific capabilities are non-negotiable.
+`FEATURES.md` confirms milestone success criteria are structural and behavior-stable.
 
 **Must have (table stakes):**
-- `navigate`, `snapshot`, `click`, `type`, `wait_for`, `evaluate`, `close`.
-- Operational debugging primitives expected by users: `network_requests`, `console_messages`, `screenshot`, `select_option`, `press_key`.
-- Core product differentiator in v1: LLM-guided selector discovery.
+- Full extension migration to TypeScript + WXT.
+- pnpm workspace split with `packages/mcp` and `packages/extension`.
+- Clean-break removal of `browser_` tool prefixes.
+- Rebrand to `blindflight` across package/binary/manifest/docs.
+- Firefox MV2 compatibility preserved with parity tests.
 
-**Should have (post-launch differentiators):**
-- Session persistence/storage state management.
-- Shadow DOM-capable discovery via evaluate-assisted strategies.
-- Incremental snapshots and code generation once base workflow is reliable.
+**Should have (if no behavior drift):**
+- Protocol contract hardening (typed envelopes, error-code consistency).
+- Internal modularization of oversized extension background logic.
 
 **Defer (v2+):**
-- Human handoff UX for CAPTCHA/MFA.
-- Anti-bot evasion stack (proxy/fingerprint sophistication).
-- Natural language targeting and self-healing selectors at scale.
-- Parallel multi-agent execution infrastructure.
+- MV3 migration, Chrome expansion, UI redesign, and all net-new browser capabilities.
 
 ### Architecture Approach
 
-`ARCHITECTURE.md` strongly recommends selector-centric separation: discovery (LLM) -> validation/handoff -> procedural extraction (no LLM). The architecture should keep MCP protocol layer, browser control layer, selector lifecycle, and extraction executor as distinct components with explicit boundaries.
+`ARCHITECTURE.md` recommends a two-package workspace with strict runtime boundary: MCP server in `packages/mcp` and extension runtime in `packages/extension`, communicating through stable WebSocket JSON envelopes. Keep protocol semantics unchanged while renaming message/tool identifiers in a single coordinated sweep.
 
 **Major components:**
-1. **Session Manager** - owns browser contexts, tab lifecycle, and state persistence/recovery.
-2. **Page Controller** - handles deterministic actions (`navigate`, `click`, `type`, `wait`, `evaluate`) with retry/timeout policy.
-3. **Selector Store + Validator** - stores selector candidates, confidence, provenance, and validates them against live DOM state.
-4. **Handoff Manager / Plan Store** - converts discovered selectors into a versioned extraction plan and marks readiness state.
-5. **Procedural Executor** - runs extraction plans without LLM involvement for repeatability, speed, and cost control.
+1. `packages/mcp` - MCP tool registration, protocol server, and command dispatch.
+2. `packages/extension` - WXT entrypoints (`background.ts`, `content.ts`, popup) with MV2 behavior parity.
+3. Protocol contract layer - shared message/error definitions consumed consistently on both sides.
+4. Build/release scripts - workspace builds, Firefox artifact packaging, and rebrand-safe naming.
 
 ### Critical Pitfalls
 
-`PITFALLS.md` identifies recurring failure modes that should directly shape phase acceptance criteria.
+Top pitfalls from `PITFALLS.md` that should become phase gates:
 
-1. **Selector fragility** - avoid single brittle selectors; generate multiple semantic candidates with confidence and fallback order.
-2. **Implicit wait flakiness** - ban fixed sleeps; require condition-based waits (network/visibility/interactability).
-3. **Browser resource explosion** - enforce cleanup in `finally`, context pooling, and lifecycle circuit breakers.
-4. **Silent success data corruption** - validate schema/completeness, not just action success or HTTP status.
-5. **LLM token explosion** - preprocess/compress snapshots and avoid raw full-page HTML to keep latency/cost bounded.
+1. **WXT entrypoint misuse** - any `browser.*` calls at module scope can break build/runtime; keep API access inside entrypoint `main()`.
+2. **MV2 background persistence regressions** - `webRequest` capture can silently fail without explicit persistent MV2 behavior.
+3. **Workspace import/config drift** - missing `workspace:*` deps and TS project references break cross-package contracts.
+4. **Protocol schema drift during TS migration** - subtle envelope changes can break server-extension interoperability.
+5. **Rename blast radius** - clients break if rename is incomplete or inconsistent across tools/docs/config.
+
+### Rejected Alternatives (Conflicts with Locked Decisions)
+
+- **Alias compatibility for `browser_*` names**: rejected. Locked decision requires clean-break removal with no compatibility aliases.
+- **Re-prefixing tools as `bf_*`**: rejected. Locked decision is remove `browser_` prefix, not replace with a new prefix.
+- **MV3-first or dual-target migration in this milestone**: rejected. Locked decision is preserve Firefox MV2 compatibility now.
+- **Adding a third workspace package (for example `packages/shared`/`packages/types`) as required structure**: rejected for milestone baseline. Locked structure is `packages/mcp` and `packages/extension`.
+- **Adopting Vue starter UI from `tmp/blindflight-extension`**: rejected. Locked decision is behavior stability and no net-new capabilities/UI redesign.
 
 ## Implications for Roadmap
 
-Based on combined research, the roadmap should be dependency-first and reliability-gated.
+Based on combined research, use this phase structure:
 
-### Phase 1: Foundation and Deterministic Core Tools
-**Rationale:** Everything depends on stable transport, session lifecycle, and deterministic browser primitives.
-**Delivers:** MCP server skeleton, session manager, `navigate`, `wait_for`, `snapshot`, `close`, baseline observability.
-**Addresses:** Table-stakes core operations and discovery input generation.
-**Avoids:** Implicit wait failures and resource leaks by setting hard engineering rules early.
+### Phase 1: Workspace Foundation
+**Rationale:** Every downstream change depends on stable package boundaries.
+**Delivers:** pnpm workspace, `packages/mcp`, `packages/extension`, root scripts, reproducible installs/builds.
+**Addresses:** Structural table stakes from `FEATURES.md`.
+**Avoids:** Cross-package import/config failures.
 
-### Phase 2: Selector Discovery Engine
-**Rationale:** Core product value is selector discovery, so it should be first major capability after foundation.
-**Delivers:** `click`, `type`, `select_option`, `press_key`, `evaluate`, selector capture pipeline, multi-candidate selector output, confidence scoring, snapshot preprocessing.
-**Addresses:** v1 differentiator (LLM-guided discovery) and remaining core interaction features.
-**Avoids:** Selector fragility, silent-success validation gaps, and token-cost blowups.
+### Phase 2: Extension TS + WXT Migration (MV2)
+**Rationale:** Highest structural risk; must be stabilized early.
+**Delivers:** `background.ts`, `content.ts`, popup migration, WXT config with Firefox MV2 parity.
+**Uses:** WXT/TypeScript stack guidance from `STACK.md` plus local reference entrypoint patterns.
+**Avoids:** Entrypoint lifecycle mistakes, content-script timing drift, background persistence regressions.
 
-### Phase 3: Handoff and Plan Validation
-**Rationale:** Discovery is not production-ready until selectors are validated and converted into executable plans.
-**Delivers:** Selector validator, extraction-plan generation, plan persistence/versioning, explicit handoff APIs/state transitions.
-**Addresses:** Discovery-to-procedural transition required by project core value.
-**Avoids:** Tight coupling anti-pattern and unvalidated selector execution.
+### Phase 3: Protocol Contract Stabilization
+**Rationale:** Safe rename and rebrand require stable, explicit message contracts first.
+**Delivers:** Typed envelopes/error codes, serialization parity checks, contract tests.
+**Implements:** Architecture boundary recommendations from `ARCHITECTURE.md`.
+**Avoids:** Schema drift and silent interoperability failures.
 
-### Phase 4: Procedural Extraction and Reliability
-**Rationale:** Once plans are trustworthy, procedural execution unlocks scalable repeated scraping.
-**Delivers:** Plan executor, retries/backoff, schema validation on outputs, `network_requests` and `console_messages` tooling, failure classification.
-**Addresses:** Deterministic repeated extraction and operational debugging expectations.
-**Avoids:** Silent data corruption and unstable production behavior.
+### Phase 4: Clean-Break Rename + Rebrand
+**Rationale:** Must execute in one coordinated sweep to satisfy locked decisions.
+**Delivers:** `blindflight` naming everywhere and full `browser_` prefix removal without aliases.
+**Addresses:** Rebrand + naming table stakes.
+**Avoids:** Partial rename/orphaned references causing operator/client breakage.
 
-### Phase 5: Hardening and Advanced Capabilities
-**Rationale:** Add complexity only after core workflow is stable and measurable.
-**Delivers:** Session persistence polish, monitoring/alerts, rate limiting, optional anti-bot architecture hooks, optional vision fallback/human handoff exploration.
-**Addresses:** Post-validation differentiators and scale.
-**Avoids:** Premature investment in expensive v2 features before PMF.
+### Phase 5: Behavior Parity Validation Gate
+**Rationale:** No net-new capability mandate requires hard verification before release.
+**Delivers:** parity suite for tool semantics, protocol envelopes, MV2 manifest/permissions, and build artifacts.
+**Addresses:** behavior stability contract.
+**Avoids:** shipping refactor-induced behavior drift.
 
 ### Phase Ordering Rationale
 
-- Discovery depends on foundation primitives (`navigate` + `snapshot` + reliable waits), so it cannot be front-loaded.
-- Handoff must precede procedural executor to preserve the architecture boundary and keep extraction deterministic.
-- Reliability controls are introduced in each phase, then expanded in Phase 4/5 to prevent late-stage rewrites.
+- Workspace before migration: avoids mixed topology and import ambiguity.
+- Migration before rename: reduces debugging dimensions when behavior changes appear.
+- Contract hardening before clean-break rename: makes failures obvious and diagnosable.
+- Dedicated validation gate last: enforces the no-net-new-capability constraint.
 
 ### Research Flags
 
 Phases likely needing deeper research during planning:
-- **Phase 2:** Snapshot preprocessing strategy and selector-confidence calibration (quality/cost trade-offs).
-- **Phase 5:** Anti-bot and human handoff strategy (legal, operational, and UX complexity).
+- **Phase 2:** WXT MV2 persistence details and content-script timing parity checks.
+- **Phase 3:** precise contract sharing approach within two-package constraint.
 
-Phases with standard patterns (can likely skip extra research pass):
-- **Phase 1:** MCP server setup + Playwright session/wait primitives are well-documented.
-- **Phase 3:** Selector validation and plan handoff are well-established from architecture references.
+Phases with standard patterns (can likely skip extra research):
+- **Phase 1:** pnpm workspace bootstrapping is well documented.
+- **Phase 4:** mechanical rename/rebrand execution is straightforward with checklist discipline.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | Strong official-source coverage (MCP docs/SDK, Playwright docs, version verification). |
-| Features | HIGH | Broad agreement across MCP ecosystem references and concrete competitor comparisons. |
-| Architecture | HIGH | Consistent with official MCP architecture and existing browser MCP implementations. |
-| Pitfalls | MEDIUM | Strong practical signal, but many sources are community blogs and need context-specific validation. |
+| Stack | HIGH | Strong official docs + concrete version guidance in `STACK.md`. |
+| Features | HIGH | Milestone scope is explicit, constrained, and internally consistent. |
+| Architecture | MEDIUM-HIGH | Core structure is clear; exact two-package contract-sharing details need implementation choices. |
+| Pitfalls | HIGH | Risks are concrete, reproducible, and directly tied to this migration type. |
 
-**Overall confidence:** MEDIUM
+**Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **Runtime constraints in this repo:** Local operational limits (memory/throughput/concurrency targets) are not yet benchmarked; define SLOs in roadmap phase planning.
-- **Target-site profile:** No concrete target domains yet; anti-bot/session requirements may shift significantly once targets are known.
-- **Schema standards:** Output schema contracts for extraction are not finalized; define per-domain schema versioning strategy before large-scale execution.
-- **Security boundaries for `evaluate`:** Needs explicit guardrails and policy (allowed script scope, timeout, output sanitization).
+- **Tool rename migration support docs:** client/operator migration instructions are required because no alias fallback is allowed.
+- **Protocol sharing within two-package workspace:** decide final ownership/export mechanism without adding mandatory third package.
+- **Parity harness completeness:** define exact baseline fixtures for tool responses and wire envelopes before coding.
+- **Reference-template influence boundaries:** borrow WXT entrypoint/build patterns from `tmp/blindflight-extension`, but avoid Vue/module adoption in this milestone.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- `STACK.md` sources: Context7 (`/modelcontextprotocol/typescript-sdk`, `/microsoft/playwright`, `/puppeteer/puppeteer`), official MCP and W3C WebDriver BiDi documentation, npm version verification.
-- `ARCHITECTURE.md` sources: MCP architecture docs, MCP TypeScript SDK docs, Microsoft Playwright MCP reference implementation.
+- `.planning/research/STACK.md`
+- `.planning/research/FEATURES.md`
+- `.planning/research/ARCHITECTURE.md`
+- `.planning/research/PITFALLS.md`
+- WXT docs (`wxt.dev`) and Mozilla MV2 docs cited in the research files.
 
-### Secondary (MEDIUM confidence)
-- `FEATURES.md` sources: Microsoft Playwright MCP docs/repo, browser-use and Stagehand docs, ecosystem surveys (Builder.io, Skyvern guide, No Hacks landscape).
-- `PITFALLS.md` sources: Browserless, BrowserStack, Zyte, ScrapeGraphAI, and practitioner writeups on scraping reliability.
-
-### Tertiary (LOW confidence)
-- Industry statistics and competitive claims from non-peer-reviewed articles (for example maintenance-cost and relative-performance claims) should be validated with repo-specific telemetry.
+### Local reference influence
+- `tmp/blindflight-extension/wxt.config.ts` - confirms starter WXT wiring pattern.
+- `tmp/blindflight-extension/package.json` - confirms practical WXT script layout (`dev:firefox`, `build:firefox`, `postinstall: wxt prepare`).
+- `tmp/blindflight-extension/entrypoints/background.ts` and `tmp/blindflight-extension/entrypoints/content.ts` - reinforces entrypoint-style migration pattern.
 
 ---
-*Research completed: 2026-02-09*
+*Research completed: 2026-02-11*
 *Ready for roadmap: yes*
