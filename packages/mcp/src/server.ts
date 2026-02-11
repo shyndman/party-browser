@@ -8,11 +8,10 @@ import {
 import type { WebSocketServer } from "ws";
 
 import { mcpConfig } from "@/config/mcp.config";
-import { Context } from "@/context";
+import { Context } from "@/session";
 import type { Resource } from "@/resources/resource";
 import type { Tool } from "@/tools/tool";
-import { CodedError } from "@/protocol/ws-sender";
-import { createWebSocketServer } from "@/ws";
+import { CodedError, createWebSocketServer } from "@/messaging";
 import { debugLog } from "@/utils/log";
 
 type Options = {
@@ -48,8 +47,10 @@ export async function createServerWithTools(options: Options): Promise<Server> {
 
   const startWebSocketTransport = async () => {
     try {
-      wss = await createWebSocketServer();
-      wss.on("connection", (websocket) => {
+      const socketServer = await createWebSocketServer();
+      wss = socketServer;
+
+      socketServer.on("connection", (websocket) => {
         console.log("Browser extension connected");
 
         if (context.hasWs()) {

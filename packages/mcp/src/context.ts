@@ -4,9 +4,10 @@ import { mcpConfig } from "@/config/mcp.config";
 import {
   CodedError,
   createSocketMessageSender,
-} from "@/protocol/ws-sender";
-import type { MessagePayload, MessageType } from "@/protocol/ws-messages";
-import type { SocketMessageMap } from "@/protocol/ws-messages";
+  type MessagePayload,
+  type MessageType,
+  type SocketMessageMap,
+} from "@/messaging";
 
 const noConnectionMessage = `No connection to browser extension. In order to proceed, click the Browser MCP extension icon in the browser toolbar to enable communications, then retry.`;
 
