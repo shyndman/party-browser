@@ -1,0 +1,52 @@
+{
+  "manifest_version": 2,
+  "name": "Browser MCP",
+  "version": "0.0.0",
+  "description": "MCP server browser automation extension",
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "storage",
+    "webRequest",
+    "ws://localhost:3456/",
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": [
+      "background.js"
+    ],
+    "persistent": true
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content-script.js"
+      ],
+      "run_at": "document_end",
+      "all_frames": true
+    }
+  ],
+  "browser_action": {
+    "default_title": "Browser MCP (click to toggle)",
+    "default_icon": {
+      "64": "icons/state_disconnected_64.png",
+      "128": "icons/state_disconnected_128.png"
+    }
+  },
+  "web_accessible_resources": [
+    "*"
+  ],
+  "icons": {
+    "48": "icons/state_connected_48.png",
+    "96": "icons/state_connected_96.png"
+  },
+  "applications": {
+    "gecko": {
+      "id": "browser-mcp@browsermcp.io",
+      "strict_min_version": "109.0"
+    }
+  }
+}

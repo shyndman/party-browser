@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Browser MCP</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 320px;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      font-size: 14px;
+      color: #333;
+      background: #fff;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    .icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+
+    .title {
+      flex: 1;
+    }
+
+    .title h1 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #111;
+    }
+
+    .title p {
+      font-size: 12px;
+      color: #666;
+    }
+
+    .status-section {
+      margin-bottom: 16px;
+    }
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: #f5f5f5;
+      border-radius: 6px;
+      margin-bottom: 8px;
+    }
+
+    .status-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .status-label {
+      font-weight: 500;
+      color: #555;
+    }
+
+    .status-value {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 500;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ccc;
+    }
+
+    .status-dot.connected {
+      background: #22c55e;
+      box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
+    }
+
+    .status-dot.disconnected {
+      background: #ef4444;
+      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+    }
+
+    .status-dot.unknown {
+      background: #f59e0b;
+    }
+
+    .status-value.connected {
+      color: #16a34a;
+    }
+
+    .status-value.disconnected {
+      color: #dc2626;
+    }
+
+    .kill-switch-container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px;
+      background: #f5f5f5;
+      border-radius: 6px;
+      margin-bottom: 12px;
+    }
+
+    .kill-switch-label {
+      font-weight: 600;
+      color: #333;
+    }
+
+    .kill-switch-btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      min-width: 90px;
+    }
+
+    .kill-switch-btn.enabled {
+      background: #22c55e;
+      color: white;
+    }
+
+    .kill-switch-btn.enabled:hover {
+      background: #16a34a;
+    }
+
+    .kill-switch-btn.disabled {
+      background: #ef4444;
+      color: white;
+    }
+
+    .kill-switch-btn.disabled:hover {
+      background: #dc2626;
+    }
+
+    .info-section {
+      margin-bottom: 16px;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .info-row:last-child {
+      border-bottom: none;
+    }
+
+    .info-label {
+      color: #666;
+    }
+
+    .info-value {
+      font-weight: 500;
+      color: #333;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn-primary {
+      background: #4f46e5;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #4338ca;
+    }
+
+    .btn-secondary {
+      background: #f3f4f6;
+      color: #374151;
+    }
+
+    .btn-secondary:hover {
+      background: #e5e7eb;
+    }
+
+    .footer {
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid #e0e0e0;
+      text-align: center;
+    }
+
+    .footer a {
+      color: #4f46e5;
+      text-decoration: none;
+      font-size: 12px;
+    }
+
+    .footer a:hover {
+      text-decoration: underline;
+    }
+
+    .error-message {
+      padding: 10px 12px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 6px;
+      color: #dc2626;
+      font-size: 12px;
+      margin-bottom: 12px;
+    }
+
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: #666;
+      font-size: 13px;
+    }
+
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid #e5e7eb;
+      border-top-color: #4f46e5;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="icon">🌐</div>
+    <div class="title">
+      <h1>Browser MCP</h1>
+      <p>MCP Server Automation</p>
+    </div>
+  </div>
+
+  <div class="kill-switch-container">
+    <span class="kill-switch-label">MCP Control</span>
+    <button class="kill-switch-btn enabled" id="kill-switch-btn">Enabled</button>
+  </div>
+
+  <div class="status-section">
+    <div class="status-item">
+      <span class="status-label">MCP Server</span>
+      <span class="status-value" id="server-status">
+        <span class="status-dot unknown" id="server-dot"></span>
+        <span id="server-text">Checking...</span>
+      </span>
+    </div>
+  </div>
+
+  <div class="info-section">
+    <div class="info-row">
+      <span class="info-label">Active Tabs</span>
+      <span class="info-value" id="tab-count">-</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">Current URL</span>
+      <span class="info-value" id="current-url" style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">-</span>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn btn-secondary" id="refresh-btn">Refresh</button>
+    <button class="btn btn-primary" id="docs-btn">Documentation</button>
+  </div>
+
+  <div class="footer">
+    <a href="https://browsermcp.io" target="_blank">browsermcp.io</a>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
