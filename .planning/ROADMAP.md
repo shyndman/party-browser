@@ -69,13 +69,13 @@ Plans:
   - Adds: tabGroups permission to wxt.config.ts
   - Verifies: compile passes, build produces artifacts
 
-- [ ] **07-04** — Fix Popup HTML Wiring (Gap Closure)
+- [x] **07-04** — Fix Popup HTML Wiring (Gap Closure)
   - Wave 1 | 3 tasks | Autonomous
   - Implements: Complete popup HTML matching TS selectors
   - Adds: Status display, kill switch, tab info UI
   - Styles: Popup layout and interactive elements
 
-- [ ] **07-05** — Fix MCP Build + Wire Modular Boundaries (Gap Closure)
+- [x] **07-05** — Fix MCP Build + Wire Modular Boundaries (Gap Closure)
   - Wave 1 | 5 tasks | Autonomous
   - Creates: tsup.config.ts with @/ alias resolution
   - Wires: session/ and messaging/ index modules into runtime
@@ -116,6 +116,6 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 6. Workspace Foundation | v1.1 | 2/2 | Complete | 2026-02-11 |
-| 7. TS/WXT Migration + Modularization | v1.1 | 2/5 | In Progress (gaps found) | - |
+| 7. TS/WXT Migration + Modularization | v1.1 | 4/5 | In Progress (plan 07-03 pending) | - |
 | 8. Clean-Break Rename + Rebrand | v1.1 | 0/2 | Not started | - |
 | 9. Behavior Parity Validation Gate | v1.1 | 0/2 | Not started | - |
