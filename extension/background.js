@@ -401,6 +401,32 @@ function startWebSocketServer(port) {
 
         // Handle direct browser_* message types from MCP tools
         const directMessageTypes = {
+          // Navigation
+          'browser_navigate': 'navigate',
+          'browser_go_back': 'go_back',
+          'browser_go_forward': 'go_forward',
+          // Interaction
+          'browser_click': 'click',
+          'browser_drag': 'drag',
+          'browser_hover': 'hover',
+          'browser_type': 'type',
+          'browser_press_key': 'press_key',
+          'browser_select_option': 'select_option',
+          // Waiting
+          'browser_wait': 'wait',
+          'browser_wait_for': 'wait_for',
+          // Capture
+          'browser_screenshot': 'screenshot',
+          'browser_snapshot': 'snapshot',
+          'browser_get_console_logs': 'getConsoleLogs',
+          // Evaluation
+          'browser_evaluate': 'evaluate',
+          // Session
+          'browser_close': 'close',
+          // State
+          'getUrl': 'getUrl',
+          'getTitle': 'getTitle',
+          // Phase 3 features
           'browser_get_network_requests': 'getNetworkRequests',
           'browser_get_console_messages': 'getConsoleMessages',
           'browser_export_selectors': 'export_selectors'
@@ -530,6 +556,36 @@ async function handleBrowserCommand(command, params) {
 
       case 'export_selectors':
         return await handleExportSelectors(params);
+
+      case 'go_back':
+        return await handleGoBack(params);
+
+      case 'go_forward':
+        return await handleGoForward(params);
+
+      case 'press_key':
+        return await handlePressKey(params);
+
+      case 'wait_for':
+        return await handleWaitFor(params);
+
+      case 'drag':
+        return await handleDrag(params);
+
+      case 'hover':
+        return await handleHover(params);
+
+      case 'close':
+        return await handleClose(params);
+
+      case 'getUrl':
+        return await handleGetUrl(params);
+
+      case 'getTitle':
+        return await handleGetTitle(params);
+
+      case 'getConsoleLogs':
+        return await handleGetConsoleLogs(params);
 
       default:
         throw new Error(`Unknown command: ${command}`);
