@@ -11,11 +11,18 @@ export const getConsoleLogs: Tool = {
     inputSchema: zodToJsonSchema(GetConsoleLogsTool.shape.arguments),
   },
   handle: async (context, _params) => {
-    const consoleLogs = await context.sendSocketMessage(
+    const response = await context.sendSocketMessage(
       "browser_get_console_logs",
       {},
     );
-    const text: string = consoleLogs
+
+    // Extension returns { success: true, count: number, logs: array }
+    // Handle both array (legacy) and object (current) response shapes
+    const logs = Array.isArray(response)
+      ? response
+      : (response?.logs || []);
+
+    const text: string = logs
       .map((log: unknown) => JSON.stringify(log))
       .join("\n");
     return {
