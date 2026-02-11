@@ -18,7 +18,10 @@
     "typecheck:mcp": "pnpm --filter ./packages/mcp typecheck",
     "typecheck:extension": "pnpm --filter ./packages/extension typecheck",
     "lint": "echo 'Linting not configured yet' \u0026\u0026 exit 0",
-    "clean": "pnpm run -r clean \u0026\u0026 rm -rf node_modules"
+    "clean": "pnpm run -r clean \u0026\u0026 rm -rf node_modules",
+    "dev": "node scripts/dev-orchestrator.mjs",
+    "dev:mcp": "pnpm --filter ./packages/mcp dev",
+    "dev:extension": "pnpm --filter ./packages/extension dev"
   },
   "devDependencies": {
     "typescript": "^5.6.2"
