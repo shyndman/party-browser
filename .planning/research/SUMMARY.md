@@ -37,7 +37,7 @@ The highest execution risks are selector drift, flaky timing, silent bad data, a
 
 **Must have (table stakes):**
 - `navigate`, `snapshot`, `click`, `type`, `wait_for`, `evaluate`, `close`.
-- Operational debugging primitives expected by users: `network_requests`, `console_messages`, `take_screenshot`, `select_option`, `press_key`.
+- Operational debugging primitives expected by users: `network_requests`, `console_messages`, `screenshot`, `select_option`, `press_key`.
 - Core product differentiator in v1: LLM-guided selector discovery.
 
 **Should have (post-launch differentiators):**

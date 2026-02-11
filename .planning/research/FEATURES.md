@@ -21,7 +21,7 @@ Features users assume exist. Missing these = product feels incomplete.
 | **network_requests** | Debug and monitor HTTP traffic | MEDIUM | Standard in Playwright MCP; essential for API scraping workflows |
 | **console_messages** | Debug JavaScript errors | LOW | Included in Microsoft Playwright MCP; useful for troubleshooting |
 | **close** | Clean up resources | LOW | Basic lifecycle management |
-| **take_screenshot** | Visual verification and debugging | LOW | Not for actions (use snapshot), but essential for verification |
+| **screenshot** | Visual verification and debugging | LOW | Not for actions (use snapshot), but essential for verification |
 | **select_option** | Dropdown interaction | LOW | Standard form control operation |
 | **press_key** | Keyboard shortcuts and special keys | LOW | Arrow keys, Enter, Escape essential for navigation |
 
@@ -87,7 +87,7 @@ Features that seem good but create problems.
 
 [Hybrid vision mode]
     └──requires──> [snapshot]
-    └──requires──> [take_screenshot]
+    └──requires──> [screenshot]
         └──fallback──> [evaluate] (for canvas/WebGL)
 
 [Natural language targeting]
@@ -127,7 +127,7 @@ Minimum viable product—what's needed to validate the concept.
 
 Features to add once core is working.
 
-1. **take_screenshot** — Visual verification; trigger when specifically requested
+1. **screenshot** — Visual verification; trigger when specifically requested
 2. **network_requests** — Debug API calls; useful for advanced scraping workflows
 3. **console_messages** — Troubleshooting JavaScript errors
 4. **session persistence** — Reuse logins; high value for authenticated workflows
@@ -158,7 +158,7 @@ Features to defer until product-market fit is established.
 | evaluate | HIGH | MEDIUM | P1 |
 | LLM-guided selector discovery | HIGH | MEDIUM | P1 |
 | close | HIGH | LOW | P1 |
-| take_screenshot | MEDIUM | LOW | P2 |
+| screenshot | MEDIUM | LOW | P2 |
 | network_requests | MEDIUM | MEDIUM | P2 |
 | console_messages | LOW | LOW | P2 |
 | session persistence | HIGH | MEDIUM | P2 |

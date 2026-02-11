@@ -1,7 +1,7 @@
 # Architecture Patterns
 
-**Domain:** Browser Pre-Scraping MCP Server  
-**Researched:** February 2026  
+**Domain:** Browser Pre-Scraping MCP Server
+**Researched:** February 2026
 **Confidence:** HIGH
 
 ## Standard Architecture
@@ -261,7 +261,7 @@ src/
 3. **Core navigation tools** - browser_navigate, browser_close
 4. **Basic snapshot tool** - browser_snapshot returning accessibility tree
 
-**Dependencies:** None (external). 
+**Dependencies:** None (external).
 **Enables:** Discovery phase functionality.
 
 ### Phase 2: Discovery Tools (Weeks 3-4)
@@ -332,7 +332,7 @@ Each layer must be functional before the next can be properly tested.
 
 **What people do:** Implement browser control using Chrome DevTools Protocol directly.
 
-**Why it's wrong:** 
+**Why it's wrong:**
 - Ties you to Chromium
 - Loses Playwright's automatic waiting and retry logic
 - More brittle, requires handling low-level browser quirks
@@ -341,7 +341,7 @@ Each layer must be functional before the next can be properly tested.
 
 ### Anti-Pattern 2: Screenshot-Based Discovery
 
-**What people do:** Use `browser_take_screenshot` for LLM analysis instead of accessibility snapshots.
+**What people do:** Use `browser_screenshot` for LLM analysis instead of accessibility snapshots.
 
 **Why it's wrong:**
 - Massive token costs

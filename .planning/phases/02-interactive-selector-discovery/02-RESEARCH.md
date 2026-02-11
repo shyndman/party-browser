@@ -15,7 +15,7 @@ Phase 2 requires implementing the full interactive toolset for browser automatio
 
 **Missing for Phase 2:**
 - `browser_evaluate` tool for JavaScript execution (DISC-02)
-- `browser_take_screenshot` implementation verification (DISC-05)
+- `browser_screenshot` implementation verification (DISC-05)
 - LLM-guided selector generation workflow (FLOW-01)
 
 The architecture leverages an **extension-based approach** where the browser extension handles actual DOM operations, while the MCP server acts as a protocol bridge. This is similar to how Playwright MCP operates with its extension mode.
@@ -115,7 +115,7 @@ export const evaluate: Tool = {
     const result = await context.sendSocketMessage("browser_evaluate", { script });
     return {
       content: [{
-        type: "text", 
+        type: "text",
         text: `Result:\n\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\``,
       }],
     };
@@ -220,7 +220,7 @@ export const evaluate: Tool = {
   handle: async (context, params) => {
     const { script } = EvaluateTool.shape.arguments.parse(params);
     const result = await context.sendSocketMessage("browser_evaluate", { script });
-    
+
     // Format result based on type
     let resultText: string;
     if (result === undefined) {
@@ -271,7 +271,7 @@ This is a **prompt workflow**, not a single tool. The LLM uses existing tools it
 Step 1: Discovery
 ├─ browser_navigate → Load target page
 ├─ browser_snapshot → Get accessibility tree
-└─ browser_take_screenshot → Visual reference
+└─ browser_screenshot → Visual reference
 
 Step 2: Inspection (if needed)
 ├─ browser_evaluate → Get element counts, check for shadow DOM
@@ -309,7 +309,7 @@ Step 5: Output
 |---------|------------------------|---------------------|
 | Element targeting | `ref` from accessibility snapshot | Same - `element` field with ref |
 | JavaScript execution | `browser_evaluate` with function string | Same pattern |
-| Screenshots | `browser_take_screenshot` with options | Basic implementation exists |
+| Screenshots | `browser_screenshot` with options | Basic implementation exists |
 | Selector generation | LLM reasoning over accessibility tree | Planned for Phase 2 |
 
 ### Browser MCP vs Playwright MCP
@@ -362,7 +362,7 @@ Step 5: Output
 Update tool arrays:
 ```typescript
 const customTools: Tool[] = [
-  custom.getConsoleLogs, 
+  custom.getConsoleLogs,
   custom.screenshot,
   evaluate,  // ← Add
 ];
