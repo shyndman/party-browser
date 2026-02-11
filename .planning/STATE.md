@@ -11,8 +11,8 @@ See: `.planning/PROJECT.md` (updated 2026-02-09)
 
 Phase: 03-handoff-and-repeatable-execution-readiness
 Plan: 06 (Missing Handler Functions Gap Closure - COMPLETE)
-Status: All 10 handler functions verified operational; 17 MCP tools execute without errors
-Last activity: 2026-02-11 - Completed plan 06: Verified handler implementations in background.js and content-script.js
+Status: Gap closure plans 03-05 and 03-06 complete; Protocol unit alignment documented for 03-07
+Last activity: 2026-02-11 - Completed plan 05: Fixed getConsoleLogs parsing and timeout audit
 
 Progress: [████████████████████] 100%
 
@@ -32,7 +32,7 @@ Progress: [████████████████████] 100%
 | 3 | 4 | 14 min | 3.5 min |
 
 **Recent Trend:**
-- Last 5 plans: Phase 03-06 (3 min, 3 tasks, 0 files)
+- Last 5 plans: Phase 03-05 (2 min, 2 tasks, 2 files)
 - Trend: Stable - gap closure verification work
 | Phase 02.1 P01 | 2 min | 3 tasks | 2 files |
 | Phase 02-interactive-selector-discovery P04 | 2 min | 3 tasks | 3 files |
@@ -47,6 +47,7 @@ Progress: [████████████████████] 100%
 | Phase 03-handoff-and-repeatable-execution-readiness P03 | 5min | 4 tasks | 1 files |
 | Phase 02.2-message-routing-completion P01 | 1 min | 3 tasks | 2 files |
 | Phase 03-handoff-and-repeatable-execution-readiness P04 | 1 min | 5 tasks | 2 files |
+| Phase 03-handoff-and-repeatable-execution-readiness P05 | 2 min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -102,6 +103,9 @@ Recent decisions affecting current work:
 - [Phase 02.2-01]: Browser API used for history navigation (tabs.goBack/goForward) not JavaScript history API
 - [Phase 02.2-01]: Console logs accessible via dual path: getConsoleLogs (direct) and getConsoleMessages (Phase 3 infrastructure)
 - [Phase 03-04]: All 21 browser_* message types route through directMessageTypes map for consistency with no 'Unknown message type' errors
+- [Phase 03-05]: API Layer uses seconds for user ergonomics, Extension Layer uses milliseconds for JavaScript native compatibility
+- [Phase 03-05]: Unit conversion happens at MCP server layer before sending to extension (not at extension boundary)
+- [Phase 03-05]: Defensive response parsing handles both array (legacy) and object (current) response formats via Array.isArray check
 
 ### Roadmap Evolution
 
@@ -129,6 +133,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-11 12:33
-Stopped at: Completed 03-06-PLAN.md - Missing Handler Functions Gap Closure
+Last session: 2026-02-11 11:17
+Stopped at: Completed 03-05-PLAN.md - Protocol Unit Alignment Gap Closure
 Resume file: None
