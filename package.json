@@ -11,6 +11,7 @@
     "build": "pnpm run -r build",
     "build:mcp": "pnpm --filter ./packages/mcp build",
     "build:extension": "pnpm --filter ./packages/extension build",
+    "build:extension:xpi": "pnpm --filter ./packages/extension xpi",
     "test": "pnpm run -r test",
     "test:mcp": "pnpm --filter ./packages/mcp test",
     "test:extension": "pnpm --filter ./packages/extension test",
