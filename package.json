@@ -7,7 +7,10 @@
   "packageManager": "pnpm@10.4.1",
   "scripts": {
     "install:all": "pnpm install",
-    "postinstall": "pnpm run -r postinstall"
+    "postinstall": "pnpm run -r postinstall",
+    "build": "pnpm run -r build",
+    "build:mcp": "pnpm --filter ./packages/mcp build",
+    "build:extension": "pnpm --filter ./packages/extension build"
   },
   "devDependencies": {
     "typescript": "^5.6.2"
