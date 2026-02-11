@@ -6,7 +6,7 @@
     "paths": {
       "@/*": ["src/*"]
     },
-    "types": ["./.wxt/types", "@types/webextension-polyfill"]
+    "types": ["@types/webextension-polyfill"]
   },
-  "include": ["src/**/*", "entrypoints/**/*", ".wxt/**/*"]
+  "include": ["src/**/*", "entrypoints/**/*", ".wxt/wxt.d.ts"]
 }
