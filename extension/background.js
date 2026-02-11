@@ -384,17 +384,20 @@ function startWebSocketServer(port) {
 
         // Check kill switch before processing
         if (!isKillSwitchEnabled) {
-          wsConnection.send(JSON.stringify({
+          const killSwitchResponse = {
             success: false,
             error: 'Kill switch is disabled. Click the extension icon to resume MCP communications.',
             errorCode: ErrorCodes.KILL_SWITCH_DISABLED
-          }));
+          };
+          console.log('[Browser MCP] Sending kill switch response to MCP:', killSwitchResponse);
+          wsConnection.send(JSON.stringify(killSwitchResponse));
           return;
         }
 
         // Handle MCP commands (wrapped in mcpCommand envelope)
         if (message.type === 'mcpCommand') {
           const result = await handleBrowserCommand(message.command, message.params);
+          console.log('[Browser MCP] Sending response to MCP:', result);
           wsConnection.send(JSON.stringify(result));
           return;
         }
@@ -435,30 +438,22 @@ function startWebSocketServer(port) {
         if (directMessageTypes[message.type]) {
           const command = directMessageTypes[message.type];
           const result = await handleBrowserCommand(command, message.payload || {});
-          wsConnection.send(JSON.stringify({
-            id: message.id,
-            result: result,
-            error: result.success ? undefined : result.error,
-            errorCode: result.errorCode
-          }));
+          const responsePayload = { id: message.id, result: result, error: result.success ? undefined : result.error, errorCode: result.errorCode };
+          console.log('[Browser MCP] Sending response to MCP:', responsePayload);
+          wsConnection.send(JSON.stringify(responsePayload));
           return;
         }
 
         // Unknown message type
-        wsConnection.send(JSON.stringify({
-          id: message.id,
-          success: false,
-          error: `Unknown message type: ${message.type}`,
-          errorCode: ErrorCodes.COMMAND_FAILED
-        }));
+        const unknownTypeResponse = { id: message.id, success: false, error: `Unknown message type: ${message.type}`, errorCode: ErrorCodes.COMMAND_FAILED };
+        console.log('[Browser MCP] Sending error response to MCP:', unknownTypeResponse);
+        wsConnection.send(JSON.stringify(unknownTypeResponse));
       } catch (error) {
         console.error('[Browser MCP] Error processing message:', error);
         if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
-          wsConnection.send(JSON.stringify({
-            success: false,
-            error: error.message,
-            errorCode: error.errorCode || ErrorCodes.TRANSPORT_UNAVAILABLE
-          }));
+          const errorResponse = { success: false, error: error.message, errorCode: error.errorCode || ErrorCodes.TRANSPORT_UNAVAILABLE };
+          console.log('[Browser MCP] Sending error response to MCP:', errorResponse);
+          wsConnection.send(JSON.stringify(errorResponse));
         }
       }
     };
