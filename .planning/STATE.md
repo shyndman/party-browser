@@ -21,7 +21,7 @@ Progress: [░░░░░░░░░░░░░░░░░░░░] 0%
 
 - Previous milestone: v1.0 MVP (complete, archived)
 - Current milestone goal: cleaner architecture baseline before v2.0
-- Focus areas: TypeScript/WXT migration, modularization, protocol hardening
+- Focus areas: TypeScript/WXT migration, pnpm workspace split, modularization, protocol hardening, naming/rebrand cleanup
 
 ## Notable Decisions (v1.0)
 

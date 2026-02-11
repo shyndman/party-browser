@@ -13,8 +13,11 @@
 **Target features:**
 - Full extension migration to TypeScript + WXT.
 - Preserve Firefox WebExtension MV2 compatibility during migration.
+- Migrate repository tooling to a pnpm workspace (`packages/mcp`, `packages/extension`).
 - Codebase modularization across extension/server hot spots.
 - Protocol contract hardening (message shapes, schema expectations, coded errors).
+- Clean-break removal of `browser_` prefixes from tool/method naming.
+- Rebrand project/package-facing naming to `blindflight`.
 - Behavior-stable restructuring (no net-new end-user tool capabilities).
 
 ## What This Is
@@ -33,8 +36,11 @@
 ### Active
 
 - [ ] Migrate the extension package to TypeScript + WXT while preserving Firefox MV2 behavior.
+- [ ] Convert repo to pnpm workspace with package boundaries for MCP and extension.
 - [ ] Improve modularity by splitting oversized files/functions and clarifying ownership boundaries.
 - [ ] Harden MCP-extension protocol contracts for predictable, typed integrations.
+- [ ] Remove `browser_` name prefixes via clean-break tool/method rename.
+- [ ] Rebrand project identifiers and user-facing naming to `blindflight`.
 - [ ] Maintain current tool semantics and user-visible behavior throughout restructuring.
 
 ### Out of Scope
@@ -55,8 +61,9 @@
 ## Next Milestone Goals
 
 1. Complete full extension modernization to TypeScript + WXT without manifest/runtime regressions.
-2. Land modularization changes that reduce maintenance risk ahead of v2.0.
-3. Standardize protocol contract boundaries so future features can be added safely.
+2. Complete pnpm workspace migration with clear package separation (`mcp`, `extension`).
+3. Land modularization changes that reduce maintenance risk ahead of v2.0.
+4. Standardize protocol contract boundaries and naming conventions for safer future feature work.
 
 ---
 *Last updated: 2026-02-11 after starting v1.1 pre-v2.0-structural-improvements*
