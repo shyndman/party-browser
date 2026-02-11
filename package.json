@@ -10,7 +10,10 @@
     "postinstall": "pnpm run -r postinstall",
     "build": "pnpm run -r build",
     "build:mcp": "pnpm --filter ./packages/mcp build",
-    "build:extension": "pnpm --filter ./packages/extension build"
+    "build:extension": "pnpm --filter ./packages/extension build",
+    "test": "pnpm run -r test",
+    "test:mcp": "pnpm --filter ./packages/mcp test",
+    "test:extension": "pnpm --filter ./packages/extension test"
   },
   "devDependencies": {
     "typescript": "^5.6.2"
