@@ -13,6 +13,7 @@ This roadmap delivers a selector-first pre-scraping workflow where an LLM perfor
 - [ ] **Phase 1: Runtime and Deterministic Core** - Local operability plus stable navigation, waiting, snapshot, and session closure.
 - [ ] **Phase 2: Interactive Selector Discovery** - Discovery-time interactions and LLM-guided selector generation.
 - [ ] **Phase 02.1: Session and Transport Stabilization (INSERTED)** - Bridge-oriented session ownership and deterministic tab targeting.
+- [ ] **Phase 02.2: Message Routing Completion (INSERTED)** - Complete extension message routing for all MCP tools.
 - [ ] **Phase 3: Handoff and Repeatable Execution Readiness** - Inspection visibility and exportable handoff for no-LLM procedural execution.
 
 ## Phase Details
@@ -74,6 +75,27 @@ Plans:
 - [x] 02.1-05-PLAN.md — Gap 2 Fix: Machine-readable error codes added to transport gate
 - [x] 02.1-06-PLAN.md — Gap 3 Fix: Universal [CODE] prefix for all tool execution errors
 
+### Phase 02.2: Message Routing Completion (INSERTED)
+
+**Goal:** All MCP tools successfully route messages from MCP server to extension handlers.
+**Depends on:** Phase 02.1 (Session lifecycle and tab model MUST be stable)
+**Requirements:** AUTO-01, AUTO-02, AUTO-03, AUTO-04, AUTO-05, AUTO-06, AUTO-07, DISC-01, DISC-02, DISC-05
+
+**Critical Gap Discovered:**
+Live testing revealed that `extension/background.js` only routes 3 message types in the `directMessageTypes` map, but ALL other MCP tools send direct message types that fall through to "Unknown message type" errors.
+
+**Success Criteria** (what must be TRUE):
+   1. All 21 message types map correctly from WebSocket message to handler command.
+   2. All 9 missing handler functions exist (go_back, go_forward, press_key, wait_for, drag, hover, close, getUrl, getTitle, getConsoleLogs).
+   3. Content script handles press_key, wait_for, drag, hover commands via DOM simulation.
+   4. No "Unknown message type" errors when MCP tools send messages to extension.
+   5. All 18 MCP tools successfully complete end-to-end routing.
+
+**Plans:** 1 plan in 1 wave
+
+Plans:
+- [ ] 02.2-01-PLAN.md — Complete message routing infrastructure: extend directMessageTypes map, add missing handler functions, implement content script handlers
+
 ### Phase 3: Handoff and Repeatable Execution Readiness
 **Goal**: Discovery results can be inspected, packaged, and handed off for procedural scraping without LLM involvement.
 **Depends on**: Phase 02.1 (Session-owned tab model MUST be stable)
@@ -102,11 +124,12 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 02.1 -> 3
+Phases execute in numeric order: 1 -> 2 -> 02.1 -> 02.2 -> 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Runtime and Deterministic Core | 3/3 | ✓ Complete | 2026-02-09 |
 | 2. Interactive Selector Discovery | 4/4 | ✓ Complete | 2026-02-09 |
 | 02.1 Session and Transport Stabilization (INSERTED) | 6/6 | ✓ Complete | 2026-02-10 |
+| 02.2 Message Routing Completion (INSERTED) | 0/1 | ○ Planning | - |
 | 3. Handoff and Repeatable Execution Readiness | 2/3 | ⚠ Gaps Found | - |
