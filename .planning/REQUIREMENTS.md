@@ -58,24 +58,24 @@
 
 | Requirement | Phase |
 |-------------|-------|
-| EXT-01 | TBD |
-| EXT-02 | TBD |
-| EXT-03 | TBD |
-| WS-01 | TBD |
-| WS-02 | TBD |
-| WS-03 | TBD |
-| REN-01 | TBD |
-| REN-02 | TBD |
-| REN-03 | TBD |
-| BRAND-01 | TBD |
-| BRAND-02 | TBD |
-| BRAND-03 | TBD |
-| MOD-01 | TBD |
-| MOD-02 | TBD |
-| MOD-03 | TBD |
-| PAR-01 | TBD |
-| PAR-02 | TBD |
-| PAR-03 | TBD |
+| EXT-01 | Phase 7 |
+| EXT-02 | Phase 7 |
+| EXT-03 | Phase 7 |
+| WS-01 | Phase 6 |
+| WS-02 | Phase 6 |
+| WS-03 | Phase 6 |
+| REN-01 | Phase 8 |
+| REN-02 | Phase 8 |
+| REN-03 | Phase 8 |
+| BRAND-01 | Phase 8 |
+| BRAND-02 | Phase 8 |
+| BRAND-03 | Phase 8 |
+| MOD-01 | Phase 7 |
+| MOD-02 | Phase 7 |
+| MOD-03 | Phase 7 |
+| PAR-01 | Phase 9 |
+| PAR-02 | Phase 9 |
+| PAR-03 | Phase 9 |
 
 ---
 *Defined: 2026-02-11*
