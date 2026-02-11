@@ -1,7 +1,8 @@
 ---
 description: Creates executable phase plans with task breakdown, dependency analysis, and goal-backward verification. Spawned by /gsd-plan-phase orchestrator.
 color: "#00FF00"
-model: kimi-for-coding/k2p5
+model: openai/gpt-5.3-codex
+reasoningEffort: xhigh
 permission:
   read: allow
   write: allow
