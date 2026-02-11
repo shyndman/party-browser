@@ -2,10 +2,15 @@
  * Type declarations for Blindflight extension
  */
 
-import type BrowserNamespace from 'webextension-polyfill';
+import type Browser from 'webextension-polyfill';
 
 declare global {
-  const browser: typeof BrowserNamespace;
+  const browser: typeof Browser;
+
+  namespace browser {
+    export import Runtime = Browser.Runtime;
+    export import WebRequest = Browser.WebRequest;
+  }
 }
 
 export {};

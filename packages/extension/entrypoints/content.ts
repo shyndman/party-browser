@@ -6,6 +6,7 @@
 /// <reference path="../src/types/global.d.ts" />
 
 import { defineContentScript } from 'wxt/utils/define-content-script';
+import type BrowserNamespace from 'webextension-polyfill';
 import type { ContentScriptContext } from 'wxt/utils/content-script-context';
 import type { CommandResult } from '../src/types/commands';
 import { ConsoleCapture } from '../src/session/console-capture';
@@ -565,7 +566,7 @@ export default defineContentScript({
 
     browser.runtime.onMessage.addListener(((
       message: unknown,
-      _sender: browser.Runtime.MessageSender,
+      _sender: BrowserNamespace.Runtime.MessageSender,
       sendResponse: (response?: unknown) => void
     ): boolean => {
       const msg = message as { type?: string; command?: string; params?: Record<string, unknown>; clear?: boolean };
@@ -597,7 +598,7 @@ export default defineContentScript({
       }
 
       return false;
-    }) as browser.Runtime.OnMessageListener);
+    }) as BrowserNamespace.Runtime.OnMessageListener);
 
     // Cleanup on HMR
     ctx.onInvalidated(() => {

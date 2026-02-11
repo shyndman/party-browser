@@ -6,6 +6,7 @@
 /// <reference path="../src/types/global.d.ts" />
 
 import { defineBackground } from 'wxt/utils/define-background';
+import type BrowserNamespace from 'webextension-polyfill';
 import { CodedError, ErrorCodes, type ErrorCode } from '../src/utils/errors';
 import type { CommandName, CommandResult } from '../src/types/commands';
 import type { StatusResponse, KillSwitchResponse, McpMessage } from '../src/types/messages';
@@ -100,7 +101,7 @@ export default defineBackground({
 
     browser.runtime.onMessage.addListener(((
       message: unknown,
-      _sender: browser.Runtime.MessageSender,
+      _sender: BrowserNamespace.Runtime.MessageSender,
       sendResponse: (response?: unknown) => void
     ): boolean => {
       console.log('[Blindflight] Message received:', message);
@@ -153,7 +154,7 @@ export default defineBackground({
       }
 
       return false;
-    }) as browser.Runtime.OnMessageListener);
+    }) as BrowserNamespace.Runtime.OnMessageListener);
 
     browser.runtime.onInstalled.addListener((details) => {
       console.log('[Blindflight] Extension installed:', details);

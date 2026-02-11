@@ -5,15 +5,16 @@
 
 /// <reference path="../types/global.d.ts" />
 
+import type BrowserNamespace from 'webextension-polyfill';
 import type { NetworkRequest } from '../types/session';
 
 export const MAX_LOG_SIZE = 1000;
 
 export interface NetworkCaptureListener {
   tabId: number;
-  onBeforeRequest: (details: browser.WebRequest.OnBeforeRequestDetailsType) => void;
-  onCompleted: (details: browser.WebRequest.OnCompletedDetailsType) => void;
-  onErrorOccurred: (details: browser.WebRequest.OnErrorOccurredDetailsType) => void;
+  onBeforeRequest: (details: BrowserNamespace.WebRequest.OnBeforeRequestDetailsType) => void;
+  onCompleted: (details: BrowserNamespace.WebRequest.OnCompletedDetailsType) => void;
+  onErrorOccurred: (details: BrowserNamespace.WebRequest.OnErrorOccurredDetailsType) => void;
 }
 
 /**
@@ -33,7 +34,7 @@ export class NetworkCapture {
     console.log(`[Blindflight] Starting network capture for tab ${tabId}`);
     this.sessionNetworkLogs.set(tabId, []);
 
-    const onBeforeRequest = (details: browser.WebRequest.OnBeforeRequestDetailsType): void => {
+    const onBeforeRequest = (details: BrowserNamespace.WebRequest.OnBeforeRequestDetailsType): void => {
       if (details.tabId !== tabId) return;
 
       const logs = this.sessionNetworkLogs.get(tabId);
@@ -57,7 +58,7 @@ export class NetworkCapture {
       }
     };
 
-    const onCompleted = (details: browser.WebRequest.OnCompletedDetailsType): void => {
+    const onCompleted = (details: BrowserNamespace.WebRequest.OnCompletedDetailsType): void => {
       if (details.tabId !== tabId) return;
 
       const logs = this.sessionNetworkLogs.get(tabId);
@@ -70,7 +71,7 @@ export class NetworkCapture {
       }
     };
 
-    const onErrorOccurred = (details: browser.WebRequest.OnErrorOccurredDetailsType): void => {
+    const onErrorOccurred = (details: BrowserNamespace.WebRequest.OnErrorOccurredDetailsType): void => {
       if (details.tabId !== tabId) return;
 
       const logs = this.sessionNetworkLogs.get(tabId);
