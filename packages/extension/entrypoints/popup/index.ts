@@ -9,7 +9,6 @@ import type { StatusResponse, KillSwitchResponse } from '../../src/types/message
 
 interface PopupElements {
   refreshBtn: HTMLButtonElement;
-  docsBtn: HTMLButtonElement;
   killSwitchBtn: HTMLButtonElement;
   serverStatus: HTMLElement;
   serverDot: HTMLElement;
@@ -21,7 +20,6 @@ interface PopupElements {
 function getElements(): PopupElements {
   return {
     refreshBtn: document.getElementById('refresh-btn') as HTMLButtonElement,
-    docsBtn: document.getElementById('docs-btn') as HTMLButtonElement,
     killSwitchBtn: document.getElementById('kill-switch-btn') as HTMLButtonElement,
     serverStatus: document.getElementById('server-status') as HTMLElement,
     serverDot: document.getElementById('server-dot') as HTMLElement,
@@ -37,13 +35,12 @@ document.addEventListener('DOMContentLoaded', init);
  * Initialize popup
  */
 async function init(): Promise<void> {
-  console.log('[Blindflight] Popup initialized');
+  console.log('[PartyBrowser] Popup initialized');
 
   const elements = getElements();
 
   // Set up event listeners
   elements.refreshBtn.addEventListener('click', () => void refreshStatus());
-  elements.docsBtn.addEventListener('click', openDocs);
   elements.killSwitchBtn.addEventListener('click', () => void toggleKillSwitch());
 
   // Load initial status
@@ -61,7 +58,7 @@ async function toggleKillSwitch(): Promise<void> {
     const response = await browser.runtime.sendMessage({ type: 'toggleKillSwitch' }) as KillSwitchResponse;
     updateKillSwitchUI(response.isEnabled);
   } catch (error) {
-    console.error('[Blindflight] Failed to toggle kill switch:', error);
+    console.error('[PartyBrowser] Failed to toggle kill switch:', error);
   } finally {
     elements.killSwitchBtn.disabled = false;
   }
@@ -126,13 +123,4 @@ async function refreshStatus(): Promise<void> {
     elements.serverDot.className = 'status-dot disconnected';
     elements.serverStatus.className = 'status-value disconnected';
   }
-}
-
-/**
- * Open documentation
- */
-function openDocs(): void {
-  void browser.tabs.create({
-    url: 'https://docs.blindflight.io'
-  });
 }
