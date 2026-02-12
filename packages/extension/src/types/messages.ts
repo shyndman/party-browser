@@ -1,5 +1,5 @@
 /**
- * Message type definitions for Blindflight extension
+ * Message type definitions for PartyBrowser extension
  * WebSocket and content script messaging types
  */
 

@@ -1,5 +1,5 @@
 /**
- * Navigation Commands for Blindflight extension
+ * Navigation Commands for PartyBrowser extension
  * Handles navigation-related browser commands
  */
 
@@ -31,7 +31,7 @@ export class NavigationCommands {
     let targetTabId: number;
 
     if (!this.sessionManager.hasSession()) {
-      console.log('[Blindflight] Creating session tab at about:blank');
+      console.log('[PartyBrowser] Creating session tab at about:blank');
       targetTabId = await this.sessionManager.createSession();
       this.networkCapture.startCapture(targetTabId);
     } else {
@@ -40,7 +40,7 @@ export class NavigationCommands {
       try {
         await browser.tabs.get(targetTabId);
       } catch {
-        console.log('[Blindflight] Prior session tab closed; creating new session tab');
+        console.log('[PartyBrowser] Prior session tab closed; creating new session tab');
         targetTabId = await this.sessionManager.createSession();
       }
     }
@@ -53,7 +53,7 @@ export class NavigationCommands {
         code: `document.title = 'OC | ' + document.title`
       });
     } catch (error) {
-      console.log('[Blindflight] Could not update tab title:', (error as Error).message);
+      console.log('[PartyBrowser] Could not update tab title:', (error as Error).message);
     }
 
     return { success: true, data: { url, tabId: targetTabId } };

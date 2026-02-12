@@ -1,5 +1,5 @@
 /**
- * Content Bridge for Blindflight extension
+ * Content Bridge for PartyBrowser extension
  * Handles communication between background script and content scripts
  */
 
@@ -26,7 +26,7 @@ export class ContentBridge {
         params
       });
     } catch (error) {
-      console.error(`[Blindflight] Failed to send command to tab ${tabId}:`, error);
+      console.error(`[PartyBrowser] Failed to send command to tab ${tabId}:`, error);
       throw error;
     }
   }
@@ -49,7 +49,7 @@ export class ContentBridge {
       }
       return [];
     } catch (error) {
-      console.log('[Blindflight] Content script not available for console logs:', (error as Error).message);
+      console.log('[PartyBrowser] Content script not available for console logs:', (error as Error).message);
       return [];
     }
   }

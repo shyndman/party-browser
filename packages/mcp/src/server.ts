@@ -72,7 +72,7 @@ export async function createServerWithTools(options: Options): Promise<Server> {
       transportStartupError =
         error instanceof Error ? error : new Error(String(error));
       console.error(
-        `Failed to start Browser MCP WebSocket transport: ${formatTransportStartupError(transportStartupError)}`,
+        `Failed to start PartyBrowser WebSocket transport: ${formatTransportStartupError(transportStartupError)}`,
       );
     }
   };
@@ -107,7 +107,7 @@ export async function createServerWithTools(options: Options): Promise<Server> {
       const code = (transportStartupError as Error & { code?: string }).code;
       const errorCode = code === "EADDRINUSE" ? "EADDRINUSE" : "TRANSPORT_UNAVAILABLE";
       const error = new CodedError(
-        `Browser transport unavailable: ${formatTransportStartupError(transportStartupError)} Close other Browser MCP sessions using this port, then restart this MCP process.`,
+        `Browser transport unavailable: ${formatTransportStartupError(transportStartupError)} Close other PartyBrowser sessions using this port, then restart this MCP process.`,
         errorCode
       );
       return {

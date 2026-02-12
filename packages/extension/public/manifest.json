@@ -1,6 +1,6 @@
 {
   "manifest_version": 2,
-  "name": "Browser MCP",
+  "name": "PartyBrowser",
   "version": "0.0.0",
   "description": "MCP server browser automation extension",
   "permissions": [
@@ -30,7 +30,7 @@
     }
   ],
   "browser_action": {
-    "default_title": "Browser MCP (click to toggle)",
+    "default_title": "PartyBrowser (click to toggle)",
     "default_icon": {
       "64": "icons/state_disconnected_64.png",
       "128": "icons/state_disconnected_128.png"

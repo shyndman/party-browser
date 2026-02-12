@@ -1,7 +1,7 @@
 {
-  "name": "@blindflight/root",
+  "name": "@partybrowser/root",
   "version": "0.1.3",
-  "description": "Blindflight - Browser automation for AI agents (workspace root)",
+  "description": "PartyBrowser - Browser automation for AI agents (workspace root)",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.4.1",

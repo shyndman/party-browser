@@ -4,7 +4,7 @@ import path from 'path';
 export default defineConfig({
   manifestVersion: 2,
   manifest: {
-    name: 'Blindflight',
+    name: 'PartyBrowser',
     description: 'Browser automation for AI agents',
     permissions: [
       'activeTab',
@@ -16,7 +16,7 @@ export default defineConfig({
       '<all_urls>'
     ],
     browser_action: {
-      default_title: 'Blindflight (click to toggle)',
+      default_title: 'PartyBrowser (click to toggle)',
       default_icon: {
         64: 'icons/state_disconnected_64.png',
         128: 'icons/state_disconnected_128.png'
@@ -29,7 +29,7 @@ export default defineConfig({
     },
     browser_specific_settings: {
       gecko: {
-        id: 'blindflight@blindflight.io',
+        id: 'partybrowser@partybrowser.io',
         strict_min_version: '109.0'
       }
     }

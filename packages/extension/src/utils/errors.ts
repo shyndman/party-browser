@@ -1,5 +1,5 @@
 /**
- * Error utilities for Blindflight extension
+ * Error utilities for PartyBrowser extension
  * Provides CodedError class matching MCP server pattern
  */
 

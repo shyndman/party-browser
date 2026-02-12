@@ -1,6 +1,6 @@
 # Agent Guidelines
 
-## Working with Browser MCP
+## Working with PartyBrowser
 
 ### Target Ambiguity Resolution
 
@@ -88,4 +88,4 @@ This creates continuity across sessions and reduces repeated clarification cycle
 
 ---
 
-*These guidelines apply to all agents working on the Browser MCP project. When in doubt, refer back to this document and ask rather than assume.*
+*These guidelines apply to all agents working on the PartyBrowser project. When in doubt, refer back to this document and ask rather than assume.*

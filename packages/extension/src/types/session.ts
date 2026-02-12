@@ -1,5 +1,5 @@
 /**
- * Session type definitions for Blindflight extension
+ * Session type definitions for PartyBrowser extension
  * Session-scoped state and network/console capture types
  */
 

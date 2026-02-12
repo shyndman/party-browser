@@ -1,5 +1,5 @@
 /**
- * Type declarations for Blindflight extension
+ * Type declarations for PartyBrowser extension
  */
 
 import type Browser from 'webextension-polyfill';

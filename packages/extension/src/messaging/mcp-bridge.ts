@@ -1,5 +1,5 @@
 /**
- * MCP Bridge for Blindflight extension
+ * MCP Bridge for PartyBrowser extension
  * Manages WebSocket connection to MCP server with reconnection logic
  */
 
@@ -50,18 +50,18 @@ export class McpBridge {
     }
 
     if (this.isServerRunning) {
-      console.log('[Blindflight] Server already running');
+      console.log('[PartyBrowser] Server already running');
       return Promise.resolve();
     }
 
-    console.log(`[Blindflight] Starting WebSocket connection on port ${port}`);
+    console.log(`[PartyBrowser] Starting WebSocket connection on port ${port}`);
 
     return new Promise((resolve, reject) => {
       try {
         this.wsConnection = new WebSocket(`ws://localhost:${port}`);
 
         this.wsConnection.onopen = () => {
-          console.log('[Blindflight] Extension connected to MCP server');
+          console.log('[PartyBrowser] Extension connected to MCP server');
           this.isServerRunning = true;
           this.reconnectAttempts = 0;
           resolve();
@@ -70,13 +70,13 @@ export class McpBridge {
         this.wsConnection.onmessage = async (event) => {
           try {
             const message = JSON.parse(event.data) as McpMessage;
-            console.log('[Blindflight] Received command from MCP:', message);
+            console.log('[PartyBrowser] Received command from MCP:', message);
 
             // Handle mcpCommand type
             const mcpCmd = message as { type?: string; command?: CommandName; params?: Record<string, unknown> };
             if (mcpCmd.type === 'mcpCommand' && mcpCmd.command) {
               const result = await this.commandHandler.execute(mcpCmd.command, mcpCmd.params || {});
-              console.log('[Blindflight] Sending response to MCP:', result);
+              console.log('[PartyBrowser] Sending response to MCP:', result);
               this.send(result);
               return;
             }
@@ -115,7 +115,7 @@ export class McpBridge {
                 error: result.success ? undefined : result.error,
                 errorCode: result.errorCode
               };
-              console.log('[Blindflight] Sending response to MCP:', responsePayload);
+              console.log('[PartyBrowser] Sending response to MCP:', responsePayload);
               this.send(responsePayload);
               return;
             }
@@ -128,7 +128,7 @@ export class McpBridge {
             };
             this.send(unknownTypeResponse);
           } catch (error) {
-            console.error('[Blindflight] Error processing message:', error);
+            console.error('[PartyBrowser] Error processing message:', error);
             this.sendErrorResponse(error);
           }
         };
@@ -138,12 +138,12 @@ export class McpBridge {
         };
 
         this.wsConnection.onerror = (error) => {
-          console.error('[Blindflight] WebSocket error:', error);
+          console.error('[PartyBrowser] WebSocket error:', error);
           this.isServerRunning = false;
           reject(error);
         };
       } catch (error) {
-        console.error('[Blindflight] Failed to start WebSocket:', error);
+        console.error('[PartyBrowser] Failed to start WebSocket:', error);
         this.isServerRunning = false;
         reject(error);
       }
@@ -165,7 +165,7 @@ export class McpBridge {
           this.wsConnection.close();
         }
       } catch (error) {
-        console.error('[Blindflight] Error closing WebSocket:', error);
+        console.error('[PartyBrowser] Error closing WebSocket:', error);
       }
       this.wsConnection = null;
     }
@@ -213,15 +213,15 @@ export class McpBridge {
     // Clear session on disconnect
     this.sessionManager.clearSession(reason);
 
-    console.warn(`[Blindflight] Extension disconnected (reason: ${reason}); pending commands will fail. Reconnecting...`);
+    console.warn(`[PartyBrowser] Extension disconnected (reason: ${reason}); pending commands will fail. Reconnecting...`);
 
     // Schedule reconnect if under max attempts
     if (this.reconnectAttempts < this.config.maxReconnectAttempts) {
       this.reconnectAttempts++;
-      console.log(`[Blindflight] Attempting reconnect ${this.reconnectAttempts}/${this.config.maxReconnectAttempts}`);
+      console.log(`[PartyBrowser] Attempting reconnect ${this.reconnectAttempts}/${this.config.maxReconnectAttempts}`);
       this.reconnectTimer = setTimeout(() => {
         this.connect(this.port).catch((error) => {
-          console.error('[Blindflight] Reconnect failed:', error);
+          console.error('[PartyBrowser] Reconnect failed:', error);
         });
       }, this.config.reconnectInterval);
     }

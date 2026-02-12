@@ -1,5 +1,5 @@
 /**
- * Console Capture module for Blindflight content script
+ * Console Capture module for PartyBrowser content script
  * Captures console logs and errors from the page
  */
 

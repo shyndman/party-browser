@@ -297,7 +297,7 @@ async function runScenarioC() {
     log("─────────────────────────────────────────────────", "yellow");
     log("MANUAL VERIFICATION REQUIRED:", "yellow");
     log("", "reset");
-    log("1. Start browser with Browser MCP extension", "cyan");
+    log("1. Start browser with PartyBrowser extension", "cyan");
     log("2. Click the extension icon to enable (if needed)", "cyan");
     log("3. Verify server logs show 'Browser extension connected'", "cyan");
     log("4. Tools should work normally after connection", "cyan");

@@ -1,5 +1,5 @@
 /**
- * Session Manager for Blindflight extension
+ * Session Manager for PartyBrowser extension
  * Manages session lifecycle, tab creation, and session state
  */
 
@@ -40,10 +40,10 @@ export class SessionManager {
     this.onTabRemovedListener = (removedTabId: number) => {
       if (this.sessionTabId === removedTabId) {
         console.log(
-          '[Blindflight] Session ownership cleared (reason: tab_closed)',
+          '[PartyBrowser] Session ownership cleared (reason: tab_closed)',
         );
         console.warn(
-          '[Blindflight] Session tab closed; clearing session binding',
+          '[PartyBrowser] Session tab closed; clearing session binding',
         );
         this.clearSession('tab_closed');
       }
@@ -65,11 +65,11 @@ export class SessionManager {
 
     try {
       await browser.tabs.executeScript(tab.id!, {
-        code: `document.title = 'OC | Blindflight Session'`,
+        code: `document.title = 'OC | PartyBrowser Session'`,
       });
     } catch (error) {
       console.log(
-        '[Blindflight] Could not set initial tab title:',
+        '[PartyBrowser] Could not set initial tab title:',
         (error as Error).message,
       );
     }
@@ -78,7 +78,7 @@ export class SessionManager {
       await this.addTabToSessionGroup(tab.id!);
     } catch (error) {
       console.log(
-        '[Blindflight] Could not add tab to group:',
+        '[PartyBrowser] Could not add tab to group:',
         (error as Error).message,
       );
     }
@@ -97,8 +97,8 @@ export class SessionManager {
       'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     this.sessionStartTime = Date.now();
 
-    console.log(`[Blindflight] Session started: ${this.sessionId}`);
-    console.log(`[Blindflight] Session tab created: ${this.sessionTabId}`);
+    console.log(`[PartyBrowser] Session started: ${this.sessionId}`);
+    console.log(`[PartyBrowser] Session tab created: ${this.sessionTabId}`);
 
     return tabId;
   }
@@ -112,7 +112,7 @@ export class SessionManager {
   async resolveTargetTab(params?: { tabId?: number }): Promise<number> {
     if (params && Object.prototype.hasOwnProperty.call(params, 'tabId')) {
       throw new CodedError(
-        'tabId overrides are not supported. Blindflight uses the session-owned tab.',
+        'tabId overrides are not supported. PartyBrowser uses the session-owned tab.',
         ErrorCodes.EXPLICIT_TABID_NOT_SUPPORTED,
       );
     }
@@ -176,7 +176,7 @@ export class SessionManager {
 
     if (hadSession) {
       console.log(
-        `[Blindflight] Session ownership cleared (reason: ${reason})`,
+        `[PartyBrowser] Session ownership cleared (reason: ${reason})`,
       );
       this.onSessionClearedCallbacks.forEach((cb) => cb(reason));
     }
@@ -194,7 +194,7 @@ export class SessionManager {
    */
   private async addTabToSessionGroup(tabId: number): Promise<void> {
     if (!browser.tabGroups) {
-      console.log('[Blindflight] Tab groups API not available');
+      console.log('[PartyBrowser] Tab groups API not available');
       return;
     }
 
@@ -207,7 +207,7 @@ export class SessionManager {
         groupId: existingGroup.id,
       });
       console.log(
-        `[Blindflight] Added tab ${tabId} to existing group: ${existingGroup.title}`,
+        `[PartyBrowser] Added tab ${tabId} to existing group: ${existingGroup.title}`,
       );
     } else {
       const groupId = await browser.tabs.group({
@@ -217,7 +217,7 @@ export class SessionManager {
         title: 'BF',
         color: 'blue',
       });
-      console.log(`[Blindflight] Created new tab group`);
+      console.log(`[PartyBrowser] Created new tab group`);
     }
   }
 

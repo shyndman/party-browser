@@ -1,5 +1,5 @@
 /**
- * Interaction Commands for Blindflight extension
+ * Interaction Commands for PartyBrowser extension
  * Handles DOM interaction commands (click, type, drag, hover, etc.)
  */
 

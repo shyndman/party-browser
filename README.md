@@ -1,8 +1,8 @@
 <a href="https://browsermcp.io">
-  <img src="./.github/images/banner.png" alt="Browser MCP banner">
+  <img src="./.github/images/banner.png" alt="PartyBrowser banner">
 </a>
 
-<h3 align="center">Browser MCP</h3>
+<h3 align="center">PartyBrowser</h3>
 
 <p align="center">
   Automate your browser with AI.
@@ -14,7 +14,7 @@
 
 ## About
 
-Browser MCP is an MCP server + browser extension that allows you to automate your browser using AI applications like VS Code, Claude, Cursor, and Windsurf.
+PartyBrowser is an MCP server + browser extension that allows you to automate your browser using AI applications like VS Code, Claude, Cursor, and Windsurf.
 
 **Supported Browsers:**
 - ✅ Google Chrome (with extension from Chrome Web Store)
@@ -32,7 +32,7 @@ Browser MCP is an MCP server + browser extension that allows you to automate you
 
 ### Selector Discovery Workflow
 
-The Browser MCP enables LLM-guided selector discovery for web scraping and automation. Instead of manually inspecting HTML and writing selectors, you can guide an LLM through an interactive discovery process:
+The PartyBrowser enables LLM-guided selector discovery for web scraping and automation. Instead of manually inspecting HTML and writing selectors, you can guide an LLM through an interactive discovery process:
 
 1. **Explore** — Navigate to the target page and capture snapshots
 2. **Identify** — Use `evaluate` to inspect page structure
@@ -62,7 +62,7 @@ Key tools for selector discovery and browser automation:
 ### Prerequisites
 
 - Node.js 18+ and npm
-- Browser MCP extension installed and enabled (Chrome or Firefox)
+- PartyBrowser extension installed and enabled (Chrome or Firefox)
 
 ### Quick Start
 
@@ -119,7 +119,7 @@ npm run build:all
 
 **Verification:**
 
-- Click the Browser MCP icon in the toolbar to open the popup
+- Click the PartyBrowser icon in the toolbar to open the popup
 - Status should show "Connected" when the MCP server is running
 - You can now use the MCP tools in Firefox
 
@@ -134,12 +134,12 @@ node dist/index.js
 
 **Important:** The server starts successfully even without a browser tab connected. This is expected behavior. Tool calls will fail with connection errors until you:
 
-1. Open the Browser MCP extension in Chrome or Firefox
+1. Open the PartyBrowser extension in Chrome or Firefox
 2. Ensure the extension shows "Connected" status
 3. Have at least one browser tab open
 
 Session targeting note:
-- Browser MCP binds to a single session tab when the extension connects to the MCP transport.
+- PartyBrowser binds to a single session tab when the extension connects to the MCP transport.
 - Focus the tab you want to automate before enabling/connecting the extension.
 - Per-call `tabId` overrides are not supported in this mode.
 
@@ -189,7 +189,7 @@ Use the browsermcp tools to navigate to https://example.com and return a page sn
 
 Notes:
 - OpenCode starts this MCP process from the configured `command`; you do not need to run `node dist/index.js` separately.
-- If commands fail with connection errors, click the Browser MCP toolbar icon to ensure communications are enabled.
+- If commands fail with connection errors, click the PartyBrowser toolbar icon to ensure communications are enabled.
 - If OpenCode cannot start the server, re-check the `command` path and rebuild with `npm run build`.
 
 ### Common Issues
@@ -197,13 +197,13 @@ Notes:
 | Issue | Cause | Solution |
 |-------|-------|----------|
 | `navigate` fails with connection error | No browser tab connected | Open browser extension, ensure it shows "Connected" |
-| Commands fail with "Session tab unavailable" | The bound session tab was closed or never bound | Focus target tab and reconnect Browser MCP session |
-| Tool calls fail with "Browser transport unavailable" and port-in-use message | Another Browser MCP process already owns the WebSocket port | Close other Browser MCP sessions, then restart this MCP process |
+| Commands fail with "Session tab unavailable" | The bound session tab was closed or never bound | Focus target tab and reconnect PartyBrowser session |
+| Tool calls fail with "Browser transport unavailable" and port-in-use message | Another PartyBrowser process already owns the WebSocket port | Close other PartyBrowser sessions, then restart this MCP process |
 | Smoke test fails with "Server binary not found" | Build artifacts missing | Run `npm run build` first |
 | Extension shows "Disconnected" | Server not running or port issue | Verify server is running, check extension settings |
 | **Firefox:** "Extension could not be installed" | Using regular Firefox | Use Firefox Developer Edition for unsigned extensions |
 | **Firefox:** "Connection failed" | MCP server not running or port blocked | Ensure server is running and port 3456 is available |
-| **Firefox:** Permission denied errors | Extension lacks permissions | Check `about:addons` > Browser MCP > Permissions |
+| **Firefox:** Permission denied errors | Extension lacks permissions | Check `about:addons` > PartyBrowser > Permissions |
 
 ### Development Workflow
 
@@ -214,8 +214,8 @@ Notes:
 
 ## Contributing
 
-This repo contains all the core MCP code for Browser MCP, but currently cannot yet be built on its own due to dependencies on utils and types from the monorepo where it's developed.
+This repo contains all the core MCP code for PartyBrowser, but currently cannot yet be built on its own due to dependencies on utils and types from the monorepo where it's developed.
 
 ## Credits
 
-Browser MCP was adapted from the [Playwright MCP server](https://github.com/microsoft/playwright-mcp) in order to automate the user's browser rather than creating new browser instances. This allows using the user's existing browser profile to use logged-in sessions and avoid bot detection mechanisms that commonly block automated browser use.
+PartyBrowser was adapted from the [Playwright MCP server](https://github.com/microsoft/playwright-mcp) in order to automate the user's browser rather than creating new browser instances. This allows using the user's existing browser profile to use logged-in sessions and avoid bot detection mechanisms that commonly block automated browser use.

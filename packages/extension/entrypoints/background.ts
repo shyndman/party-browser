@@ -1,5 +1,5 @@
 /**
- * Background script entrypoint for Blindflight Firefox extension
+ * Background script entrypoint for PartyBrowser Firefox extension
  * Orchestrates session management, messaging, and command handling
  */
 
@@ -55,11 +55,11 @@ export default defineBackground({
     // ============================================================
 
     async function init(): Promise<void> {
-      console.log('[Blindflight] Background script initialized');
+      console.log('[PartyBrowser] Background script initialized');
       iconManager.updateFromStatus(false, isKillSwitchEnabled);
       const port = await loadPortFromStorage();
       mcpBridge.connect(port).catch((error) => {
-        console.error('[Blindflight] Initial connection failed:', error);
+        console.error('[PartyBrowser] Initial connection failed:', error);
       });
     }
 
@@ -68,7 +68,7 @@ export default defineBackground({
         const result = await browser.storage.local.get('serverPort');
         return (result.serverPort as number) || DEFAULT_PORT;
       } catch (error) {
-        console.error('[Blindflight] Failed to load port from storage:', error);
+        console.error('[PartyBrowser] Failed to load port from storage:', error);
         return DEFAULT_PORT;
       }
     }
@@ -79,7 +79,7 @@ export default defineBackground({
 
     async function toggleKillSwitch(): Promise<KillSwitchResponse> {
       isKillSwitchEnabled = !isKillSwitchEnabled;
-      console.log('[Blindflight] Kill switch toggled:', isKillSwitchEnabled ? 'ENABLED' : 'DISABLED');
+      console.log('[PartyBrowser] Kill switch toggled:', isKillSwitchEnabled ? 'ENABLED' : 'DISABLED');
 
       if (!isKillSwitchEnabled) {
         mcpBridge.disconnect();
@@ -89,7 +89,7 @@ export default defineBackground({
 
       const port = await loadPortFromStorage();
       mcpBridge.connect(port).catch((error) => {
-        console.error('[Blindflight] Connection failed after kill switch:', error);
+        console.error('[PartyBrowser] Connection failed after kill switch:', error);
       });
       iconManager.updateFromStatus(mcpBridge.isConnected(), isKillSwitchEnabled);
       return { isEnabled: isKillSwitchEnabled };
@@ -104,7 +104,7 @@ export default defineBackground({
       _sender: BrowserNamespace.Runtime.MessageSender,
       sendResponse: (response?: unknown) => void
     ): boolean => {
-      console.log('[Blindflight] Message received:', message);
+      console.log('[PartyBrowser] Message received:', message);
 
       const msg = message as { type?: string; command?: CommandName; params?: Record<string, unknown> };
 
@@ -157,14 +157,14 @@ export default defineBackground({
     }) as BrowserNamespace.Runtime.OnMessageListener);
 
     browser.runtime.onInstalled.addListener((details) => {
-      console.log('[Blindflight] Extension installed:', details);
+      console.log('[PartyBrowser] Extension installed:', details);
       init();
     });
 
     browser.tabs.onRemoved.addListener((removedTabId) => {
       if (sessionManager.getSessionTabId() === removedTabId) {
-        console.log('[Blindflight] Session ownership cleared (reason: tab_closed)');
-        console.warn('[Blindflight] Session tab closed; clearing session binding');
+        console.log('[PartyBrowser] Session ownership cleared (reason: tab_closed)');
+        console.warn('[PartyBrowser] Session tab closed; clearing session binding');
 
         networkCapture.stopCapture();
         networkCapture.clearLogs();
@@ -178,7 +178,7 @@ export default defineBackground({
               message: 'Session tab was closed'
             });
           } catch (error) {
-            console.log('[Blindflight] Failed to notify server of session loss:', (error as Error).message);
+            console.log('[PartyBrowser] Failed to notify server of session loss:', (error as Error).message);
           }
         }
       }
@@ -186,7 +186,7 @@ export default defineBackground({
 
     browser.browserAction.onClicked.addListener(() => {
       toggleKillSwitch().catch((error) => {
-        console.error('[Blindflight] Failed to toggle kill switch from toolbar click:', error);
+        console.error('[PartyBrowser] Failed to toggle kill switch from toolbar click:', error);
       });
     });
 

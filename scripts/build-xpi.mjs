@@ -2,9 +2,9 @@
 
 /**
  * Firefox XPI Build Script
- * 
- * Builds and packages the Browser MCP Firefox extension into an installable XPI file.
- * 
+ *
+ * Builds and packages the PartyBrowser Firefox extension into an installable XPI file.
+ *
  * Usage:
  *   node scripts/build-xpi.mjs
  *   npm run build:xpi
@@ -68,7 +68,7 @@ async function deflateContent(content) {
  * Main build function
  */
 async function buildXPI() {
-  console.log('🔨 Building Browser MCP Firefox extension...\n');
+  console.log('🔨 Building PartyBrowser Firefox extension...\n');
 
   try {
     // Read package.json for version info
@@ -435,7 +435,7 @@ function printSuccess(xpiPath, version) {
 
   console.log('✅ Build successful!\n');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log(`  Browser MCP Firefox Extension v${version}`);
+  console.log(`  PartyBrowser Firefox Extension v${version}`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
   console.log(`📦 Output: ${xpiPath}`);
   console.log(`📏 Size:   ${formatBytes(stats.size)}\n`);

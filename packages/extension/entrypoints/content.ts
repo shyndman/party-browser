@@ -1,5 +1,5 @@
 /**
- * Content script entrypoint for Blindflight Firefox extension
+ * Content script entrypoint for PartyBrowser Firefox extension
  * Handles DOM interaction and console log capture
  */
 
@@ -29,7 +29,7 @@ interface ElementInfo {
 export default defineContentScript({
   matches: ['<all_urls>'],
   main(ctx: ContentScriptContext) {
-    console.log('[Blindflight] Content script loaded on', window.location.href);
+    console.log('[PartyBrowser] Content script loaded on', window.location.href);
 
     // Initialize console capture
     const consoleCapture = new ConsoleCapture();
@@ -95,7 +95,7 @@ export default defineContentScript({
         );
         return result.singleNodeValue as Element | null;
       } catch (e) {
-        console.error('[Blindflight] XPath error:', e);
+        console.error('[PartyBrowser] XPath error:', e);
         return null;
       }
     }
@@ -570,7 +570,7 @@ export default defineContentScript({
       sendResponse: (response?: unknown) => void
     ): boolean => {
       const msg = message as { type?: string; command?: string; params?: Record<string, unknown>; clear?: boolean };
-      console.log('[Blindflight] Content script received:', message);
+      console.log('[PartyBrowser] Content script received:', message);
 
       if (msg.type === 'executeCommand') {
         executeCommand({ command: msg.command!, params: msg.params || {} })
@@ -602,17 +602,17 @@ export default defineContentScript({
 
     // Cleanup on HMR
     ctx.onInvalidated(() => {
-      console.log('[Blindflight] Content script invalidated');
+      console.log('[PartyBrowser] Content script invalidated');
       consoleCapture.dispose();
     });
 
     // Signal ready
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => {
-        console.log('[Blindflight] Content script ready');
+        console.log('[PartyBrowser] Content script ready');
       });
     } else {
-      console.log('[Blindflight] Content script ready (document already loaded)');
+      console.log('[PartyBrowser] Content script ready (document already loaded)');
     }
   }
 });

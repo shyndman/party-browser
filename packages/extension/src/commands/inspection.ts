@@ -1,5 +1,5 @@
 /**
- * Inspection Commands for Blindflight extension
+ * Inspection Commands for PartyBrowser extension
  * Handles inspection commands (screenshot, snapshot, logs, etc.)
  */
 
@@ -171,7 +171,7 @@ export class InspectionCommands {
       try {
         await browser.tabs.remove(tabId);
       } catch {
-        console.log('[Blindflight] Session tab already closed');
+        console.log('[PartyBrowser] Session tab already closed');
       }
     }
 

@@ -9,7 +9,7 @@ import {
   type SocketMessageMap,
 } from "@/messaging";
 
-const noConnectionMessage = `No connection to browser extension. In order to proceed, click the Browser MCP extension icon in the browser toolbar to enable communications, then retry.`;
+const noConnectionMessage = `No connection to browser extension. In order to proceed, click the PartyBrowser extension icon in the browser toolbar to enable communications, then retry.`;
 
 export class Context {
   private _ws: WebSocket | undefined;

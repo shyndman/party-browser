@@ -1,5 +1,5 @@
 /**
- * Command type definitions for Blindflight extension
+ * Command type definitions for PartyBrowser extension
  * Mirrors the command structures from background.js
  */
 

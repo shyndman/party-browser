@@ -1,5 +1,5 @@
 /**
- * Selector utilities for Blindflight extension
+ * Selector utilities for PartyBrowser extension
  * Parses and handles element selector formats
  */
 

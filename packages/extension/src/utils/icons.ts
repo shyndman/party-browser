@@ -1,5 +1,5 @@
 /**
- * Icon Manager for Blindflight extension
+ * Icon Manager for PartyBrowser extension
  * Manages toolbar icon states
  */
 
@@ -36,7 +36,7 @@ export class IconManager {
     this.currentState = state;
 
     void browser.browserAction.setIcon({ path: ICON_PATHS[state] }).catch((error: Error) => {
-      console.error('[Blindflight] Failed to update toolbar icon:', error);
+      console.error('[PartyBrowser] Failed to update toolbar icon:', error);
     });
   }
 

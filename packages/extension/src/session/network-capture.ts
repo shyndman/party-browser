@@ -1,5 +1,5 @@
 /**
- * Network Capture module for Blindflight extension
+ * Network Capture module for PartyBrowser extension
  * Captures network requests via webRequest API
  */
 
@@ -31,7 +31,7 @@ export class NetworkCapture {
   startCapture(tabId: number): void {
     this.stopCapture();
 
-    console.log(`[Blindflight] Starting network capture for tab ${tabId}`);
+    console.log(`[PartyBrowser] Starting network capture for tab ${tabId}`);
     this.sessionNetworkLogs.set(tabId, []);
 
     const onBeforeRequest = (details: BrowserNamespace.WebRequest.OnBeforeRequestDetailsType): void => {
@@ -134,7 +134,7 @@ export class NetworkCapture {
         // Listener may not exist
       }
 
-      console.log(`[Blindflight] Stopped network capture for tab ${this.networkCaptureListener.tabId}`);
+      console.log(`[PartyBrowser] Stopped network capture for tab ${this.networkCaptureListener.tabId}`);
       this.networkCaptureListener = null;
     }
   }

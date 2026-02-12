@@ -1,5 +1,5 @@
 /**
- * Popup script for Blindflight Firefox extension
+ * Popup script for PartyBrowser Firefox extension
  * Handles popup UI and displays connection status
  */
 
@@ -121,7 +121,7 @@ async function refreshStatus(): Promise<void> {
       elements.currentUrl.title = url;
     }
   } catch (error) {
-    console.error('[Blindflight] Failed to get status:', error);
+    console.error('[PartyBrowser] Failed to get status:', error);
     elements.serverText.textContent = 'Error';
     elements.serverDot.className = 'status-dot disconnected';
     elements.serverStatus.className = 'status-value disconnected';

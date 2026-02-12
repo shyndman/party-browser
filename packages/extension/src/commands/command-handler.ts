@@ -1,5 +1,5 @@
 /**
- * Command Handler for Blindflight extension
+ * Command Handler for PartyBrowser extension
  * Routes commands to appropriate command modules
  */
 
@@ -64,7 +64,7 @@ export class CommandHandler {
    * @returns Promise resolving to command result
    */
   async execute(command: CommandName, params: Record<string, unknown>): Promise<CommandResult> {
-    console.log('[Blindflight] Handling command:', command, params);
+    console.log('[PartyBrowser] Handling command:', command, params);
 
     try {
       switch (command) {
@@ -120,7 +120,7 @@ export class CommandHandler {
           throw new Error(`Unknown command: ${command}`);
       }
     } catch (error) {
-      console.error('[Blindflight] Command failed:', error);
+      console.error('[PartyBrowser] Command failed:', error);
 
       // Pass through CodedError as-is
       if (error instanceof CodedError) {
