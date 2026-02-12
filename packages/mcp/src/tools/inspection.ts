@@ -28,7 +28,7 @@ export const networkRequests: Tool = {
   handle: async (context, params = {}) => {
     try {
       const response = await context.sendSocketMessage(
-        "browser_get_network_requests",
+        "get_network_requests",
         { filter: params?.filter }
       );
 
@@ -117,7 +117,7 @@ export const consoleMessages: Tool = {
   handle: async (context, params = {}) => {
     try {
       const response = await context.sendSocketMessage(
-        "browser_get_console_messages",
+        "get_console_messages",
         {
           level: params?.level || "all",
           since: params?.since,

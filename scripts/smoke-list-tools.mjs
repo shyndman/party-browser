@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
  * MCP Smoke Test - Tool Registration Verification
- * 
+ *
  * This script verifies that the MCP server starts successfully
  * and registers the required Phase 1 tools.
- * 
+ *
  * Usage: node scripts/smoke-list-tools.mjs
  */
 
@@ -17,10 +17,10 @@ const __dirname = dirname(__filename);
 
 // Required Phase 1 tools that must be registered
 const REQUIRED_TOOLS = [
-  "browser_navigate",
-  "browser_wait_for",
-  "browser_snapshot",
-  "browser_close",
+  "navigate",
+  "wait_for",
+  "snapshot",
+  "close",
 ];
 
 // Colors for terminal output
@@ -86,7 +86,7 @@ async function waitForResponse(stdout, targetId, timeout = 10000) {
  */
 async function runSmokeTest() {
   const serverPath = join(__dirname, "..", "dist", "index.js");
-  
+
   log("🔍 MCP Smoke Test Starting...", "blue");
   log(`   Server: ${serverPath}`, "reset");
   log("");
@@ -154,7 +154,7 @@ async function runSmokeTest() {
     // Step 4: Verify required tools
     log("", "reset");
     log("🔎 Verifying required Phase 1 tools:", "blue");
-    
+
     const missing = [];
     const found = [];
 
@@ -171,7 +171,7 @@ async function runSmokeTest() {
     // Step 5: Report results
     log("", "reset");
     log("═══════════════════════════════════════", "blue");
-    
+
     if (missing.length === 0) {
       log("✅ ALL CHECKS PASSED", "green");
       log(`   Found ${found.length}/${REQUIRED_TOOLS.length} required tools`, "green");
@@ -191,13 +191,13 @@ async function runSmokeTest() {
     log("═══════════════════════════════════════", "red");
     log("❌ SMOKE TEST FAILED", "red");
     log(`   Error: ${error.message}`, "red");
-    
+
     if (serverOutput) {
       log("", "reset");
       log("📄 Server stderr output:", "yellow");
       console.log(serverOutput);
     }
-    
+
     log("═══════════════════════════════════════", "red");
     return { success: false, error: error.message };
   } finally {

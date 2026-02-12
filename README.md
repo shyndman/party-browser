@@ -7,7 +7,7 @@
 <p align="center">
   Automate your browser with AI.
   <br />
-  <a href="https://browsermcp.io"><strong>Website</strong></a> 
+  <a href="https://browsermcp.io"><strong>Website</strong></a>
   •
   <a href="https://docs.browsermcp.io"><strong>Docs</strong></a>
 </p>
@@ -35,7 +35,7 @@ Browser MCP is an MCP server + browser extension that allows you to automate you
 The Browser MCP enables LLM-guided selector discovery for web scraping and automation. Instead of manually inspecting HTML and writing selectors, you can guide an LLM through an interactive discovery process:
 
 1. **Explore** — Navigate to the target page and capture snapshots
-2. **Identify** — Use `browser_evaluate` to inspect page structure  
+2. **Identify** — Use `evaluate` to inspect page structure
 3. **Generate** — LLM proposes selector candidates with rationale
 4. **Validate** — Test selectors against the live page
 5. **Export** — Save validated selectors for procedural extraction
@@ -48,14 +48,14 @@ Key tools for selector discovery and browser automation:
 
 | Tool | Purpose |
 |------|---------|
-| `browser_navigate` | Navigate to URLs |
-| `browser_snapshot` | Get accessibility tree of current page |
-| `browser_screenshot` | Capture visual screenshot |
-| `browser_evaluate` | Execute JavaScript for inspection |
-| `browser_click` | Click elements |
-| `browser_type` | Type text into inputs |
-| `browser_select_option` | Select dropdown options |
-| `browser_wait_for` | Wait for conditions (time, text appear/disappear) |
+| `navigate` | Navigate to URLs |
+| `snapshot` | Get accessibility tree of current page |
+| `screenshot` | Capture visual screenshot |
+| `evaluate` | Execute JavaScript for inspection |
+| `click` | Click elements |
+| `type` | Type text into inputs |
+| `select_option` | Select dropdown options |
+| `wait_for` | Wait for conditions (time, text appear/disappear) |
 
 ## Local Development
 
@@ -196,7 +196,7 @@ Notes:
 
 | Issue | Cause | Solution |
 |-------|-------|----------|
-| `browser_navigate` fails with connection error | No browser tab connected | Open browser extension, ensure it shows "Connected" |
+| `navigate` fails with connection error | No browser tab connected | Open browser extension, ensure it shows "Connected" |
 | Commands fail with "Session tab unavailable" | The bound session tab was closed or never bound | Focus target tab and reconnect Browser MCP session |
 | Tool calls fail with "Browser transport unavailable" and port-in-use message | Another Browser MCP process already owns the WebSocket port | Close other Browser MCP sessions, then restart this MCP process |
 | Smoke test fails with "Server binary not found" | Build artifacts missing | Run `npm run build` first |

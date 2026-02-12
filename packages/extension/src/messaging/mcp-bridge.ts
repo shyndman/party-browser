@@ -83,26 +83,26 @@ export class McpBridge {
 
             // Handle direct message types (legacy format)
             const directMessageTypes: Record<string, CommandName> = {
-              'browser_navigate': 'navigate',
-              'browser_go_back': 'go_back',
-              'browser_go_forward': 'go_forward',
-              'browser_click': 'click',
-              'browser_drag': 'drag',
-              'browser_hover': 'hover',
-              'browser_type': 'type',
-              'browser_press_key': 'press_key',
-              'browser_select_option': 'select_option',
-              'browser_wait': 'wait',
-              'browser_wait_for': 'wait_for',
-              'browser_screenshot': 'screenshot',
-              'browser_snapshot': 'snapshot',
-              'browser_get_console_logs': 'getConsoleLogs',
-              'browser_evaluate': 'evaluate',
-              'browser_close': 'close',
+              'navigate': 'navigate',
+              'go_back': 'go_back',
+              'go_forward': 'go_forward',
+              'click': 'click',
+              'drag': 'drag',
+              'hover': 'hover',
+              'type': 'type',
+              'press_key': 'press_key',
+              'select_option': 'select_option',
+              'wait': 'wait',
+              'wait_for': 'wait_for',
+              'screenshot': 'screenshot',
+              'snapshot': 'snapshot',
+              'get_console_logs': 'getConsoleLogs',
+              'evaluate': 'evaluate',
+              'close': 'close',
               'getUrl': 'getUrl',
               'getTitle': 'getTitle',
-              'browser_get_network_requests': 'getNetworkRequests',
-              'browser_get_console_messages': 'getConsoleMessages'
+              'get_network_requests': 'getNetworkRequests',
+              'get_console_messages': 'getConsoleMessages'
             };
 
             const msg = message as { type?: string; id?: string; payload?: Record<string, unknown> };

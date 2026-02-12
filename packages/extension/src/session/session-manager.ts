@@ -119,7 +119,7 @@ export class SessionManager {
 
     if (this.sessionTabId === null) {
       throw new CodedError(
-        'Session not initialized. Run browser_navigate first to create a session tab.',
+        'Session not initialized. Run navigate first to create a session tab.',
         ErrorCodes.SESSION_NOT_INITIALIZED,
       );
     }
@@ -128,7 +128,7 @@ export class SessionManager {
       await browser.tabs.get(this.sessionTabId);
     } catch {
       throw new CodedError(
-        'Session tab was closed. Run browser_navigate to create a new session tab.',
+        'Session tab was closed. Run navigate to create a new session tab.',
         ErrorCodes.SESSION_TAB_CLOSED,
       );
     }

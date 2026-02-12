@@ -12,7 +12,7 @@ export const getConsoleLogs: Tool = {
   },
   handle: async (context, _params) => {
     const response = await context.sendSocketMessage(
-      "browser_get_console_logs",
+      "get_console_logs",
       {},
     );
 
@@ -41,7 +41,7 @@ export const screenshot: Tool = {
     try {
       // Extension contract: returns base64-encoded PNG string (not Data URL)
       const screenshot = await context.sendSocketMessage(
-        "browser_screenshot",
+        "screenshot",
         {},
       );
 

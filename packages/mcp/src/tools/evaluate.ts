@@ -12,7 +12,7 @@ export const evaluate: Tool = {
   },
   handle: async (context, params) => {
     const { script } = EvaluateTool.shape.arguments.parse(params);
-    const result = await context.sendSocketMessage("browser_evaluate", { script });
+    const result = await context.sendSocketMessage("evaluate", { script });
 
     // Format result based on type for readable output
     let resultText: string;

@@ -33,7 +33,7 @@ export const click: Tool = {
   },
   handle: async (context: Context, params) => {
     const validatedParams = ClickTool.shape.arguments.parse(params);
-    await context.sendSocketMessage("browser_click", validatedParams);
+    await context.sendSocketMessage("click", validatedParams);
     const snapshot = await captureAriaSnapshot(context);
     return {
       content: [
@@ -55,7 +55,7 @@ export const drag: Tool = {
   },
   handle: async (context: Context, params) => {
     const validatedParams = DragTool.shape.arguments.parse(params);
-    await context.sendSocketMessage("browser_drag", validatedParams);
+    await context.sendSocketMessage("drag", validatedParams);
     const snapshot = await captureAriaSnapshot(context);
     return {
       content: [
@@ -77,7 +77,7 @@ export const hover: Tool = {
   },
   handle: async (context: Context, params) => {
     const validatedParams = HoverTool.shape.arguments.parse(params);
-    await context.sendSocketMessage("browser_hover", validatedParams);
+    await context.sendSocketMessage("hover", validatedParams);
     const snapshot = await captureAriaSnapshot(context);
     return {
       content: [
@@ -99,7 +99,7 @@ export const type: Tool = {
   },
   handle: async (context: Context, params) => {
     const validatedParams = TypeTool.shape.arguments.parse(params);
-    await context.sendSocketMessage("browser_type", validatedParams);
+    await context.sendSocketMessage("type", validatedParams);
     const snapshot = await captureAriaSnapshot(context);
     return {
       content: [
@@ -121,7 +121,7 @@ export const selectOption: Tool = {
   },
   handle: async (context: Context, params) => {
     const validatedParams = SelectOptionTool.shape.arguments.parse(params);
-    await context.sendSocketMessage("browser_select_option", validatedParams);
+    await context.sendSocketMessage("select_option", validatedParams);
     const snapshot = await captureAriaSnapshot(context);
     return {
       content: [

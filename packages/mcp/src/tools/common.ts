@@ -22,7 +22,7 @@ export const navigate: ToolFactory = (snapshot) => ({
   },
   handle: async (context, params) => {
     const { url } = NavigateTool.shape.arguments.parse(params);
-    await context.sendSocketMessage("browser_navigate", { url });
+    await context.sendSocketMessage("navigate", { url });
     if (snapshot) {
       return captureAriaSnapshot(context);
     }
@@ -44,7 +44,7 @@ export const goBack: ToolFactory = (snapshot) => ({
     inputSchema: zodToJsonSchema(GoBackTool.shape.arguments),
   },
   handle: async (context) => {
-    await context.sendSocketMessage("browser_go_back", {});
+    await context.sendSocketMessage("go_back", {});
     if (snapshot) {
       return captureAriaSnapshot(context);
     }
@@ -66,7 +66,7 @@ export const goForward: ToolFactory = (snapshot) => ({
     inputSchema: zodToJsonSchema(GoForwardTool.shape.arguments),
   },
   handle: async (context) => {
-    await context.sendSocketMessage("browser_go_forward", {});
+    await context.sendSocketMessage("go_forward", {});
     if (snapshot) {
       return captureAriaSnapshot(context);
     }
@@ -89,7 +89,7 @@ export const wait: Tool = {
   },
   handle: async (context, params) => {
     const { time } = WaitTool.shape.arguments.parse(params);
-    await context.sendSocketMessage("browser_wait", { time });
+    await context.sendSocketMessage("wait", { time });
     return {
       content: [
         {
@@ -109,7 +109,7 @@ export const pressKey: Tool = {
   },
   handle: async (context, params) => {
     const { key } = PressKeyTool.shape.arguments.parse(params);
-    await context.sendSocketMessage("browser_press_key", { key });
+    await context.sendSocketMessage("press_key", { key });
     return {
       content: [
         {
@@ -121,7 +121,7 @@ export const pressKey: Tool = {
   },
 };
 
-// Unified schema for browser_wait_for - compatible with strict MCP validators
+// Unified schema for wait_for - compatible with strict MCP validators
 // Uses consistent field structure across all modes with runtime validation
 const waitForInputSchema = {
   type: "object",
@@ -174,7 +174,7 @@ export const waitFor: Tool = {
       }
     }
 
-    await context.sendSocketMessage("browser_wait_for", { mode, value, timeout } as any);
+    await context.sendSocketMessage("wait_for", { mode, value, timeout } as any);
 
     // Generate deterministic, parseable response based on mode
     let resultText: string;
@@ -210,7 +210,7 @@ export const close: Tool = {
     inputSchema: zodToJsonSchema(CloseTool.shape.arguments),
   },
   handle: async (context) => {
-    await context.sendSocketMessage("browser_close", {});
+    await context.sendSocketMessage("close", {});
     return {
       content: [
         {
