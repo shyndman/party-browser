@@ -1,8 +1,37 @@
 import { defineConfig } from 'wxt';
 import path from 'path';
+import { execSync } from 'child_process';
+
+// Determine Firefox binary to use:
+// 1. PARTYBROWSER_FIREFOX_BIN environment variable
+// 2. firefox-devedition (default for this project)
+// 3. firefox (fallback)
+function getFirefoxBinary(): string {
+  if (process.env.PARTYBROWSER_FIREFOX_BIN) {
+    return process.env.PARTYBROWSER_FIREFOX_BIN;
+  }
+
+  // Check for firefox-devedition
+  try {
+    execSync('which firefox-devedition', { stdio: 'pipe' });
+    return 'firefox-devedition';
+  } catch {
+    // fall through
+  }
+
+  // Default to firefox
+  return 'firefox';
+}
+
+const firefoxBinary = getFirefoxBinary();
 
 export default defineConfig({
   manifestVersion: 2,
+  webExt: {
+    binaries: {
+      firefox: firefoxBinary,
+    },
+  },
   manifest: {
     name: 'PartyBrowser',
     description: 'Browser automation for AI agents',
