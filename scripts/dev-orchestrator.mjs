@@ -189,12 +189,34 @@ async function main() {
     );
     startedCount++;
     expectedCount++;
-    log(`mcptools web interface will be available at http://localhost:6277`, 'info');
   } else {
     log('mcptools not found. MCP server will not be started with web interface.', 'warn');
     log('Install with: go install github.com/f/mcptools/cmd/mcptools@latest', 'warn');
     log('Or run MCP server directly: node packages/mcp/dist/index.js', 'warn');
   }
+
+  // Print URL summary
+  const mcpLine = hasMcptools ? '║  🔧 MCP Web UI:     http://localhost:6277                  ║' : '';
+  console.log(`
+╔════════════════════════════════════════════════════════════╗
+║              PartyBrowser Dev Environment URLs             ║
+╠════════════════════════════════════════════════════════════╣
+║                                                            ║
+║  📡 Hub WebSocket:  ws://localhost:3456                    ║
+║  🌐 Extension Dev:  http://localhost:3000                  ║
+${mcpLine}
+║                                                            ║
+╚════════════════════════════════════════════════════════════╝
+`);
+
+  // Print MCP config snippet
+  const mcpConfig = {
+    command: 'node',
+    args: [mcpBuildPath]
+  };
+  console.log('MCP Server Config (for Claude Desktop, Cursor, etc.):');
+  console.log(JSON.stringify({ 'partybrowser': mcpConfig }, null, 2));
+  console.log('');
 
   log(`${startedCount} dev process(es) started. Press Ctrl+C to stop.`);
 }
