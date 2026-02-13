@@ -79,4 +79,4 @@
 - [x] 9.3 Run the full automated test suite introduced in this change and resolve all failures.
 - [x] 9.4 Perform one manual multi-client validation scenario to confirm session isolation and waiting-room operator control.
 - [x] 9.5 Update change artifacts if implementation details materially diverge from proposal/design/specs.
-- [ ] 9.6 Create a single comprehensive commit containing implementation and tests after all verification passes.
+ - [x] 9.6 Create a single comprehensive commit containing implementation and tests after all verification passes.
