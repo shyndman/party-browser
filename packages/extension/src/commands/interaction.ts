@@ -93,6 +93,7 @@ export class InteractionCommands {
    */
   async wait(params: WaitParams): Promise<CommandResult> {
     const { timeout } = params;
+    await this.sessionManager.resolveTargetTab(params);
     await new Promise((resolve) => setTimeout(resolve, timeout));
     return { success: true };
   }

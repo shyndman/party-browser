@@ -5,9 +5,15 @@ export async function captureAriaSnapshot(
   context: Context,
   status: string = "",
 ): Promise<ToolResult> {
-  const urlResult = await context.sendSocketMessage("getUrl", undefined);
-  const titleResult = await context.sendSocketMessage("getTitle", undefined);
-  const snapshotResult = await context.sendSocketMessage("snapshot", {});
+  const urlResult = (await context.sendSocketMessage("getUrl", {})) as {
+    url?: string;
+  };
+  const titleResult = (await context.sendSocketMessage("getTitle", {})) as {
+    title?: string;
+  };
+  const snapshotResult = (await context.sendSocketMessage("snapshot", {})) as {
+    tree?: unknown;
+  };
 
   // Extract actual values from result objects
   const url = urlResult?.url ?? "[unknown]";

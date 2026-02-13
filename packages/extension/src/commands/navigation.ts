@@ -28,21 +28,10 @@ export class NavigationCommands {
    */
   async navigate(params: NavigateParams): Promise<CommandResult> {
     const { url } = params;
-    let targetTabId: number;
+    const targetTabId = await this.sessionManager.resolveTargetTab(params);
 
-    if (!this.sessionManager.hasSession()) {
-      console.log('[PartyBrowser] Creating session tab at about:blank');
-      targetTabId = await this.sessionManager.createSession();
+    if (this.networkCapture.getCapturingTabId() !== targetTabId) {
       this.networkCapture.startCapture(targetTabId);
-    } else {
-      targetTabId = this.sessionManager.getSessionTabId()!;
-
-      try {
-        await browser.tabs.get(targetTabId);
-      } catch {
-        console.log('[PartyBrowser] Prior session tab closed; creating new session tab');
-        targetTabId = await this.sessionManager.createSession();
-      }
     }
 
     await browser.tabs.update(targetTabId, { url });

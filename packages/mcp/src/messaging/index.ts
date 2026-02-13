@@ -6,14 +6,14 @@
 // Protocol exports
 export {
   CodedError,
-  createSocketMessageSender,
+  createHubConnection,
+  WebSocketHubConnection,
 } from "../protocol/ws-sender";
+
+export type { HubConnection, JoinRequestInput } from "../protocol/ws-sender";
 
 export type {
   MessageType,
   MessagePayload,
   SocketMessageMap,
 } from "../protocol/ws-messages";
-
-// WebSocket server creation
-export { createWebSocketServer } from "../ws";

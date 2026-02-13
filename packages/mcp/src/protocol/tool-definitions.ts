@@ -17,6 +17,21 @@ export const NavigateTool = z.object({
 
 export type NavigateTool = z.infer<typeof NavigateTool>;
 
+// JoinSession tool - request operator approval and create session route
+export const JoinSessionTool = z.object({
+  name: z.literal("join_session"),
+  description: z.literal(
+    "Request an operator-approved browser session. Blocks until approved or rejected.",
+  ),
+  arguments: z.object({
+    name: z.string().min(1).describe("Human-friendly name for this session"),
+    reason: z.string().min(1).describe("Why this session needs browser access"),
+    url: z.string().min(1).describe("Initial URL requested for session startup"),
+  }),
+});
+
+export type JoinSessionTool = z.infer<typeof JoinSessionTool>;
+
 // GoBack tool - navigate back in browser history
 export const GoBackTool = z.object({
   name: z.literal("go_back"),

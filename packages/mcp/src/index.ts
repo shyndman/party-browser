@@ -25,7 +25,13 @@ function setupExitWatchdog(server: Server) {
   });
 }
 
-const commonTools: Tool[] = [common.pressKey, common.wait, common.waitFor, common.close];
+const commonTools: Tool[] = [
+  common.joinSession,
+  common.pressKey,
+  common.wait,
+  common.waitFor,
+  common.close,
+];
 
 const customTools: Tool[] = [
   custom.getConsoleLogs,

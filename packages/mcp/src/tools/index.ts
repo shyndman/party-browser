@@ -8,6 +8,7 @@ export { type Tool, type ToolSchema, type ToolResult, type ToolFactory } from ".
 
 // Common tools
 export {
+  joinSession,
   navigate,
   goBack,
   goForward,

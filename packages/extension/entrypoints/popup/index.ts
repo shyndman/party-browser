@@ -1,11 +1,20 @@
 /**
  * Popup script for PartyBrowser Firefox extension
- * Handles popup UI and displays connection status
+ * Handles status and waiting-room actions
  */
 
 /// <reference path="../../src/types/global.d.ts" />
 
-import type { StatusResponse, KillSwitchResponse } from '../../src/types/messages';
+import {
+  PopupMessageKinds,
+  WaitingRoomDecisions,
+  type KillSwitchResponse,
+  type StatusResponse,
+  type WaitingRoomDecision,
+  type WaitingRoomDecisionResponse,
+  type WaitingRoomEntry,
+  type WaitingRoomListResponse,
+} from '../../src/types/messages';
 
 interface PopupElements {
   refreshBtn: HTMLButtonElement;
@@ -15,6 +24,9 @@ interface PopupElements {
   serverText: HTMLElement;
   tabCount: HTMLElement;
   currentUrl: HTMLElement;
+  waitingRoomCount: HTMLElement;
+  waitingRoomEmpty: HTMLElement;
+  waitingRoomList: HTMLElement;
 }
 
 function getElements(): PopupElements {
@@ -25,38 +37,40 @@ function getElements(): PopupElements {
     serverDot: document.getElementById('server-dot') as HTMLElement,
     serverText: document.getElementById('server-text') as HTMLElement,
     tabCount: document.getElementById('tab-count') as HTMLElement,
-    currentUrl: document.getElementById('current-url') as HTMLElement
+    currentUrl: document.getElementById('current-url') as HTMLElement,
+    waitingRoomCount: document.getElementById('waiting-room-count') as HTMLElement,
+    waitingRoomEmpty: document.getElementById('waiting-room-empty') as HTMLElement,
+    waitingRoomList: document.getElementById('waiting-room-list') as HTMLElement,
   };
 }
 
 document.addEventListener('DOMContentLoaded', init);
 
-/**
- * Initialize popup
- */
 async function init(): Promise<void> {
-  console.log('[PartyBrowser] Popup initialized');
-
   const elements = getElements();
 
-  // Set up event listeners
-  elements.refreshBtn.addEventListener('click', () => void refreshStatus());
-  elements.killSwitchBtn.addEventListener('click', () => void toggleKillSwitch());
+  elements.refreshBtn.addEventListener('click', () => {
+    void refreshAll(true);
+  });
 
-  // Load initial status
-  await refreshStatus();
+  elements.killSwitchBtn.addEventListener('click', () => {
+    void toggleKillSwitch();
+  });
+
+  await refreshAll(true);
 }
 
-/**
- * Toggle kill switch
- */
 async function toggleKillSwitch(): Promise<void> {
   const elements = getElements();
   elements.killSwitchBtn.disabled = true;
 
   try {
-    const response = await browser.runtime.sendMessage({ type: 'toggleKillSwitch' }) as KillSwitchResponse;
+    const response = (await browser.runtime.sendMessage({
+      type: PopupMessageKinds.TOGGLE_KILL_SWITCH,
+    })) as KillSwitchResponse;
+
     updateKillSwitchUI(response.isEnabled);
+    await refreshAll(true);
   } catch (error) {
     console.error('[PartyBrowser] Failed to toggle kill switch:', error);
   } finally {
@@ -64,9 +78,6 @@ async function toggleKillSwitch(): Promise<void> {
   }
 }
 
-/**
- * Update kill switch UI based on state
- */
 function updateKillSwitchUI(isEnabled: boolean): void {
   const elements = getElements();
   if (isEnabled) {
@@ -78,49 +89,170 @@ function updateKillSwitchUI(isEnabled: boolean): void {
   }
 }
 
-/**
- * Refresh connection status
- */
+async function refreshAll(refreshWaitingRoom: boolean): Promise<void> {
+  await Promise.all([refreshStatus(), refreshWaitingRoomList(refreshWaitingRoom)]);
+}
+
 async function refreshStatus(): Promise<void> {
   const elements = getElements();
 
-  // Show loading state
   elements.serverText.textContent = 'Checking...';
   elements.serverDot.className = 'status-dot unknown';
 
   try {
-    // Get status from background script
-    const status = await browser.runtime.sendMessage({ type: 'getStatus' }) as StatusResponse;
+    const status = (await browser.runtime.sendMessage({
+      type: PopupMessageKinds.GET_STATUS,
+    })) as StatusResponse;
 
-    // Update server status
     if (status.isServerRunning && status.isKillSwitchEnabled) {
       elements.serverText.textContent = 'Connected';
       elements.serverDot.className = 'status-dot connected';
       elements.serverStatus.className = 'status-value connected';
     } else {
-      elements.serverText.textContent = status.isKillSwitchEnabled ? 'Disconnected' : 'Paused';
+      elements.serverText.textContent = status.isKillSwitchEnabled
+        ? 'Disconnected'
+        : 'Paused';
       elements.serverDot.className = 'status-dot disconnected';
       elements.serverStatus.className = 'status-value disconnected';
     }
 
-    // Update kill switch UI
     updateKillSwitchUI(status.isKillSwitchEnabled);
 
-    // Get tab count
     const tabs = await browser.tabs.query({});
     elements.tabCount.textContent = tabs.length.toString();
 
-    // Get current tab URL
     const activeTabs = await browser.tabs.query({ active: true, currentWindow: true });
     if (activeTabs.length > 0) {
       const url = activeTabs[0].url || '';
-      elements.currentUrl.textContent = url.length > 30 ? url.slice(0, 30) + '...' : url;
+      elements.currentUrl.textContent = url.length > 36 ? `${url.slice(0, 36)}...` : url;
       elements.currentUrl.title = url;
     }
   } catch (error) {
-    console.error('[PartyBrowser] Failed to get status:', error);
+    console.error('[PartyBrowser] Failed to refresh status:', error);
     elements.serverText.textContent = 'Error';
     elements.serverDot.className = 'status-dot disconnected';
     elements.serverStatus.className = 'status-value disconnected';
   }
+}
+
+async function refreshWaitingRoomList(refresh: boolean): Promise<void> {
+  const elements = getElements();
+
+  try {
+    const response = (await browser.runtime.sendMessage({
+      type: PopupMessageKinds.GET_WAITING_ROOM_LIST,
+      refresh,
+    })) as WaitingRoomListResponse;
+
+    renderWaitingRoom(Array.isArray(response.entries) ? response.entries : []);
+  } catch (error) {
+    console.error('[PartyBrowser] Failed to refresh waiting room:', error);
+    renderWaitingRoom([]);
+  }
+}
+
+function renderWaitingRoom(entries: WaitingRoomEntry[]): void {
+  const elements = getElements();
+  const sortedEntries = [...entries].sort((a, b) => {
+    if (a.joinRequestTime !== b.joinRequestTime) {
+      return a.joinRequestTime - b.joinRequestTime;
+    }
+    return a.sessionId.localeCompare(b.sessionId);
+  });
+
+  elements.waitingRoomCount.textContent = sortedEntries.length.toString();
+  elements.waitingRoomList.innerHTML = '';
+
+  if (sortedEntries.length === 0) {
+    elements.waitingRoomEmpty.style.display = 'block';
+    elements.waitingRoomList.style.display = 'none';
+    return;
+  }
+
+  elements.waitingRoomEmpty.style.display = 'none';
+  elements.waitingRoomList.style.display = 'flex';
+
+  for (const entry of sortedEntries) {
+    const row = document.createElement('div');
+    row.className = 'waiting-room-row';
+
+    const time = formatLocalTime(entry.joinRequestTime);
+    const safeName = escapeHtml(entry.name);
+    const safeReason = escapeHtml(entry.reason);
+    const safeUrl = escapeHtml(entry.url);
+
+    row.innerHTML = `
+      <div class="row-head">
+        <div class="row-name">${safeName}</div>
+        <div class="row-time">${time}</div>
+      </div>
+      <div class="row-reason">${safeReason}</div>
+      <div class="row-url" title="${safeUrl}">${safeUrl}</div>
+      <div class="row-actions">
+        <button class="row-btn join" data-session-id="${entry.sessionId}" data-decision="${WaitingRoomDecisions.JOIN}">Join</button>
+        <button class="row-btn reject" data-session-id="${entry.sessionId}" data-decision="${WaitingRoomDecisions.REJECT}">Reject</button>
+      </div>
+    `;
+
+    const buttons = row.querySelectorAll('button[data-session-id]');
+    buttons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const target = button as HTMLButtonElement;
+        const sessionId = target.dataset.sessionId;
+        const decision = target.dataset.decision as WaitingRoomDecision;
+        if (!sessionId) {
+          return;
+        }
+        void handleWaitingRoomDecision(row, sessionId, decision);
+      });
+    });
+
+    elements.waitingRoomList.appendChild(row);
+  }
+}
+
+async function handleWaitingRoomDecision(
+  row: HTMLElement,
+  sessionId: string,
+  decision: WaitingRoomDecision,
+): Promise<void> {
+  const buttons = row.querySelectorAll('button[data-session-id]');
+  buttons.forEach((button) => {
+    (button as HTMLButtonElement).disabled = true;
+  });
+
+  try {
+    const response = (await browser.runtime.sendMessage({
+      type: PopupMessageKinds.WAITING_ROOM_DECISION,
+      sessionId,
+      decision,
+    })) as WaitingRoomDecisionResponse;
+
+    if (!response.success) {
+      console.warn(
+        `[PartyBrowser] Waiting-room ${decision} failed for ${sessionId}: ${response.error}`,
+      );
+    }
+  } catch (error) {
+    console.error('[PartyBrowser] Waiting-room action failed:', error);
+  } finally {
+    await refreshWaitingRoomList(true);
+  }
+}
+
+function formatLocalTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }

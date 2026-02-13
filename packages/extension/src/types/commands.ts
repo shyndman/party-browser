@@ -47,6 +47,11 @@ export type CommandName =
   | 'getTitle'
   | 'getConsoleLogs';
 
+export interface SessionScopedParams {
+  sessionId: string;
+  tabId?: number;
+}
+
 // ============================================================================
 // Command Parameters
 // ============================================================================
@@ -54,7 +59,7 @@ export type CommandName =
 /**
  * Parameters for navigate command
  */
-export interface NavigateParams {
+export interface NavigateParams extends SessionScopedParams {
   url: string;
 }
 
@@ -66,55 +71,47 @@ export type ElementRef = string;
 /**
  * Parameters for click command
  */
-export interface ClickParams {
+export interface ClickParams extends SessionScopedParams {
   element: ElementRef;
-  tabId?: number;
 }
 
 /**
  * Parameters for type command
  */
-export interface TypeParams {
+export interface TypeParams extends SessionScopedParams {
   element: ElementRef;
   value: string;
-  tabId?: number;
 }
 
 /**
  * Parameters for evaluate command
  */
-export interface EvaluateParams {
+export interface EvaluateParams extends SessionScopedParams {
   script: string;
-  tabId?: number;
 }
 
 /**
  * Parameters for screenshot command
  */
-export interface ScreenshotParams {
-  tabId?: number;
-}
+export type ScreenshotParams = SessionScopedParams;
 
 /**
  * Parameters for snapshot command
  */
-export interface SnapshotParams {
-  tabId?: number;
-}
+export type SnapshotParams = SessionScopedParams;
 
 /**
  * Parameters for select_option command
  */
-export interface SelectOptionParams {
+export interface SelectOptionParams extends SessionScopedParams {
   element: ElementRef;
   value: string;
-  tabId?: number;
 }
 
 /**
  * Parameters for wait command
  */
-export interface WaitParams {
+export interface WaitParams extends SessionScopedParams {
   timeout: number;
 }
 
@@ -129,96 +126,78 @@ export interface NetworkRequestFilter {
 /**
  * Parameters for getNetworkRequests command
  */
-export interface GetNetworkRequestsParams {
+export interface GetNetworkRequestsParams extends SessionScopedParams {
   filter?: NetworkRequestFilter;
-  tabId?: number;
 }
 
 /**
  * Parameters for getConsoleMessages command
  */
-export interface GetConsoleMessagesParams {
+export interface GetConsoleMessagesParams extends SessionScopedParams {
   level?: 'all' | 'log' | 'error' | 'warn' | 'info';
   since?: number;
-  tabId?: number;
 }
 
 /**
  * Parameters for go_back command
  */
-export interface GoBackParams {
-  tabId?: number;
-}
+export type GoBackParams = SessionScopedParams;
 
 /**
  * Parameters for go_forward command
  */
-export interface GoForwardParams {
-  tabId?: number;
-}
+export type GoForwardParams = SessionScopedParams;
 
 /**
  * Parameters for press_key command
  */
-export interface PressKeyParams {
+export interface PressKeyParams extends SessionScopedParams {
   key: string;
-  tabId?: number;
 }
 
 /**
  * Parameters for wait_for command
  */
-export interface WaitForParams {
+export interface WaitForParams extends SessionScopedParams {
   mode: 'time' | 'text' | 'text_gone';
   value: string;
   timeout?: number;
-  tabId?: number;
 }
 
 /**
  * Parameters for drag command
  */
-export interface DragParams {
+export interface DragParams extends SessionScopedParams {
   startElement: ElementRef;
   endElement: ElementRef;
-  tabId?: number;
 }
 
 /**
  * Parameters for hover command
  */
-export interface HoverParams {
+export interface HoverParams extends SessionScopedParams {
   element: ElementRef;
-  tabId?: number;
 }
 
 /**
  * Parameters for close command
  */
-export interface CloseParams {
-  tabId?: number;
-}
+export type CloseParams = SessionScopedParams;
 
 /**
  * Parameters for getUrl command
  */
-export interface GetUrlParams {
-  tabId?: number;
-}
+export type GetUrlParams = SessionScopedParams;
 
 /**
  * Parameters for getTitle command
  */
-export interface GetTitleParams {
-  tabId?: number;
-}
+export type GetTitleParams = SessionScopedParams;
 
 /**
  * Parameters for getConsoleLogs command
  */
-export interface GetConsoleLogsParams {
-  tabId?: number;
-}
+export type GetConsoleLogsParams = SessionScopedParams;
 
 /**
  * Union type for all command parameters

@@ -32,12 +32,12 @@ export const networkRequests: Tool = {
         { filter: params?.filter }
       );
 
-      if (!response.success) {
-        throw new CodedError(
-          response.errorCode || "REQUEST_FAILED",
-          response.error || "Failed to retrieve network requests"
-        );
-      }
+        if (!response.success) {
+          throw new CodedError(
+            response.error || "Failed to retrieve network requests",
+            response.errorCode || "REQUEST_FAILED",
+          );
+        }
 
       const requests = response.requests || [];
 
@@ -124,12 +124,12 @@ export const consoleMessages: Tool = {
         }
       );
 
-      if (!response.success) {
-        throw new CodedError(
-          response.errorCode || "REQUEST_FAILED",
-          response.error || "Failed to retrieve console messages"
-        );
-      }
+        if (!response.success) {
+          throw new CodedError(
+            response.error || "Failed to retrieve console messages",
+            response.errorCode || "REQUEST_FAILED",
+          );
+        }
 
       const logs = response.logs || [];
 

@@ -1,12 +1,8 @@
-/**
- * WebSocket message type definitions
- * Defines the message protocol between MCP server and browser extension
- */
+import {
+  HUB_CONTROL_MESSAGE_TYPES,
+  HUB_JOIN_DECISIONS,
+} from "./constants";
 
-/**
- * Map of message types to their payload types
- * This defines all possible messages that can be sent/received
- */
 export interface SocketMessageMap {
   // Navigation messages
   navigate: { url: string };
@@ -47,16 +43,45 @@ export interface SocketMessageMap {
   };
 
   // Page state messages
-  getUrl: undefined;
-  getTitle: undefined;
+  getUrl: Record<string, never>;
+  getTitle: Record<string, never>;
 }
 
-/**
- * Extract message type keys from a message map
- */
 export type MessageType<T> = keyof T;
 
-/**
- * Extract payload type for a specific message type from a message map
- */
 export type MessagePayload<T, K extends keyof T> = T[K];
+
+export type JoinRequestMessage = {
+  type: typeof HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST;
+  name: string;
+  reason: string;
+  url: string;
+};
+
+export type JoinDecisionMessage =
+  | {
+      type: typeof HUB_CONTROL_MESSAGE_TYPES.JOIN_DECISION;
+      decision: typeof HUB_JOIN_DECISIONS.JOIN;
+      sessionId: string;
+    }
+  | {
+      type: typeof HUB_CONTROL_MESSAGE_TYPES.JOIN_DECISION;
+      decision: typeof HUB_JOIN_DECISIONS.REJECT;
+      rejectReason?: string;
+    };
+
+export type SessionCommandEnvelope<K extends keyof SocketMessageMap = keyof SocketMessageMap> = {
+  requestId: string;
+  sessionId: string;
+  type: K;
+  payload: SocketMessageMap[K];
+};
+
+export type SessionCommandResultEnvelope = {
+  requestId: string;
+  sessionId: string;
+  type: string;
+  payload?: unknown;
+  error?: string;
+  errorCode?: string;
+};

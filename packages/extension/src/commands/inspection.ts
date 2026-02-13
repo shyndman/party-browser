@@ -20,7 +20,6 @@ import type {
 import type { SessionManager } from '../session/session-manager';
 import type { NetworkCapture } from '../session/network-capture';
 import type { ContentBridge } from '../messaging/content-bridge';
-import type { McpBridge } from '../messaging/mcp-bridge';
 
 /**
  * Inspection command implementations
@@ -29,8 +28,7 @@ export class InspectionCommands {
   constructor(
     private sessionManager: SessionManager,
     private networkCapture: NetworkCapture,
-    private contentBridge: ContentBridge,
-    private mcpBridge: McpBridge
+    private contentBridge: ContentBridge
   ) {}
 
   /**
@@ -94,10 +92,9 @@ export class InspectionCommands {
    * Get captured network requests
    */
   async getNetworkRequests(params: GetNetworkRequestsParams): Promise<CommandResult> {
-    await this.sessionManager.resolveTargetTab(params);
+    const tabId = await this.sessionManager.resolveTargetTab(params);
 
     const { filter } = params;
-    const tabId = this.sessionManager.getSessionTabId()!;
     const logs = this.networkCapture.getRequests(tabId, filter);
 
     const formatted = logs.map((r) => ({
@@ -165,25 +162,11 @@ export class InspectionCommands {
   async close(params: CloseParams): Promise<CommandResult> {
     await this.sessionManager.resolveTargetTab(params);
 
-    // Close the session tab
-    const tabId = this.sessionManager.getSessionTabId();
-    if (tabId !== null) {
-      try {
-        await browser.tabs.remove(tabId);
-      } catch {
-        console.log('[PartyBrowser] Session tab already closed');
-      }
-    }
+    await this.sessionManager.revokeLease(params.sessionId, 'user_close', true);
 
     // Stop network capture
     this.networkCapture.stopCapture();
     this.networkCapture.clearLogs();
-
-    // Disconnect from MCP server
-    this.mcpBridge.disconnect();
-
-    // Clear session
-    this.sessionManager.clearSession('user_close');
 
     return { success: true, data: { message: 'Session closed' } };
   }

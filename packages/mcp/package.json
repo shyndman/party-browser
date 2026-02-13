@@ -16,8 +16,8 @@
     "build": "tsup && shx chmod +x dist/index.js",
     "watch": "tsup src/index.ts --format esm --watch",
     "clean": "rm -rf dist",
-    "test": "echo 'Tests not yet implemented - Phase 9' \u0026\u0026 exit 0",
-    "test:watch": "echo 'Tests not yet implemented - Phase 9' \u0026\u0026 exit 0",
+    "test": "tsx --test \"src/**/*.test.ts\"",
+    "test:watch": "tsx --test --watch \"src/**/*.test.ts\"",
     "dev": "mcp web node dist/index.js --port 6277",
     "dev:shell": "mcp shell node dist/index.js",
     "tools": "mcp tools node dist/index.js"
@@ -32,6 +32,7 @@
   "devDependencies": {
     "@types/ws": "^8.18.0",
     "shx": "^0.3.4",
+    "tsx": "^4.20.5",
     "tsup": "^8.4.0",
     "typescript": "^5.6.2"
   }

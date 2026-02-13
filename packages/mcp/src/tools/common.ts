@@ -4,6 +4,7 @@ import {
   CloseTool,
   GoBackTool,
   GoForwardTool,
+  JoinSessionTool,
   NavigateTool,
   PressKeyTool,
   WaitForTool,
@@ -13,6 +14,26 @@ import {
 import { captureAriaSnapshot } from "@/utils/aria-snapshot";
 
 import type { Tool, ToolFactory } from "./tool";
+
+export const joinSession: Tool = {
+  schema: {
+    name: JoinSessionTool.shape.name.value,
+    description: JoinSessionTool.shape.description.value,
+    inputSchema: zodToJsonSchema(JoinSessionTool.shape.arguments),
+  },
+  handle: async (context, params) => {
+    const request = JoinSessionTool.shape.arguments.parse(params);
+    const sessionId = await context.joinSession(request);
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Session approved: ${sessionId}`,
+        },
+      ],
+    };
+  },
+};
 
 export const navigate: ToolFactory = (snapshot) => ({
   schema: {
@@ -174,7 +195,13 @@ export const waitFor: Tool = {
       }
     }
 
-    await context.sendSocketMessage("wait_for", { mode, value, timeout } as any);
+    if (mode === "time") {
+      await context.sendSocketMessage("wait_for", { mode, value, timeout });
+    } else if (mode === "text") {
+      await context.sendSocketMessage("wait_for", { mode, value, timeout });
+    } else {
+      await context.sendSocketMessage("wait_for", { mode, value, timeout });
+    }
 
     // Generate deterministic, parseable response based on mode
     let resultText: string;

@@ -1,56 +1,47 @@
-import { WebSocket } from "ws";
-
-import { mcpConfig } from "@/config/mcp.config";
 import {
   CodedError,
-  createSocketMessageSender,
+  createHubConnection,
+  type HubConnection,
+  type JoinRequestInput,
   type MessagePayload,
   type MessageType,
   type SocketMessageMap,
 } from "@/messaging";
+import { MCP_ERROR_CODES, PROTOCOL_DEFAULTS } from "@/protocol/constants";
 
-const noConnectionMessage = `No connection to browser extension. In order to proceed, click the PartyBrowser extension icon in the browser toolbar to enable communications, then retry.`;
+const noSessionMessage =
+  "No approved session route is available. Call join_session with required name/reason/url and wait for operator decision.";
 
 export class Context {
-  private _ws: WebSocket | undefined;
+  private sessionId: string | undefined;
 
-  get ws(): WebSocket {
-    if (!this._ws) {
-      throw new Error(noConnectionMessage);
-    }
-    return this._ws;
+  constructor(private readonly hubConnection: HubConnection = createHubConnection()) {}
+
+  hasSessionRoute(): boolean {
+    return typeof this.sessionId === "string" && this.sessionId.length > 0;
   }
 
-  set ws(ws: WebSocket | undefined) {
-    this._ws = ws;
-  }
-
-  hasWs(): boolean {
-    return !!this._ws;
+  async joinSession(request: JoinRequestInput): Promise<string> {
+    const sessionId = await this.hubConnection.joinSession(request, {
+      timeoutMs: PROTOCOL_DEFAULTS.REQUEST_TIMEOUT_MS,
+    });
+    this.sessionId = sessionId;
+    return sessionId;
   }
 
   async sendSocketMessage<T extends MessageType<SocketMessageMap>>(
     type: T,
     payload: MessagePayload<SocketMessageMap, T>,
-    options: { timeoutMs?: number } = { timeoutMs: 30000 },
-  ) {
-    const { sendSocketMessage } = createSocketMessageSender<SocketMessageMap>(
-      this.ws,
-    );
-    try {
-      return await sendSocketMessage(type, payload, options);
-    } catch (e) {
-      if (e instanceof Error && e.message === mcpConfig.errors.noConnectedTab) {
-        throw new Error(noConnectionMessage);
-      }
-      throw e;
+    options: { timeoutMs?: number } = { timeoutMs: PROTOCOL_DEFAULTS.REQUEST_TIMEOUT_MS },
+  ): Promise<any> {
+    if (!this.sessionId) {
+      throw new CodedError(noSessionMessage, MCP_ERROR_CODES.WAITING_ROOM_DECISION_REQUIRED);
     }
+
+    return this.hubConnection.sendSessionCommand(this.sessionId, type, payload, options);
   }
 
   async close() {
-    if (!this._ws) {
-      return;
-    }
-    await this._ws.close();
+    await this.hubConnection.close();
   }
 }

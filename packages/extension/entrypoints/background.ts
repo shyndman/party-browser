@@ -7,9 +7,17 @@
 
 import { defineBackground } from 'wxt/utils/define-background';
 import type BrowserNamespace from 'webextension-polyfill';
-import { CodedError, ErrorCodes, type ErrorCode } from '../src/utils/errors';
-import type { CommandName, CommandResult } from '../src/types/commands';
-import type { StatusResponse, KillSwitchResponse, McpMessage } from '../src/types/messages';
+import { ErrorCodes, type ErrorCode } from '../src/utils/errors';
+import type { CommandName } from '../src/types/commands';
+import {
+  PopupMessageKinds,
+  type StatusResponse,
+  type KillSwitchResponse,
+  type WaitingRoomDecision,
+  WaitingRoomDecisions,
+  type WaitingRoomDecisionResponse,
+  type WaitingRoomListResponse,
+} from '../src/types/messages';
 
 import { SessionManager, DEFAULT_SESSION_CONFIG } from '../src/session/session-manager';
 import { NetworkCapture } from '../src/session/network-capture';
@@ -23,6 +31,8 @@ const DEFAULT_PORT = 3456;
 export default defineBackground({
   persistent: true,
   main() {
+    let isKillSwitchEnabled = true;
+
     // Initialize modules
     const sessionManager = new SessionManager(DEFAULT_SESSION_CONFIG);
     const networkCapture = new NetworkCapture();
@@ -33,22 +43,27 @@ export default defineBackground({
     const commandHandler = new CommandHandler(
       sessionManager,
       networkCapture,
-      null as unknown as McpBridge,  // Will be set after creation
       contentBridge
     );
 
-    // Create MCP bridge with circular dependency resolution
+    // Create MCP bridge
     const mcpBridge = new McpBridge(
       sessionManager,
       commandHandler,
-      DEFAULT_BRIDGE_CONFIG
+      DEFAULT_BRIDGE_CONFIG,
+      () => isKillSwitchEnabled
     );
 
-    // Update command handler with mcpBridge reference
-    (commandHandler as unknown as { mcpBridge: McpBridge }).mcpBridge = mcpBridge;
+    sessionManager.onLeaseRevoked((sessionId, tabId, reason) => {
+      if (networkCapture.getCapturingTabId() === tabId) {
+        networkCapture.stopCapture();
+      }
 
-    // State
-    let isKillSwitchEnabled = true;
+      networkCapture.clearLogs(tabId);
+      console.log(
+        `[PartyBrowser] Lease revoked callback: ${sessionId} (tab ${tabId}, reason: ${reason})`
+      );
+    });
 
     // ============================================================
     // Initialization
@@ -82,17 +97,61 @@ export default defineBackground({
       console.log('[PartyBrowser] Kill switch toggled:', isKillSwitchEnabled ? 'ENABLED' : 'DISABLED');
 
       if (!isKillSwitchEnabled) {
+        mcpBridge.publishKillSwitchState(false);
         mcpBridge.disconnect();
+        await sessionManager.revokeAllLeases('kill_switch_disabled', true);
+        networkCapture.stopCapture();
+        networkCapture.clearLogs();
         iconManager.updateFromStatus(false, isKillSwitchEnabled);
         return { isEnabled: isKillSwitchEnabled };
       }
 
       const port = await loadPortFromStorage();
-      mcpBridge.connect(port).catch((error) => {
+      await mcpBridge.connect(port).catch((error) => {
         console.error('[PartyBrowser] Connection failed after kill switch:', error);
       });
+      mcpBridge.publishKillSwitchState(true);
       iconManager.updateFromStatus(mcpBridge.isConnected(), isKillSwitchEnabled);
       return { isEnabled: isKillSwitchEnabled };
+    }
+
+    async function getWaitingRoomList(refresh: boolean): Promise<WaitingRoomListResponse> {
+      if (refresh) {
+        await mcpBridge.requestWaitingRoomRefresh().catch((error) => {
+          console.warn('[PartyBrowser] Waiting-room refresh request failed:', (error as Error).message);
+        });
+      }
+
+      return {
+        entries: mcpBridge.getWaitingRoomEntries(),
+        refreshedAt: Date.now()
+      };
+    }
+
+    async function submitWaitingRoomDecision(
+      sessionId: string,
+      decision: WaitingRoomDecision,
+    ): Promise<WaitingRoomDecisionResponse> {
+      const response = await mcpBridge.submitWaitingRoomDecision(sessionId, decision);
+      if (!response.success) {
+        return {
+          success: false,
+          sessionId,
+          decision,
+          error: response.error || 'Waiting-room decision failed.',
+          errorCode: response.errorCode
+        };
+      }
+
+      await mcpBridge.requestWaitingRoomRefresh().catch((error) => {
+        console.warn('[PartyBrowser] Waiting-room refresh after decision failed:', (error as Error).message);
+      });
+
+      return {
+        success: true,
+        sessionId,
+        decision
+      };
     }
 
     // ============================================================
@@ -117,7 +176,28 @@ export default defineBackground({
           });
           return false;
         }
-        commandHandler.execute(msg.command!, msg.params || {})
+
+        const sessionId = (msg as { sessionId?: unknown }).sessionId;
+        const command = msg.command;
+        if (typeof sessionId !== 'string' || sessionId.length === 0) {
+          sendResponse({
+            success: false,
+            error: 'Missing required sessionId for command execution.',
+            errorCode: ErrorCodes.SESSION_ID_REQUIRED
+          });
+          return false;
+        }
+
+        if (typeof command !== 'string' || command.length === 0) {
+          sendResponse({
+            success: false,
+            error: 'Missing required command name.',
+            errorCode: ErrorCodes.COMMAND_FAILED
+          });
+          return false;
+        }
+
+        commandHandler.execute(command as CommandName, msg.params || {}, sessionId)
           .then((result) => sendResponse({ success: true, result }))
           .catch((error) => sendResponse({
             success: false,
@@ -127,18 +207,19 @@ export default defineBackground({
         return true;
       }
 
-      if (msg.type === 'getStatus') {
+      if (msg.type === PopupMessageKinds.GET_STATUS) {
         const status: StatusResponse = {
           isServerRunning: mcpBridge.isConnected(),
           reconnectAttempts: mcpBridge.getReconnectAttempts(),
           isKillSwitchEnabled,
-          sessionTabId: sessionManager.getSessionTabId()
+          activeLeaseCount: sessionManager.getLeaseCount(),
+          waitingRoomCount: mcpBridge.getWaitingRoomEntries().length
         };
         sendResponse(status);
         return false;
       }
 
-      if (msg.type === 'toggleKillSwitch') {
+      if (msg.type === PopupMessageKinds.TOGGLE_KILL_SWITCH) {
         toggleKillSwitch()
           .then((response) => sendResponse(response))
           .catch((error) => sendResponse({
@@ -148,9 +229,59 @@ export default defineBackground({
         return true;
       }
 
-      if (msg.type === 'getKillSwitchState') {
+      if (msg.type === PopupMessageKinds.GET_KILL_SWITCH_STATE) {
         sendResponse({ isEnabled: isKillSwitchEnabled });
         return false;
+      }
+
+      if (msg.type === PopupMessageKinds.GET_WAITING_ROOM_LIST) {
+        const refresh = Boolean((msg as { refresh?: boolean }).refresh);
+        getWaitingRoomList(refresh)
+          .then((response) => sendResponse(response))
+          .catch((error) => sendResponse({
+            entries: [],
+            refreshedAt: Date.now(),
+            error: (error as Error).message
+          }));
+        return true;
+      }
+
+      if (msg.type === PopupMessageKinds.WAITING_ROOM_DECISION) {
+        const sessionId = (msg as { sessionId?: unknown }).sessionId;
+        const decision = (msg as { decision?: unknown }).decision;
+
+        if (typeof sessionId !== 'string' || sessionId.length === 0) {
+          sendResponse({
+            success: false,
+            sessionId: '',
+            decision: WaitingRoomDecisions.REJECT,
+            error: 'Missing required sessionId.',
+            errorCode: ErrorCodes.CONTROL_EVENT_INVALID
+          });
+          return false;
+        }
+
+        if (decision !== WaitingRoomDecisions.JOIN && decision !== WaitingRoomDecisions.REJECT) {
+          sendResponse({
+            success: false,
+            sessionId,
+            decision: WaitingRoomDecisions.REJECT,
+            error: 'Invalid waiting-room decision.',
+            errorCode: ErrorCodes.CONTROL_EVENT_INVALID
+          });
+          return false;
+        }
+
+        submitWaitingRoomDecision(sessionId, decision)
+          .then((response) => sendResponse(response))
+          .catch((error) => sendResponse({
+            success: false,
+            sessionId,
+            decision,
+            error: (error as Error).message,
+            errorCode: ErrorCodes.COMMAND_FAILED
+          }));
+        return true;
       }
 
       return false;
@@ -159,29 +290,6 @@ export default defineBackground({
     browser.runtime.onInstalled.addListener((details) => {
       console.log('[PartyBrowser] Extension installed:', details);
       init();
-    });
-
-    browser.tabs.onRemoved.addListener((removedTabId) => {
-      if (sessionManager.getSessionTabId() === removedTabId) {
-        console.log('[PartyBrowser] Session ownership cleared (reason: tab_closed)');
-        console.warn('[PartyBrowser] Session tab closed; clearing session binding');
-
-        networkCapture.stopCapture();
-        networkCapture.clearLogs();
-        sessionManager.clearSession('tab_closed');
-
-        if (mcpBridge.isConnected()) {
-          try {
-            mcpBridge.send({
-              type: 'session_lost',
-              reason: 'tab_closed',
-              message: 'Session tab was closed'
-            });
-          } catch (error) {
-            console.log('[PartyBrowser] Failed to notify server of session loss:', (error as Error).message);
-          }
-        }
-      }
     });
 
     browser.browserAction.onClicked.addListener(() => {

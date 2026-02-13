@@ -1,0 +1,22 @@
+{
+  "name": "@partybrowser/hub",
+  "version": "0.1.0",
+  "description": "PartyBrowser hub runtime for session authority and routing",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsup",
+    "clean": "rm -rf dist",
+    "dev": "tsx watch src/index.ts",
+    "test": "tsx --test \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "ws": "^8.18.1"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.0",
+    "tsx": "^4.20.5",
+    "tsup": "^8.4.0",
+    "typescript": "^5.6.2"
+  }
+}

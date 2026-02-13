@@ -1,6 +1,6 @@
 /**
  * Session Manager for PartyBrowser extension
- * Manages session lifecycle, tab creation, and session state
+ * Manages session lifecycle, tab creation, and session leases
  */
 
 /// <reference path="../types/global.d.ts" />
@@ -23,10 +23,10 @@ export const DEFAULT_SESSION_CONFIG: SessionConfig = {
  * Manages browser automation session state and lifecycle
  */
 export class SessionManager {
-  private sessionTabId: number | null = null;
-  private sessionId: string | null = null;
-  private sessionStartTime: number | null = null;
-  private onSessionClearedCallbacks: Array<(reason: string) => void> = [];
+  private leases = new Map<string, number>();
+  private onLeaseRevokedCallbacks: Array<
+    (sessionId: string, tabId: number, reason: string) => void
+  > = [];
   private onTabRemovedListener: ((tabId: number) => void) | null = null;
 
   constructor(private config: SessionConfig = DEFAULT_SESSION_CONFIG) {
@@ -34,30 +34,32 @@ export class SessionManager {
   }
 
   /**
-   * Set up listener for tab removal to clean up session state
+   * Set up listener for tab removal to clean up lease state
    */
   private setupTabRemovedListener(): void {
     this.onTabRemovedListener = (removedTabId: number) => {
-      if (this.sessionTabId === removedTabId) {
-        console.log(
-          '[PartyBrowser] Session ownership cleared (reason: tab_closed)',
-        );
+      for (const [sessionId, tabId] of this.leases.entries()) {
+        if (tabId !== removedTabId) {
+          continue;
+        }
+
         console.warn(
-          '[PartyBrowser] Session tab closed; clearing session binding',
+          `[PartyBrowser] Lease revoked; tab closed for session ${sessionId}`,
         );
-        this.clearSession('tab_closed');
+        void this.revokeLease(sessionId, 'tab_closed', false);
+        break;
       }
     };
     browser.tabs.onRemoved.addListener(this.onTabRemovedListener);
   }
 
   /**
-   * Create a new session tab
+   * Create a new tab for a lease
    * @returns Promise resolving to the new tab ID
    */
-  async createSessionTab(): Promise<number> {
+  private async createLeaseTab(url: string): Promise<number> {
     const tab = await browser.tabs.create({
-      url: 'about:blank',
+      url,
       active: false,
     });
 
@@ -87,29 +89,40 @@ export class SessionManager {
   }
 
   /**
-   * Create a new session with a fresh tab
-   * @returns Promise resolving to the new tab ID
+   * Create a session lease with a fresh tab
    */
-  async createSession(): Promise<number> {
-    const tabId = await this.createSessionTab();
-    this.sessionTabId = tabId;
-    this.sessionId =
-      'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-    this.sessionStartTime = Date.now();
+  async createLease(sessionId: string, url: string): Promise<number> {
+    if (!sessionId) {
+      throw new CodedError(
+        'sessionId is required to create a lease.',
+        ErrorCodes.SESSION_ID_REQUIRED,
+      );
+    }
 
-    console.log(`[PartyBrowser] Session started: ${this.sessionId}`);
-    console.log(`[PartyBrowser] Session tab created: ${this.sessionTabId}`);
+    if (this.leases.has(sessionId)) {
+      throw new CodedError(
+        `Lease already exists for sessionId ${sessionId}.`,
+        ErrorCodes.COMMAND_FAILED,
+      );
+    }
+
+    const tabId = await this.createLeaseTab(url);
+    this.leases.set(sessionId, tabId);
+
+    console.log(`[PartyBrowser] Lease created: ${sessionId} -> tab ${tabId}`);
 
     return tabId;
   }
 
   /**
-   * Resolve the target tab ID for commands
-   * Throws if session is not initialized or tab is closed
-   * @param params Optional params (checks for unsupported tabId override)
+   * Resolve the target tab ID for session-scoped commands
+   * Throws on missing sessionId, unknown sessionId, or closed tab
    * @returns Promise resolving to the valid tab ID
    */
-  async resolveTargetTab(params?: { tabId?: number }): Promise<number> {
+  async resolveTargetTab(params?: {
+    sessionId?: string;
+    tabId?: number;
+  }): Promise<number> {
     if (params && Object.prototype.hasOwnProperty.call(params, 'tabId')) {
       throw new CodedError(
         'tabId overrides are not supported. PartyBrowser uses the session-owned tab.',
@@ -117,76 +130,112 @@ export class SessionManager {
       );
     }
 
-    if (this.sessionTabId === null) {
+    if (!params?.sessionId) {
       throw new CodedError(
-        'Session not initialized. Run navigate first to create a session tab.',
-        ErrorCodes.SESSION_NOT_INITIALIZED,
+        'sessionId is required for command execution.',
+        ErrorCodes.SESSION_ID_REQUIRED,
+      );
+    }
+
+    const tabId = this.leases.get(params.sessionId);
+    if (tabId === undefined) {
+      throw new CodedError(
+        `No active lease for sessionId ${params.sessionId}.`,
+        ErrorCodes.SESSION_LEASE_NOT_FOUND,
       );
     }
 
     try {
-      await browser.tabs.get(this.sessionTabId);
+      await browser.tabs.get(tabId);
     } catch {
+      this.leases.delete(params.sessionId);
       throw new CodedError(
-        'Session tab was closed. Run navigate to create a new session tab.',
+        `Leased tab for sessionId ${params.sessionId} was closed.`,
         ErrorCodes.SESSION_TAB_CLOSED,
       );
     }
 
-    return this.sessionTabId;
+    return tabId;
   }
 
   /**
-   * Get the current session tab ID (may be null)
+   * Get the current lease for a session
    */
-  getSessionTabId(): number | null {
-    return this.sessionTabId;
+  getLease(sessionId: string): number | null {
+    const tabId = this.leases.get(sessionId);
+    return tabId === undefined ? null : tabId;
   }
 
   /**
-   * Get the current session ID
+   * Check if a session has an active lease
    */
-  getSessionId(): string | null {
-    return this.sessionId;
+  hasLease(sessionId: string): boolean {
+    return this.leases.has(sessionId);
   }
 
   /**
-   * Get the session start time
+   * Number of active leases
    */
-  getSessionStartTime(): number | null {
-    return this.sessionStartTime;
+  getLeaseCount(): number {
+    return this.leases.size;
   }
 
   /**
-   * Check if a session is active
+   * List active leases
    */
-  hasSession(): boolean {
-    return this.sessionTabId !== null;
+  getLeaseSnapshot(): Record<string, number> {
+    return Object.fromEntries(this.leases.entries());
   }
 
   /**
-   * Clear all session state
-   * @param reason The reason for clearing the session
+   * Revoke a lease by sessionId
+   * @param closeTab Whether to close tab as part of revocation
+   * @returns true if a lease was revoked, false if no lease existed
    */
-  clearSession(reason: string): void {
-    const hadSession = this.sessionTabId !== null;
-    this.sessionTabId = null;
-    this.sessionId = null;
-    this.sessionStartTime = null;
+  async revokeLease(
+    sessionId: string,
+    reason: string,
+    closeTab = true,
+  ): Promise<boolean> {
+    const tabId = this.leases.get(sessionId);
+    if (tabId === undefined) {
+      return false;
+    }
 
-    if (hadSession) {
-      console.log(
-        `[PartyBrowser] Session ownership cleared (reason: ${reason})`,
-      );
-      this.onSessionClearedCallbacks.forEach((cb) => cb(reason));
+    this.leases.delete(sessionId);
+
+    if (closeTab) {
+      try {
+        await browser.tabs.remove(tabId);
+      } catch {
+        // Tab may already be closed
+      }
+    }
+
+    console.log(
+      `[PartyBrowser] Lease revoked: ${sessionId} (tab ${tabId}, reason: ${reason})`,
+    );
+    this.onLeaseRevokedCallbacks.forEach((cb) => cb(sessionId, tabId, reason));
+    return true;
+  }
+
+  /**
+   * Revoke all active leases
+   */
+  async revokeAllLeases(reason: string, closeTabs = true): Promise<void> {
+    const sessionIds = Array.from(this.leases.keys());
+    for (const sessionId of sessionIds) {
+      await this.revokeLease(sessionId, reason, closeTabs);
     }
   }
 
   /**
-   * Register a callback for when the session is cleared
+   * Register callback for lease revocation
    */
-  onSessionCleared(callback: (reason: string) => void): void {
-    this.onSessionClearedCallbacks.push(callback);
+  onLeaseRevoked(
+    callback: (sessionId: string, tabId: number, reason: string) => void,
+  ): void {
+    this.onLeaseRevokedCallbacks.push(callback);
   }
 
   /**
