@@ -52,6 +52,8 @@ export class McpBridge {
   private waitingRoom = new Map<string, WaitingRoomEntry>();
   private pendingControlRequests = new Map<string, PendingControlRequest>();
   private waitingRoomChangedCallbacks: Array<(entries: WaitingRoomEntry[]) => void> = [];
+  private connectionStateCallbacks: Array<(isConnected: boolean) => void> = [];
+
 
   constructor(
     private sessionManager: SessionManager,
@@ -83,6 +85,7 @@ export class McpBridge {
           console.log('[PartyBrowser] Extension connected to MCP/hub');
           this.isServerRunning = true;
           this.reconnectAttempts = 0;
+          this.notifyConnectionStateChange(true);
           resolve();
         };
 
@@ -138,6 +141,7 @@ export class McpBridge {
     }
 
     this.isServerRunning = false;
+    this.notifyConnectionStateChange(false);
     this.reconnectAttempts = 0;
     this.rejectPendingControlRequests('transport disconnected');
   }
@@ -165,6 +169,12 @@ export class McpBridge {
   onWaitingRoomChanged(callback: (entries: WaitingRoomEntry[]) => void): void {
     this.waitingRoomChangedCallbacks.push(callback);
   }
+  onConnectionStateChanged(callback: (isConnected: boolean) => void): void {
+    this.connectionStateCallbacks.push(callback);
+    callback(this.isConnected());
+  }
+
+
 
   async requestWaitingRoomRefresh(): Promise<void> {
     await this.sendControlCommand(ControlCommands.WAITING_ROOM_LIST, {}, true);
@@ -478,6 +488,16 @@ export class McpBridge {
       return a.sessionId.localeCompare(b.sessionId);
     });
   }
+  private notifyConnectionStateChange(isConnected: boolean): void {
+    for (const callback of this.connectionStateCallbacks) {
+      try {
+        callback(isConnected);
+      } catch (error) {
+        console.error('[PartyBrowser] Connection state callback failed:', error);
+      }
+    }
+  }
+
 
   private notifyWaitingRoomChanged(): void {
     const entries = this.sortedWaitingRoomEntries();
@@ -502,6 +522,7 @@ export class McpBridge {
 
     this.isServerRunning = false;
     this.wsConnection = null;
+    this.notifyConnectionStateChange(false);
     this.rejectPendingControlRequests('transport disconnected');
 
     void this.sessionManager.revokeAllLeases(reason, true);

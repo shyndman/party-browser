@@ -54,6 +54,11 @@ export default defineBackground({
       () => isKillSwitchEnabled
     );
 
+    mcpBridge.onConnectionStateChanged((isConnected) => {
+      iconManager.updateFromStatus(isConnected, isKillSwitchEnabled);
+    });
+
+
     sessionManager.onLeaseRevoked((sessionId, tabId, reason) => {
       if (networkCapture.getCapturingTabId() === tabId) {
         networkCapture.stopCapture();

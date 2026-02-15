@@ -9,16 +9,25 @@ export type IconState = 'connected' | 'disconnected' | 'off';
 
 export const ICON_PATHS = {
   connected: {
+    48: 'icons/state_connected_48.png',
     64: 'icons/state_connected_64.png',
-    128: 'icons/state_connected_128.png'
+    96: 'icons/state_connected_96.png',
+    128: 'icons/state_connected_128.png',
+    256: 'icons/state_connected_256.png'
   },
   disconnected: {
+    48: 'icons/state_disconnected_48.png',
     64: 'icons/state_disconnected_64.png',
-    128: 'icons/state_disconnected_128.png'
+    96: 'icons/state_disconnected_96.png',
+    128: 'icons/state_disconnected_128.png',
+    256: 'icons/state_disconnected_256.png'
   },
   off: {
+    48: 'icons/state_off_48.png',
     64: 'icons/state_off_64.png',
-    128: 'icons/state_off_128.png'
+    96: 'icons/state_off_96.png',
+    128: 'icons/state_off_128.png',
+    256: 'icons/state_off_256.png'
   }
 } as const;
 

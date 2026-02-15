@@ -33,7 +33,8 @@
     "default_title": "PartyBrowser (click to toggle)",
     "default_icon": {
       "64": "icons/state_disconnected_64.png",
-      "128": "icons/state_disconnected_128.png"
+      "128": "icons/state_disconnected_128.png",
+      "256": "icons/state_disconnected_256.png"
     }
   },
   "web_accessible_resources": [
@@ -41,7 +42,8 @@
   ],
   "icons": {
     "48": "icons/state_connected_48.png",
-    "96": "icons/state_connected_96.png"
+    "96": "icons/state_connected_96.png",
+    "256": "icons/state_connected_256.png"
   },
   "applications": {
     "gecko": {
