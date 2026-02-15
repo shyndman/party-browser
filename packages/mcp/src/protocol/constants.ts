@@ -23,7 +23,7 @@ export const MCP_ERROR_CODES = {
 } as const;
 
 export const PROTOCOL_DEFAULTS = {
-  REQUEST_TIMEOUT_MS: 30000,
+  REQUEST_TIMEOUT_MS: 600000,
 } as const;
 
 export type McpErrorCode =
