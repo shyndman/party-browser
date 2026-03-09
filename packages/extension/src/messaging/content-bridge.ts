@@ -32,15 +32,15 @@ export class ContentBridge {
   }
 
   /**
-   * Get console logs from the content script
+   * Get console messages from the content script
    * @param tabId The target tab ID
    * @param clear Whether to clear logs after retrieval
    * @returns Promise resolving to console log entries
    */
-  async getConsoleLogs(tabId: number, clear = false): Promise<ConsoleLogEntry[]> {
+  async getConsoleMessages(tabId: number, clear = false): Promise<ConsoleLogEntry[]> {
     try {
       const response = await browser.tabs.sendMessage(tabId, {
-        type: 'getConsoleLogs',
+        type: 'getConsoleMessages',
         clear
       }) as { success?: boolean; logs?: ConsoleLogEntry[] };
 
@@ -49,7 +49,7 @@ export class ContentBridge {
       }
       return [];
     } catch (error) {
-      console.log('[PartyBrowser] Content script not available for console logs:', (error as Error).message);
+      console.log('[PartyBrowser] Content script not available for console messages:', (error as Error).message);
       return [];
     }
   }

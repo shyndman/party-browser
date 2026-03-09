@@ -125,10 +125,10 @@ export interface ExecuteCommandMessage {
 }
 
 /**
- * Get console logs message from background to content script
+ * Get console messages from background to content script
  */
-export interface GetConsoleLogsMessage {
-  type: 'getConsoleLogs';
+export interface GetConsoleMessagesMessage {
+  type: 'getConsoleMessages';
   clear?: boolean;
 }
 
@@ -150,7 +150,7 @@ export interface ConsoleLogsResponse {
  */
 export type ContentScriptMessage =
   | ExecuteCommandMessage
-  | GetConsoleLogsMessage
+  | GetConsoleMessagesMessage
   | ConsoleLogsResponse
   | CommandResult;
 

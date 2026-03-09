@@ -13,7 +13,6 @@ import type {
   GetConsoleMessagesParams,
   GetUrlParams,
   GetTitleParams,
-  GetConsoleLogsParams,
   EvaluateParams,
   CloseParams
 } from '../types/commands';
@@ -72,23 +71,6 @@ export class InspectionCommands {
   }
 
   /**
-   * Get console logs from the content script
-   */
-  async getConsoleLogs(params: GetConsoleLogsParams): Promise<CommandResult> {
-    const targetTabId = await this.sessionManager.resolveTargetTab(params);
-
-    const logs = await this.contentBridge.getConsoleLogs(targetTabId, false);
-
-    return {
-      success: true,
-      data: {
-        count: logs.length,
-        logs
-      }
-    };
-  }
-
-  /**
    * Get captured network requests
    */
   async getNetworkRequests(params: GetNetworkRequestsParams): Promise<CommandResult> {
@@ -122,7 +104,7 @@ export class InspectionCommands {
   async getConsoleMessages(params: GetConsoleMessagesParams): Promise<CommandResult> {
     const targetTabId = await this.sessionManager.resolveTargetTab(params);
 
-    let logs = await this.contentBridge.getConsoleLogs(targetTabId, false);
+    let logs = await this.contentBridge.getConsoleMessages(targetTabId, false);
 
     if (params.level && params.level !== 'all') {
       logs = logs.filter((l) => l.level === params.level);

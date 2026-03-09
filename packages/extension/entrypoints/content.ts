@@ -583,7 +583,7 @@ export default defineContentScript({
         return true;
       }
 
-      if (msg.type === 'getConsoleLogs') {
+      if (msg.type === 'getConsoleMessages') {
         const logs = consoleCapture.getLogs(msg.clear);
         sendResponse({
           success: true,

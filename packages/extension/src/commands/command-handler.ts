@@ -26,8 +26,7 @@ import type {
   HoverParams,
   CloseParams,
   GetUrlParams,
-  GetTitleParams,
-  GetConsoleLogsParams
+  GetTitleParams
 } from '../types/commands';
 import { ErrorCodes, type ErrorCode, CodedError } from '../utils/errors';
 import type { SessionManager } from '../session/session-manager';
@@ -114,8 +113,6 @@ export class CommandHandler {
           return await this.inspection.getUrl(sessionScopedParams as unknown as GetUrlParams);
         case 'getTitle':
           return await this.inspection.getTitle(sessionScopedParams as unknown as GetTitleParams);
-        case 'getConsoleLogs':
-          return await this.inspection.getConsoleLogs(sessionScopedParams as unknown as GetConsoleLogsParams);
         case 'getNetworkRequests':
           return await this.inspection.getNetworkRequests(sessionScopedParams as unknown as GetNetworkRequestsParams);
         case 'getConsoleMessages':

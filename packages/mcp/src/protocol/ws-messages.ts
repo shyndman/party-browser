@@ -21,7 +21,6 @@ export interface SocketMessageMap {
   // Snapshot and inspection messages
   snapshot: Record<string, never>; // Returns: Full page HTML snapshot
   screenshot: Record<string, never>; // Returns: base64-encoded PNG string (not Data URL)
-  get_console_logs: Record<string, never>; // Returns: Array of console log entries
   evaluate: { script: string }; // Returns: JSON-serializable result
 
   // Deterministic wait messages

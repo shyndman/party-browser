@@ -139,15 +139,6 @@ export const SelectOptionTool = z.object({
 
 export type SelectOptionTool = z.infer<typeof SelectOptionTool>;
 
-// GetConsoleLogs tool - retrieve browser console logs
-export const GetConsoleLogsTool = z.object({
-  name: z.literal("get_console_logs"),
-  description: z.literal("Get console logs from the browser"),
-  arguments: z.object({}),
-});
-
-export type GetConsoleLogsTool = z.infer<typeof GetConsoleLogsTool>;
-
 // Screenshot tool - capture screenshot of current page
 export const ScreenshotTool = z.object({
   name: z.literal("screenshot"),

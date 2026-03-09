@@ -44,8 +44,7 @@ export type CommandName =
   | 'hover'
   | 'close'
   | 'getUrl'
-  | 'getTitle'
-  | 'getConsoleLogs';
+  | 'getTitle';
 
 export interface SessionScopedParams {
   sessionId: string;
@@ -195,11 +194,6 @@ export type GetUrlParams = SessionScopedParams;
 export type GetTitleParams = SessionScopedParams;
 
 /**
- * Parameters for getConsoleLogs command
- */
-export type GetConsoleLogsParams = SessionScopedParams;
-
-/**
  * Union type for all command parameters
  */
 export type CommandParams =
@@ -221,5 +215,4 @@ export type CommandParams =
   | HoverParams
   | CloseParams
   | GetUrlParams
-  | GetTitleParams
-  | GetConsoleLogsParams;
+  | GetTitleParams;

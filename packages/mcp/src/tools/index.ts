@@ -34,7 +34,6 @@ export {
 
 // Custom tools
 export {
-  getConsoleLogs,
   screenshot,
 } from "./custom";
 

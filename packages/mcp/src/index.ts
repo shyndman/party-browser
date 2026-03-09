@@ -34,7 +34,6 @@ const commonTools: Tool[] = [
 ];
 
 const customTools: Tool[] = [
-  custom.getConsoleLogs,
   custom.screenshot,
   evaluate,
   inspection.networkRequests,
