@@ -5,6 +5,7 @@ import {
   HubError,
   type HubErrorCode,
 } from "@/errors";
+import { createHubLogger, getHubLogLevel } from "@/logger";
 import { CommandRouter } from "@/router/command-router";
 import { routeExtensionIngressMessage } from "@/router/extension-router";
 import { routeMcpIngressMessage } from "@/router/mcp-router";
@@ -43,8 +44,43 @@ type ConnectionRecord = {
   socket: WebSocket;
 };
 
+type ErrorDetails = {
+  errorName: string;
+  errorMessage: string;
+  stack?: string;
+};
+
+function getErrorDetails(error: unknown): ErrorDetails {
+  if (error instanceof Error) {
+    return {
+      errorName: error.name,
+      errorMessage: error.message,
+      stack: error.stack,
+    };
+  }
+
+  return {
+    errorName: typeof error,
+    errorMessage: String(error),
+  };
+}
+
+function getMessageType(parsed: unknown): string | undefined {
+  if (
+    parsed &&
+    typeof parsed === "object" &&
+    "type" in parsed &&
+    typeof (parsed as { type?: unknown }).type === "string"
+  ) {
+    return (parsed as { type: string }).type;
+  }
+
+  return undefined;
+}
+
 export class HubRuntime {
   private readonly options: Required<HubRuntimeOptions>;
+  private readonly logger = createHubLogger("hub.runtime");
   private readonly connections = new Map<string, ConnectionRecord>();
   private readonly commandRouter = new CommandRouter();
   private readonly sessionStore = new SessionStore();
@@ -63,8 +99,20 @@ export class HubRuntime {
 
   async start(): Promise<void> {
     if (this.wss) {
+      this.logger.debug("Start requested but hub runtime is already running.", {
+        event: "hub.start",
+        host: this.options.host,
+        port: this.options.port,
+      });
       return;
     }
+
+    this.logger.info("Starting hub runtime.", {
+      event: "hub.start",
+      host: this.options.host,
+      port: this.options.port,
+      logLevel: getHubLogLevel(),
+    });
 
     this.wss = new WebSocketServer({
       host: this.options.host,
@@ -77,6 +125,12 @@ export class HubRuntime {
         id,
         role: "unknown",
         socket,
+      });
+
+      this.logger.info("Connection opened.", {
+        event: "connection.open",
+        connectionId: id,
+        role: "unknown",
       });
 
       socket.on("message", (data) => {
@@ -93,15 +147,25 @@ export class HubRuntime {
       this.wss?.once("error", reject);
     });
 
-    console.log(
-      `[hub] listening on ws://${this.options.host}:${this.options.port}`,
-    );
+    this.logger.info("Hub runtime listening.", {
+      event: "hub.start",
+      host: this.options.host,
+      port: this.getBoundPort(),
+    });
   }
 
   async stop(): Promise<void> {
     if (!this.wss) {
+      this.logger.debug("Stop requested but hub runtime is not running.", {
+        event: "hub.stop",
+      });
       return;
     }
+
+    this.logger.info("Stopping hub runtime.", {
+      event: "hub.stop",
+      connectionCount: this.connections.size,
+    });
 
     const sockets = [...this.connections.values()].map((connection) => connection.socket);
     for (const socket of sockets) {
@@ -120,6 +184,10 @@ export class HubRuntime {
     });
 
     this.wss = undefined;
+
+    this.logger.info("Hub runtime stopped.", {
+      event: "hub.stop",
+    });
   }
 
   getBoundPort(): number {
@@ -133,24 +201,93 @@ export class HubRuntime {
   private handleInboundMessage(connectionId: string, rawMessage: string): void {
     const connection = this.connections.get(connectionId);
     if (!connection) {
+      this.logger.warn("Inbound message received for missing connection.", {
+        event: "message.inbound",
+        connectionId,
+      });
       return;
+    }
+
+    this.logger.info("Inbound message received.", {
+      event: "message.inbound",
+      connectionId,
+      role: connection.role,
+    });
+    if (this.logger.isLevelEnabled("debug")) {
+      this.logger.debug("Inbound message payload.", {
+        event: "message.inbound",
+        connectionId,
+        role: connection.role,
+        payload: rawMessage,
+      });
     }
 
     let parsed: unknown;
     try {
       parsed = parseJsonMessage(rawMessage);
-    } catch {
+    } catch (error) {
+      const parseError = getErrorDetails(error);
+      this.logger.error("Failed to parse inbound message.", {
+        event: "error.protocol",
+        connectionId,
+        role: connection.role,
+        errorCode: HUB_ERROR_CODES.PROTOCOL_INVALID_MESSAGE,
+        errorName: parseError.errorName,
+        errorMessage: parseError.errorMessage,
+        stack: parseError.stack,
+      });
       this.sendHubError(connection, "Malformed JSON message.", HUB_ERROR_CODES.PROTOCOL_INVALID_MESSAGE);
       return;
+    }
+
+    const messageType = getMessageType(parsed) ?? "unknown";
+    this.logger.info("Inbound message parsed.", {
+      event: "message.inbound",
+      connectionId,
+      role: connection.role,
+      messageType,
+    });
+    if (this.logger.isLevelEnabled("debug")) {
+      this.logger.debug("Inbound message body.", {
+        event: "message.inbound",
+        connectionId,
+        role: connection.role,
+        messageType,
+        payload: parsed,
+      });
     }
 
     try {
       this.routeByRole(connection, parsed);
     } catch (error) {
+      if (!(error instanceof HubError)) {
+        const unexpectedError = getErrorDetails(error);
+        this.logger.error("Unexpected routing exception.", {
+          event: "error.routing",
+          connectionId,
+          role: connection.role,
+          messageType,
+          errorName: unexpectedError.errorName,
+          errorMessage: unexpectedError.errorMessage,
+          stack: unexpectedError.stack,
+        });
+      }
+
       const hubError =
         error instanceof HubError
           ? error
           : new HubError(String(error), HUB_ERROR_CODES.ROUTING_FAILED);
+
+      this.logger.error("Inbound message routing failed.", {
+        event: "message.route_error",
+        connectionId,
+        role: connection.role,
+        messageType,
+        errorCode: hubError.errorCode,
+        errorMessage: hubError.message,
+        stack: hubError.stack,
+      });
+
       this.sendHubError(connection, hubError.message, hubError.errorCode);
     }
   }
@@ -171,7 +308,7 @@ export class HubRuntime {
     if (connection.role === "extension") {
       routeExtensionIngressMessage(parsed, {
         onControlCommand: (message) => this.handleExtensionControlCommand(connection.id, message),
-        onSessionResult: (message) => this.handleExtensionSessionResult(message),
+        onSessionResult: (message) => this.handleExtensionSessionResult(connection.id, message),
       });
       return;
     }
@@ -189,6 +326,11 @@ export class HubRuntime {
         onSessionCommand: () => undefined,
       });
       connection.role = "mcp";
+      this.logger.info("Assigned connection role.", {
+        event: "message.role_assigned",
+        connectionId: connection.id,
+        role: connection.role,
+      });
       return;
     } catch {
       // Not MCP shape.
@@ -212,7 +354,27 @@ export class HubRuntime {
   }
 
   private handleJoinRequest(connectionId: string, message: JoinRequestMessage): void {
+    this.logger.info("Join request received.", {
+      event: "session.join_request",
+      connectionId,
+      name: message.name,
+      url: message.url,
+    });
+    if (this.logger.isLevelEnabled("debug")) {
+      this.logger.debug("Join request payload.", {
+        event: "session.join_request",
+        connectionId,
+        payload: message,
+      });
+    }
+
     if (!this.killSwitchEnabled) {
+      this.logger.info("Join request rejected because kill switch is disabled.", {
+        event: "session.join_request",
+        connectionId,
+        decision: HUB_JOIN_DECISIONS.REJECT,
+        reason: "kill_switch_disabled",
+      });
       this.sendJoinDecision(connectionId, {
         type: HUB_CONTROL_MESSAGE_TYPES.JOIN_DECISION,
         decision: HUB_JOIN_DECISIONS.REJECT,
@@ -239,13 +401,47 @@ export class HubRuntime {
       joinRequestTime,
     });
 
+    this.logger.info("Join request added to waiting room.", {
+      event: "session.join_request",
+      connectionId,
+      decision: "pending",
+      sessionId: session.sessionId,
+    });
+
     this.broadcastWaitingRoomSync();
   }
 
   private handleMcpSessionCommand(connectionId: string, message: McpSessionCommandEnvelope): void {
+    this.logger.info("MCP session command received.", {
+      event: "session.command_forwarded",
+      connectionId,
+      requestId: message.requestId,
+      sessionId: message.sessionId,
+      commandType: message.type,
+    });
+    if (this.logger.isLevelEnabled("debug")) {
+      this.logger.debug("MCP session command payload.", {
+        event: "session.command_forwarded",
+        connectionId,
+        requestId: message.requestId,
+        sessionId: message.sessionId,
+        commandType: message.type,
+        payload: message.payload,
+      });
+    }
+
     this.sessionStore.assertSessionConnection(message.sessionId, connectionId);
 
     if (!this.killSwitchEnabled) {
+      this.logger.info("MCP session command rejected by kill switch.", {
+        event: "session.command_forwarded",
+        forwarded: false,
+        connectionId,
+        requestId: message.requestId,
+        sessionId: message.sessionId,
+        commandType: message.type,
+        errorCode: HUB_ERROR_CODES.KILL_SWITCH_DISABLED,
+      });
       this.sendMcpSessionResult(connectionId, {
         requestId: message.requestId,
         sessionId: message.sessionId,
@@ -259,6 +455,15 @@ export class HubRuntime {
 
     const session = this.sessionStore.getSession(message.sessionId);
     if (!session || session.state === SESSION_LIFECYCLE_STATES.REVOKED) {
+      this.logger.info("MCP session command rejected for revoked session.", {
+        event: "session.command_forwarded",
+        forwarded: false,
+        connectionId,
+        requestId: message.requestId,
+        sessionId: message.sessionId,
+        commandType: message.type,
+        errorCode: HUB_ERROR_CODES.SESSION_REVOKED,
+      });
       this.sendMcpSessionResult(connectionId, {
         requestId: message.requestId,
         sessionId: message.sessionId,
@@ -271,6 +476,15 @@ export class HubRuntime {
     }
 
     if (session.state !== SESSION_LIFECYCLE_STATES.ACTIVE) {
+      this.logger.info("MCP session command rejected pending waiting-room decision.", {
+        event: "session.command_forwarded",
+        forwarded: false,
+        connectionId,
+        requestId: message.requestId,
+        sessionId: message.sessionId,
+        commandType: message.type,
+        errorCode: HUB_ERROR_CODES.WAITING_ROOM_DECISION_REQUIRED,
+      });
       this.sendMcpSessionResult(connectionId, {
         requestId: message.requestId,
         sessionId: message.sessionId,
@@ -284,6 +498,15 @@ export class HubRuntime {
 
     const extensionConnection = this.getExtensionConnection();
     if (!extensionConnection) {
+      this.logger.info("MCP session command rejected because extension is unavailable.", {
+        event: "session.command_forwarded",
+        forwarded: false,
+        connectionId,
+        requestId: message.requestId,
+        sessionId: message.sessionId,
+        commandType: message.type,
+        errorCode: HUB_ERROR_CODES.EXTENSION_UNAVAILABLE,
+      });
       this.sendMcpSessionResult(connectionId, {
         requestId: message.requestId,
         sessionId: message.sessionId,
@@ -296,13 +519,58 @@ export class HubRuntime {
     }
 
     this.commandRouter.forwardToExtension(message, connectionId, extensionConnection.socket);
+    this.logger.info("MCP session command forwarded to extension.", {
+      event: "session.command_forwarded",
+      forwarded: true,
+      connectionId,
+      extensionConnectionId: extensionConnection.id,
+      requestId: message.requestId,
+      sessionId: message.sessionId,
+      commandType: message.type,
+    });
   }
 
-  private handleExtensionSessionResult(message: ExtensionSessionResultMessage): void {
+  private handleExtensionSessionResult(
+    connectionId: string,
+    message: ExtensionSessionResultMessage,
+  ): void {
+    this.logger.info("Extension session result received.", {
+      event: "session.result_resolved",
+      connectionId,
+      requestId: message.requestId,
+      sessionId: message.sessionId,
+      success: message.success,
+      errorCode: message.errorCode,
+    });
+    if (this.logger.isLevelEnabled("debug")) {
+      this.logger.debug("Extension session result payload.", {
+        event: "session.result_resolved",
+        connectionId,
+        payload: message,
+      });
+    }
+
     const resolution = this.commandRouter.resolveFromExtension(message);
     if (!resolution) {
+      this.logger.warn("Extension session result did not match a pending command.", {
+        event: "session.result_resolved",
+        connectionId,
+        requestId: message.requestId,
+        sessionId: message.sessionId,
+      });
       return;
     }
+
+    this.logger.info("Resolved extension result to MCP response.", {
+      event: "session.result_resolved",
+      connectionId,
+      mcpConnectionId: resolution.mcpConnectionId,
+      requestId: resolution.response.requestId,
+      sessionId: resolution.response.sessionId,
+      commandType: resolution.response.type,
+      success: !resolution.response.error,
+      errorCode: resolution.response.errorCode,
+    });
 
     this.sendMcpSessionResult(resolution.mcpConnectionId, resolution.response);
   }
@@ -311,7 +579,28 @@ export class HubRuntime {
     connectionId: string,
     message: ExtensionControlCommandMessage,
   ): void {
+    this.logger.info("Extension control command received.", {
+      event: "message.inbound",
+      connectionId,
+      command: message.command,
+      requestId: message.requestId,
+    });
+    if (this.logger.isLevelEnabled("debug")) {
+      this.logger.debug("Extension control command payload.", {
+        event: "message.inbound",
+        connectionId,
+        command: message.command,
+        requestId: message.requestId,
+        payload: message.payload,
+      });
+    }
+
     if (message.command === HUB_CONTROL_COMMANDS.WAITING_ROOM_LIST) {
+      this.logger.info("Returning waiting room list.", {
+        event: "control.waiting_room_list",
+        connectionId,
+        requestId: message.requestId,
+      });
       this.sendControlResponse(connectionId, {
         type: HUB_EXTENSION_MESSAGE_TYPES.CONTROL_RESPONSE,
         requestId: message.requestId,
@@ -331,6 +620,14 @@ export class HubRuntime {
       return;
     }
 
+    this.logger.error("Received unknown extension control command.", {
+      event: "error.protocol",
+      connectionId,
+      requestId: message.requestId,
+      command: message.command,
+      errorCode: HUB_ERROR_CODES.PROTOCOL_UNKNOWN_MESSAGE_TYPE,
+    });
+
     this.sendControlResponse(connectionId, {
       type: HUB_EXTENSION_MESSAGE_TYPES.CONTROL_RESPONSE,
       requestId: message.requestId,
@@ -346,7 +643,32 @@ export class HubRuntime {
   ): void {
     const sessionId = String(message.payload.sessionId || "");
     const decision = String(message.payload.decision || "");
+
+    this.logger.info("Applying waiting-room decision.", {
+      event: "control.waiting_room_decision",
+      connectionId,
+      requestId: message.requestId,
+      sessionId,
+      decision,
+    });
+    if (this.logger.isLevelEnabled("debug")) {
+      this.logger.debug("Waiting-room decision payload.", {
+        event: "control.waiting_room_decision",
+        connectionId,
+        requestId: message.requestId,
+        payload: message.payload,
+      });
+    }
+
     if (!sessionId || !decision) {
+      this.logger.error("Waiting-room decision missing required fields.", {
+        event: "error.protocol",
+        connectionId,
+        requestId: message.requestId,
+        sessionId,
+        decision,
+        errorCode: HUB_ERROR_CODES.PROTOCOL_INVALID_MESSAGE,
+      });
       this.sendControlResponse(connectionId, {
         type: HUB_EXTENSION_MESSAGE_TYPES.CONTROL_RESPONSE,
         requestId: message.requestId,
@@ -359,6 +681,15 @@ export class HubRuntime {
 
     const waitingEntry = this.waitingRoomStore.remove(sessionId);
     if (!waitingEntry) {
+      this.logger.info("Waiting-room decision referenced missing session.", {
+        event: "control.waiting_room_decision",
+        connectionId,
+        requestId: message.requestId,
+        sessionId,
+        decision,
+        success: false,
+        errorCode: HUB_ERROR_CODES.WAITING_ROOM_ENTRY_NOT_FOUND,
+      });
       this.sendControlResponse(connectionId, {
         type: HUB_EXTENSION_MESSAGE_TYPES.CONTROL_RESPONSE,
         requestId: message.requestId,
@@ -371,6 +702,14 @@ export class HubRuntime {
 
     if (decision === HUB_JOIN_DECISIONS.JOIN) {
       this.sessionStore.activateSession(sessionId);
+      this.logger.info("Waiting-room session approved.", {
+        event: "control.waiting_room_decision",
+        connectionId,
+        requestId: message.requestId,
+        sessionId,
+        decision,
+        success: true,
+      });
       this.sendJoinDecision(waitingEntry.connectionId, {
         type: HUB_CONTROL_MESSAGE_TYPES.JOIN_DECISION,
         decision: HUB_JOIN_DECISIONS.JOIN,
@@ -386,6 +725,14 @@ export class HubRuntime {
       });
     } else {
       this.sessionStore.revokeSession(sessionId, "operator_reject");
+      this.logger.info("Waiting-room session rejected.", {
+        event: "control.waiting_room_decision",
+        connectionId,
+        requestId: message.requestId,
+        sessionId,
+        decision,
+        success: true,
+      });
       this.sendJoinDecision(waitingEntry.connectionId, {
         type: HUB_CONTROL_MESSAGE_TYPES.JOIN_DECISION,
         decision: HUB_JOIN_DECISIONS.REJECT,
@@ -394,6 +741,14 @@ export class HubRuntime {
     }
 
     this.broadcastWaitingRoomSync();
+    this.logger.info("Waiting-room decision applied.", {
+      event: "control.waiting_room_decision",
+      connectionId,
+      requestId: message.requestId,
+      sessionId,
+      decision,
+      success: true,
+    });
     this.sendControlResponse(connectionId, {
       type: HUB_EXTENSION_MESSAGE_TYPES.CONTROL_RESPONSE,
       requestId: message.requestId,
@@ -410,6 +765,22 @@ export class HubRuntime {
     message: ExtensionControlCommandMessage,
   ): void {
     const enabled = Boolean(message.payload.enabled);
+
+    this.logger.info("Applying kill switch command.", {
+      event: "control.kill_switch_set",
+      connectionId,
+      requestId: message.requestId,
+      enabled,
+    });
+    if (this.logger.isLevelEnabled("debug")) {
+      this.logger.debug("Kill switch command payload.", {
+        event: "control.kill_switch_set",
+        connectionId,
+        requestId: message.requestId,
+        payload: message.payload,
+      });
+    }
+
     this.killSwitchEnabled = enabled;
     if (!enabled) {
       this.revokeAll("kill_switch_disabled", HUB_ERROR_CODES.KILL_SWITCH_DISABLED);
@@ -429,10 +800,24 @@ export class HubRuntime {
       success: true,
       payload: { enabled },
     });
+
+    this.logger.info("Kill switch command applied.", {
+      event: "control.kill_switch_set",
+      connectionId,
+      requestId: message.requestId,
+      enabled,
+    });
   }
 
   private revokeAll(reason: string, errorCode: HubErrorCode): void {
     const waitingEntries = this.waitingRoomStore.listSorted();
+    this.logger.info("Revoking all sessions and waiting-room entries.", {
+      event: "hub.revoke_all",
+      reason,
+      errorCode,
+      waitingEntryCount: waitingEntries.length,
+    });
+
     for (const entry of waitingEntries) {
       this.sendJoinDecision(entry.connectionId, {
         type: HUB_CONTROL_MESSAGE_TYPES.JOIN_DECISION,
@@ -446,25 +831,109 @@ export class HubRuntime {
     this.broadcastWaitingRoomSync();
 
     const failures = this.commandRouter.failAll(reason, errorCode);
+    this.logger.info("Failing all pending MCP commands.", {
+      event: "hub.revoke_all",
+      reason,
+      errorCode,
+      failedCommandCount: failures.length,
+    });
     for (const failure of failures) {
       this.sendMcpSessionResult(failure.mcpConnectionId, failure.response);
+    }
+  }
+
+  private sendToSocket(
+    connection: ConnectionRecord,
+    body: string,
+    metadata: Record<string, unknown>,
+  ): void {
+    try {
+      connection.socket.send(body);
+    } catch (error) {
+      const sendError = getErrorDetails(error);
+      this.logger.error("Failed to send websocket message.", {
+        event: "error.socket_send",
+        connectionId: connection.id,
+        role: connection.role,
+        ...metadata,
+        errorName: sendError.errorName,
+        errorMessage: sendError.errorMessage,
+        stack: sendError.stack,
+      });
+      throw error;
     }
   }
 
   private sendJoinDecision(connectionId: string, decision: JoinDecisionMessage): void {
     const connection = this.connections.get(connectionId);
     if (!connection) {
+      this.logger.warn("Join decision target connection not found.", {
+        event: "session.join_request",
+        connectionId,
+        decision: decision.decision,
+      });
       return;
     }
-    connection.socket.send(JSON.stringify(decision));
+
+    this.logger.info("Sending join decision.", {
+      event: "session.join_request",
+      connectionId,
+      decision: decision.decision,
+      sessionId: "sessionId" in decision ? decision.sessionId : undefined,
+    });
+    if (this.logger.isLevelEnabled("debug")) {
+      this.logger.debug("Join decision payload.", {
+        event: "session.join_request",
+        connectionId,
+        payload: decision,
+      });
+    }
+
+    this.sendToSocket(connection, JSON.stringify(decision), {
+      channel: "join_decision",
+      decision: decision.decision,
+      sessionId: "sessionId" in decision ? decision.sessionId : undefined,
+    });
   }
 
   private sendMcpSessionResult(connectionId: string, response: McpSessionResultEnvelope): void {
     const connection = this.connections.get(connectionId);
     if (!connection) {
+      this.logger.warn("MCP session result target connection not found.", {
+        event: "session.result_resolved",
+        connectionId,
+        requestId: response.requestId,
+        sessionId: response.sessionId,
+        commandType: response.type,
+      });
       return;
     }
-    connection.socket.send(JSON.stringify(response));
+
+    this.logger.info("Sending MCP session result.", {
+      event: "session.result_resolved",
+      connectionId,
+      requestId: response.requestId,
+      sessionId: response.sessionId,
+      commandType: response.type,
+      success: !response.error,
+      errorCode: response.errorCode,
+    });
+    if (this.logger.isLevelEnabled("debug")) {
+      this.logger.debug("MCP session result payload.", {
+        event: "session.result_resolved",
+        connectionId,
+        payload: response,
+      });
+    }
+
+    this.sendToSocket(connection, JSON.stringify(response), {
+      channel: "session_result",
+      requestId: response.requestId,
+      sessionId: response.sessionId,
+      commandType: response.type,
+      success: !response.error,
+      errorCode: response.errorCode,
+    });
   }
 
   private sendControlResponse(
@@ -473,25 +942,84 @@ export class HubRuntime {
   ): void {
     const connection = this.connections.get(connectionId);
     if (!connection) {
+      this.logger.warn("Control response target connection not found.", {
+        event: "control.response",
+        connectionId,
+        requestId: response.requestId,
+      });
       return;
     }
-    connection.socket.send(JSON.stringify(response));
+
+    this.logger.info("Sending extension control response.", {
+      event: "control.response",
+      connectionId,
+      requestId: response.requestId,
+      success: response.success,
+      errorCode: response.errorCode,
+    });
+    if (this.logger.isLevelEnabled("debug")) {
+      this.logger.debug("Extension control response payload.", {
+        event: "control.response",
+        connectionId,
+        payload: response,
+      });
+    }
+
+    this.sendToSocket(connection, JSON.stringify(response), {
+      channel: "control_response",
+      requestId: response.requestId,
+      success: response.success,
+      errorCode: response.errorCode,
+    });
   }
 
   private sendControlEvent(message: ExtensionControlEventMessage): void {
     const extensionConnection = this.getExtensionConnection();
     if (!extensionConnection) {
+      this.logger.warn("Control event dropped because extension connection is unavailable.", {
+        event: "control.event",
+        controlEvent: message.event,
+      });
       return;
     }
-    extensionConnection.socket.send(JSON.stringify(message));
+
+    this.logger.info("Sending extension control event.", {
+      event: "control.event",
+      connectionId: extensionConnection.id,
+      controlEvent: message.event,
+    });
+    if (this.logger.isLevelEnabled("debug")) {
+      this.logger.debug("Extension control event payload.", {
+        event: "control.event",
+        connectionId: extensionConnection.id,
+        payload: message,
+      });
+    }
+
+    this.sendToSocket(extensionConnection, JSON.stringify(message), {
+      channel: "control_event",
+      controlEvent: message.event,
+    });
   }
 
   private broadcastWaitingRoomSync(): void {
+    const entries = this.waitingRoomStore.listSorted();
+    this.logger.info("Broadcasting waiting-room sync.", {
+      event: "control.waiting_room_sync",
+      entryCount: entries.length,
+    });
+    if (this.logger.isLevelEnabled("debug")) {
+      this.logger.debug("Waiting-room sync payload.", {
+        event: "control.waiting_room_sync",
+        payload: entries,
+      });
+    }
+
     this.sendControlEvent({
       type: HUB_EXTENSION_MESSAGE_TYPES.CONTROL_EVENT,
       event: HUB_CONTROL_EVENTS.WAITING_ROOM_SYNC,
       payload: {
-        entries: this.waitingRoomStore.listSorted(),
+        entries,
       },
     });
   }
@@ -501,22 +1029,53 @@ export class HubRuntime {
     message: string,
     errorCode: HubErrorCode,
   ): void {
-    connection.socket.send(
-      JSON.stringify({
-        type: HUB_EXTENSION_MESSAGE_TYPES.ERROR,
-        success: false,
-        error: message,
-        errorCode,
-      }),
-    );
+    const envelope = {
+      type: HUB_EXTENSION_MESSAGE_TYPES.ERROR,
+      success: false as const,
+      error: message,
+      errorCode,
+    };
+
+    this.logger.error("Sending hub protocol error.", {
+      event: "error.protocol",
+      connectionId: connection.id,
+      role: connection.role,
+      errorCode,
+      errorMessage: message,
+    });
+    if (this.logger.isLevelEnabled("debug")) {
+      this.logger.debug("Hub protocol error payload.", {
+        event: "error.protocol",
+        connectionId: connection.id,
+        payload: envelope,
+      });
+    }
+
+    this.sendToSocket(connection, JSON.stringify(envelope), {
+      channel: "hub_error",
+      errorCode,
+    });
   }
 
   private setExtensionConnection(connection: ConnectionRecord): void {
     connection.role = "extension";
+    this.logger.info("Assigned connection role.", {
+      event: "message.role_assigned",
+      connectionId: connection.id,
+      role: connection.role,
+    });
+
     if (this.extensionConnectionId && this.extensionConnectionId !== connection.id) {
       const previous = this.connections.get(this.extensionConnectionId);
+      this.logger.info("Replacing previous extension connection.", {
+        event: "connection.close",
+        connectionId: this.extensionConnectionId,
+        role: previous?.role,
+        reason: "extension_replaced",
+      });
       previous?.socket.close();
     }
+
     this.extensionConnectionId = connection.id;
     this.broadcastWaitingRoomSync();
   }
@@ -531,12 +1090,28 @@ export class HubRuntime {
   private handleConnectionClosed(connectionId: string): void {
     const connection = this.connections.get(connectionId);
     if (!connection) {
+      this.logger.debug("Connection close received for missing connection.", {
+        event: "connection.close",
+        connectionId,
+      });
       return;
     }
+
+    this.logger.info("Connection closed.", {
+      event: "connection.close",
+      connectionId,
+      role: connection.role,
+    });
 
     this.connections.delete(connectionId);
     if (connection.role === "extension") {
       this.extensionConnectionId = undefined;
+      this.logger.info("Extension disconnected; revoking all sessions.", {
+        event: "connection.close",
+        connectionId,
+        role: connection.role,
+        reason: "extension_disconnect",
+      });
       this.revokeAll("extension_disconnect", HUB_ERROR_CODES.SESSION_REVOKED);
     }
   }
@@ -548,21 +1123,81 @@ export class HubRuntime {
 }
 
 async function run(): Promise<void> {
+  const processLogger = createHubLogger("hub.process");
   const port = Number(process.env.PARTYBROWSER_HUB_PORT ?? DEFAULT_HUB_PORT);
   const host = process.env.PARTYBROWSER_HUB_HOST ?? DEFAULT_HUB_HOST;
-  const runtime = new HubRuntime({ port, host });
-  await runtime.start();
 
-  const stop = async () => {
-    await runtime.stop();
-    process.exit(0);
+  processLogger.info("Bootstrapping hub runtime.", {
+    event: "hub.start",
+    host,
+    port,
+    logLevel: getHubLogLevel(),
+  });
+
+  const runtime = new HubRuntime({ port, host });
+  let isStopping = false;
+
+  const stop = async (source: string, exitCode: number): Promise<void> => {
+    if (isStopping) {
+      processLogger.warn("Stop requested while shutdown is already in progress.", {
+        event: "hub.stop",
+        source,
+      });
+      return;
+    }
+
+    isStopping = true;
+    processLogger.info("Shutting down hub runtime.", {
+      event: "hub.stop",
+      source,
+      exitCode,
+    });
+
+    try {
+      await runtime.stop();
+      process.exit(exitCode);
+    } catch (error) {
+      const stopError = getErrorDetails(error);
+      processLogger.error("Hub runtime failed to stop cleanly.", {
+        event: "error.routing",
+        source,
+        errorName: stopError.errorName,
+        errorMessage: stopError.errorMessage,
+        stack: stopError.stack,
+      });
+      process.exit(1);
+    }
   };
 
+  process.on("uncaughtException", (error) => {
+    const details = getErrorDetails(error);
+    processLogger.error("Uncaught exception.", {
+      event: "error.routing",
+      errorName: details.errorName,
+      errorMessage: details.errorMessage,
+      stack: details.stack,
+    });
+    void stop("uncaught_exception", 1);
+  });
+
+  process.on("unhandledRejection", (reason) => {
+    const details = getErrorDetails(reason);
+    processLogger.error("Unhandled promise rejection.", {
+      event: "error.routing",
+      errorName: details.errorName,
+      errorMessage: details.errorMessage,
+      stack: details.stack,
+    });
+    void stop("unhandled_rejection", 1);
+  });
+
+  await runtime.start();
+
   process.on("SIGINT", () => {
-    void stop();
+    void stop("sigint", 0);
   });
   process.on("SIGTERM", () => {
-    void stop();
+    void stop("sigterm", 0);
   });
 }
 

@@ -1,8 +1,11 @@
 import { strict as assert } from "node:assert";
+import { Writable } from "node:stream";
 import test from "node:test";
+import winston from "winston";
 import { WebSocket } from "ws";
 
 import { HUB_ERROR_CODES } from "@/errors";
+import { addHubLogTransport, getHubLogLevel, removeHubLogTransport, setHubLogLevel } from "@/logger";
 import {
   HUB_CONTROL_COMMANDS,
   HUB_CONTROL_MESSAGE_TYPES,
@@ -18,6 +21,19 @@ type Harness = {
 };
 
 const TEST_TIMEOUT_MS = 1000;
+
+class LogCaptureStream extends Writable {
+  readonly lines: string[] = [];
+
+  override _write(
+    chunk: string | Uint8Array,
+    _encoding: BufferEncoding,
+    callback: (error?: Error | null) => void,
+  ): void {
+    this.lines.push(typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf8"));
+    callback();
+  }
+}
 
 async function createHarness(): Promise<Harness> {
   const runtime = new HubRuntime({ port: 0, host: "127.0.0.1" });
@@ -305,6 +321,51 @@ test("malformed/unknown envelopes hard-fail", async () => {
     ] as string[];
     assert.ok(allowedCodes.includes(errorMessage.errorCode as string));
   } finally {
+    await destroyHarness(harness);
+  }
+});
+
+test("malformed JSON logs protocol metadata and debug payloads", async () => {
+  const harness = await createHarness();
+  const captureStream = new LogCaptureStream();
+  const captureTransport = new winston.transports.Stream({
+    stream: captureStream,
+    level: "debug",
+  });
+  const previousLogLevel = getHubLogLevel();
+  addHubLogTransport(captureTransport);
+
+  try {
+    setHubLogLevel("debug");
+
+    harness.mcp.send("{");
+
+    const errorMessage = await waitForMessage(
+      harness.mcp,
+      (message) => message.type === HUB_EXTENSION_MESSAGE_TYPES.ERROR,
+    );
+
+    assert.equal(errorMessage.success, false);
+    assert.equal(errorMessage.errorCode, HUB_ERROR_CODES.PROTOCOL_INVALID_MESSAGE);
+
+    const errorProtocolLine = captureStream.lines.find(
+      (line) =>
+        line.includes("error.protocol") &&
+        line.includes(HUB_ERROR_CODES.PROTOCOL_INVALID_MESSAGE) &&
+        line.includes("Sending hub protocol error."),
+    );
+    assert.ok(errorProtocolLine, "expected protocol error log line");
+
+    const debugPayloadLine = captureStream.lines.find(
+      (line) =>
+        line.includes("message.inbound") &&
+        line.includes("Inbound message payload.") &&
+        line.includes("payload={"),
+    );
+    assert.ok(debugPayloadLine, "expected debug payload log line");
+  } finally {
+    removeHubLogTransport(captureTransport);
+    setHubLogLevel(previousLogLevel);
     await destroyHarness(harness);
   }
 });

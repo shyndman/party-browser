@@ -22,12 +22,10 @@ import type { CommandHandler } from '../commands/command-handler';
 
 export interface McpBridgeConfig {
   reconnectInterval: number;
-  maxReconnectAttempts: number;
 }
 
 export const DEFAULT_BRIDGE_CONFIG: McpBridgeConfig = {
-  reconnectInterval: 5000,
-  maxReconnectAttempts: 10,
+  reconnectInterval: 10000,
 };
 
 const CONTROL_RESPONSE_TIMEOUT_MS = 5000;
@@ -291,7 +289,17 @@ export class McpBridge {
         const url = this.requireString(payload.url, 'payload.url');
 
         if (!this.sessionManager.hasLease(sessionId)) {
-          await this.sessionManager.createLease(sessionId, url);
+          const lease = await this.sessionManager.createLease(sessionId, url);
+          console.log(
+            `[PartyBrowser] Approved session lease created: ${sessionId} (window ${lease.windowId}, tab ${lease.tabId})`,
+          );
+        } else {
+          const existingLease = this.sessionManager.getLease(sessionId);
+          if (existingLease) {
+            console.log(
+              `[PartyBrowser] Approved session already has lease: ${sessionId} (window ${existingLease.windowId}, tab ${existingLease.tabId})`,
+            );
+          }
         }
         return;
       }
@@ -534,17 +542,15 @@ export class McpBridge {
       `[PartyBrowser] Extension disconnected (reason: ${reason}); pending commands will fail. Reconnecting...`,
     );
 
-    if (this.reconnectAttempts < this.config.maxReconnectAttempts) {
-      this.reconnectAttempts += 1;
-      console.log(
-        `[PartyBrowser] Attempting reconnect ${this.reconnectAttempts}/${this.config.maxReconnectAttempts}`,
-      );
-      this.reconnectTimer = setTimeout(() => {
-        this.connect(this.port).catch((error) => {
-          console.error('[PartyBrowser] Reconnect failed:', error);
-        });
-      }, this.config.reconnectInterval);
-    }
+    this.reconnectAttempts += 1;
+    console.log(
+      `[PartyBrowser] Attempting reconnect ${this.reconnectAttempts}`,
+    );
+    this.reconnectTimer = setTimeout(() => {
+      this.connect(this.port).catch((error) => {
+        console.error('[PartyBrowser] Reconnect failed:', error);
+      });
+    }, this.config.reconnectInterval);
   }
 
   private sendErrorResponse(

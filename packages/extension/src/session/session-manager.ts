@@ -1,6 +1,6 @@
 /**
  * Session Manager for PartyBrowser extension
- * Manages session lifecycle, tab creation, and session leases
+ * Manages session lifecycle, window-backed leases, and session routing
  */
 
 /// <reference path="../types/global.d.ts" />
@@ -19,32 +19,58 @@ export const DEFAULT_SESSION_CONFIG: SessionConfig = {
   maxReconnectAttempts: 10,
 };
 
+const LEASE_WINDOW_LEFT_INSET_PX = 200;
+const LEASE_WINDOW_TOP_INSET_PX = 400;
+const LEASE_WINDOW_RIGHT_INSET_PX = 200;
+const LEASE_WINDOW_BOTTOM_INSET_PX = 200;
+const MIN_LEASE_WINDOW_WIDTH_PX = 320;
+const MIN_LEASE_WINDOW_HEIGHT_PX = 240;
+
+/**
+ * Window-backed lease metadata.
+ *
+ * API goal: preserve strict sessionId -> target-tab routing while also tracking
+ * the owning window so lifecycle teardown is deterministic on either tab or
+ * window closure.
+ */
+export interface SessionLease {
+  windowId: number;
+  tabId: number;
+}
+
 /**
  * Manages browser automation session state and lifecycle
  */
 export class SessionManager {
-  private leases = new Map<string, number>();
+  private leases = new Map<string, SessionLease>();
   private onLeaseRevokedCallbacks: Array<
-    (sessionId: string, tabId: number, reason: string) => void
+    (sessionId: string, lease: SessionLease, reason: string) => void
   > = [];
-  private onTabRemovedListener: ((tabId: number) => void) | null = null;
+  private onTabRemovedListener:
+    | ((tabId: number, removeInfo?: unknown) => void)
+    | null = null;
+  private onWindowRemovedListener: ((windowId: number) => void) | null = null;
 
   constructor(private config: SessionConfig = DEFAULT_SESSION_CONFIG) {
     this.setupTabRemovedListener();
+    this.setupWindowRemovedListener();
   }
 
   /**
-   * Set up listener for tab removal to clean up lease state
+   * Set up listener for tab removal to clean up lease state.
+   *
+   * API goal: commands must never target dead tabs. As soon as a leased tab
+   * disappears, the corresponding session lease is revoked.
    */
   private setupTabRemovedListener(): void {
     this.onTabRemovedListener = (removedTabId: number) => {
-      for (const [sessionId, tabId] of this.leases.entries()) {
-        if (tabId !== removedTabId) {
+      for (const [sessionId, lease] of this.leases.entries()) {
+        if (lease.tabId !== removedTabId) {
           continue;
         }
 
         console.warn(
-          `[PartyBrowser] Lease revoked; tab closed for session ${sessionId}`,
+          `[PartyBrowser] Lease revoked; tab closed for session ${sessionId} (window ${lease.windowId}, tab ${lease.tabId})`,
         );
         void this.revokeLease(sessionId, 'tab_closed', false);
         break;
@@ -54,19 +80,105 @@ export class SessionManager {
   }
 
   /**
-   * Create a new tab for a lease
-   * @returns Promise resolving to the new tab ID
+   * Set up listener for window removal to clean up lease state.
    */
-  private async createLeaseTab(url: string): Promise<number> {
-    const tab = await browser.tabs.create({
+  private setupWindowRemovedListener(): void {
+    this.onWindowRemovedListener = (removedWindowId: number) => {
+      for (const [sessionId, lease] of this.leases.entries()) {
+        if (lease.windowId !== removedWindowId) {
+          continue;
+        }
+
+        console.warn(
+          `[PartyBrowser] Lease revoked; window closed for session ${sessionId} (window ${lease.windowId}, tab ${lease.tabId})`,
+        );
+        void this.revokeLease(sessionId, 'window_closed', false);
+        break;
+      }
+    };
+    browser.windows.onRemoved.addListener(this.onWindowRemovedListener);
+  }
+
+  /**
+   * Build deterministic window geometry from focused window bounds.
+   */
+  private async calculateLeaseWindowGeometry(): Promise<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  }> {
+    const focusedWindow = await browser.windows.getLastFocused();
+    const normalWindow =
+      focusedWindow.type === 'normal'
+        ? focusedWindow
+        : (await browser.windows.getAll({})).find((window) => window.type === 'normal') ??
+          focusedWindow;
+
+    // API goal: geometry tracks a normal browser window even when approval is
+    // triggered from extension UI surfaces (popup/panel).
+    const referenceWindow = normalWindow;
+    const baseLeft = Number.isFinite(referenceWindow.left) ? Number(referenceWindow.left) : 0;
+    const baseTop = Number.isFinite(referenceWindow.top) ? Number(referenceWindow.top) : 0;
+    const baseWidth = Number.isFinite(referenceWindow.width) ? Number(referenceWindow.width) : 1280;
+    const baseHeight = Number.isFinite(referenceWindow.height) ? Number(referenceWindow.height) : 900;
+
+    const width = Math.max(
+      MIN_LEASE_WINDOW_WIDTH_PX,
+      baseWidth - LEASE_WINDOW_LEFT_INSET_PX - LEASE_WINDOW_RIGHT_INSET_PX,
+    );
+    const height = Math.max(
+      MIN_LEASE_WINDOW_HEIGHT_PX,
+      baseHeight - LEASE_WINDOW_TOP_INSET_PX - LEASE_WINDOW_BOTTOM_INSET_PX,
+    );
+
+    return {
+      left: baseLeft + LEASE_WINDOW_LEFT_INSET_PX,
+      top: baseTop + LEASE_WINDOW_TOP_INSET_PX,
+      width,
+      height,
+    };
+  }
+
+  /**
+   * Create a dedicated window for a lease.
+   */
+  private async createLeaseWindow(url: string): Promise<SessionLease> {
+    const geometry = await this.calculateLeaseWindowGeometry();
+    const createdWindow = await browser.windows.create({
       url,
-      active: false,
+      type: 'normal',
+      left: geometry.left,
+      top: geometry.top,
+      width: geometry.width,
+      height: geometry.height,
     });
 
-    await this.waitForTabLoad(tab.id!);
+    const windowId = createdWindow.id;
+    if (windowId === undefined) {
+      throw new CodedError(
+        'Could not create lease window: missing window id.',
+        ErrorCodes.COMMAND_FAILED,
+      );
+    }
+
+    let tabId = createdWindow.tabs?.[0]?.id;
+    if (tabId === undefined) {
+      const tabs = await browser.tabs.query({ windowId });
+      tabId = tabs[0]?.id;
+    }
+
+    if (tabId === undefined) {
+      throw new CodedError(
+        `Could not resolve lease tab for window ${windowId}.`,
+        ErrorCodes.COMMAND_FAILED,
+      );
+    }
+
+    await this.waitForTabLoad(tabId);
 
     try {
-      await browser.tabs.executeScript(tab.id!, {
+      await browser.tabs.executeScript(tabId, {
         code: `document.title = 'OC | PartyBrowser Session'`,
       });
     } catch (error) {
@@ -77,7 +189,7 @@ export class SessionManager {
     }
 
     try {
-      await this.addTabToSessionGroup(tab.id!);
+      await this.addTabToSessionGroup(tabId);
     } catch (error) {
       console.log(
         '[PartyBrowser] Could not add tab to group:',
@@ -85,13 +197,13 @@ export class SessionManager {
       );
     }
 
-    return tab.id!;
+    return { windowId, tabId };
   }
 
   /**
-   * Create a session lease with a fresh tab
+   * Create a session lease with a fresh window and tab
    */
-  async createLease(sessionId: string, url: string): Promise<number> {
+  async createLease(sessionId: string, url: string): Promise<SessionLease> {
     if (!sessionId) {
       throw new CodedError(
         'sessionId is required to create a lease.',
@@ -106,12 +218,14 @@ export class SessionManager {
       );
     }
 
-    const tabId = await this.createLeaseTab(url);
-    this.leases.set(sessionId, tabId);
+    const lease = await this.createLeaseWindow(url);
+    this.leases.set(sessionId, lease);
 
-    console.log(`[PartyBrowser] Lease created: ${sessionId} -> tab ${tabId}`);
+    console.log(
+      `[PartyBrowser] Lease created: ${sessionId} -> window ${lease.windowId}, tab ${lease.tabId}`,
+    );
 
-    return tabId;
+    return lease;
   }
 
   /**
@@ -137,8 +251,8 @@ export class SessionManager {
       );
     }
 
-    const tabId = this.leases.get(params.sessionId);
-    if (tabId === undefined) {
+    const lease = this.leases.get(params.sessionId);
+    if (lease === undefined) {
       throw new CodedError(
         `No active lease for sessionId ${params.sessionId}.`,
         ErrorCodes.SESSION_LEASE_NOT_FOUND,
@@ -146,7 +260,7 @@ export class SessionManager {
     }
 
     try {
-      await browser.tabs.get(tabId);
+      await browser.tabs.get(lease.tabId);
     } catch {
       this.leases.delete(params.sessionId);
       throw new CodedError(
@@ -155,15 +269,15 @@ export class SessionManager {
       );
     }
 
-    return tabId;
+    return lease.tabId;
   }
 
   /**
    * Get the current lease for a session
    */
-  getLease(sessionId: string): number | null {
-    const tabId = this.leases.get(sessionId);
-    return tabId === undefined ? null : tabId;
+  getLease(sessionId: string): SessionLease | null {
+    const lease = this.leases.get(sessionId);
+    return lease === undefined ? null : { ...lease };
   }
 
   /**
@@ -183,49 +297,51 @@ export class SessionManager {
   /**
    * List active leases
    */
-  getLeaseSnapshot(): Record<string, number> {
-    return Object.fromEntries(this.leases.entries());
+  getLeaseSnapshot(): Record<string, SessionLease> {
+    return Object.fromEntries(
+      [...this.leases.entries()].map(([sessionId, lease]) => [sessionId, { ...lease }]),
+    );
   }
 
   /**
    * Revoke a lease by sessionId
-   * @param closeTab Whether to close tab as part of revocation
+   * @param closeWindow Whether to close window as part of revocation
    * @returns true if a lease was revoked, false if no lease existed
    */
   async revokeLease(
     sessionId: string,
     reason: string,
-    closeTab = true,
+    closeWindow = true,
   ): Promise<boolean> {
-    const tabId = this.leases.get(sessionId);
-    if (tabId === undefined) {
+    const lease = this.leases.get(sessionId);
+    if (lease === undefined) {
       return false;
     }
 
     this.leases.delete(sessionId);
 
-    if (closeTab) {
+    if (closeWindow) {
       try {
-        await browser.tabs.remove(tabId);
+        await browser.windows.remove(lease.windowId);
       } catch {
-        // Tab may already be closed
+        // Window may already be closed
       }
     }
 
     console.log(
-      `[PartyBrowser] Lease revoked: ${sessionId} (tab ${tabId}, reason: ${reason})`,
+      `[PartyBrowser] Lease revoked: ${sessionId} (window ${lease.windowId}, tab ${lease.tabId}, reason: ${reason})`,
     );
-    this.onLeaseRevokedCallbacks.forEach((cb) => cb(sessionId, tabId, reason));
+    this.onLeaseRevokedCallbacks.forEach((cb) => cb(sessionId, { ...lease }, reason));
     return true;
   }
 
   /**
    * Revoke all active leases
    */
-  async revokeAllLeases(reason: string, closeTabs = true): Promise<void> {
+  async revokeAllLeases(reason: string, closeWindows = true): Promise<void> {
     const sessionIds = Array.from(this.leases.keys());
     for (const sessionId of sessionIds) {
-      await this.revokeLease(sessionId, reason, closeTabs);
+      await this.revokeLease(sessionId, reason, closeWindows);
     }
   }
 
@@ -233,7 +349,7 @@ export class SessionManager {
    * Register callback for lease revocation
    */
   onLeaseRevoked(
-    callback: (sessionId: string, tabId: number, reason: string) => void,
+    callback: (sessionId: string, lease: SessionLease, reason: string) => void,
   ): void {
     this.onLeaseRevokedCallbacks.push(callback);
   }
@@ -299,6 +415,9 @@ export class SessionManager {
   dispose(): void {
     if (this.onTabRemovedListener) {
       browser.tabs.onRemoved.removeListener(this.onTabRemovedListener);
+    }
+    if (this.onWindowRemovedListener) {
+      browser.windows.onRemoved.removeListener(this.onWindowRemovedListener);
     }
   }
 }

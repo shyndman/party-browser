@@ -59,14 +59,14 @@ export default defineBackground({
     });
 
 
-    sessionManager.onLeaseRevoked((sessionId, tabId, reason) => {
-      if (networkCapture.getCapturingTabId() === tabId) {
+    sessionManager.onLeaseRevoked((sessionId, lease, reason) => {
+      if (networkCapture.getCapturingTabId() === lease.tabId) {
         networkCapture.stopCapture();
       }
 
-      networkCapture.clearLogs(tabId);
+      networkCapture.clearLogs(lease.tabId);
       console.log(
-        `[PartyBrowser] Lease revoked callback: ${sessionId} (tab ${tabId}, reason: ${reason})`
+        `[PartyBrowser] Lease revoked callback: ${sessionId} (window ${lease.windowId}, tab ${lease.tabId}, reason: ${reason})`
       );
     });
 

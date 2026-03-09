@@ -18,10 +18,11 @@ PartyBrowser currently supports operator-managed waiting-room approvals for MCP 
 - `extension-agent-requests`: Extension-originated request creation, cancellation, and history presentation.
 - `hub-agent-process-orchestration`: Hub process spawning, supervision, timeout enforcement, and termination semantics for request-backed agent runs.
 - `opencode-json-result-ingestion`: Deterministic ingestion of structured `opencode run --format json` events for title and summary extraction.
-
-### Modified Capabilities
 - `waiting-room-admission`: Extend admission behavior to include extension-originated requests while preserving explicit Join/Reject operator control.
 - `session-routed-tab-leases`: Update lease behavior to use request-time tab targeting and propagate tab-close revocation into request termination.
+
+### Modified Capabilities
+- None.
 
 ## Impact
 
