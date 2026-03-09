@@ -37,7 +37,13 @@ class LogCaptureStream extends Writable {
 }
 
 async function createHarness(): Promise<Harness> {
-  const runtime = new HubRuntime({ port: 0, host: "127.0.0.1" });
+  const runtime = new HubRuntime({
+    port: 0,
+    host: "127.0.0.1",
+    waitingRoomJoinSoundNotifier: {
+      notifyJoinRequest: async () => undefined,
+    },
+  });
   await runtime.start();
   const port = runtime.getBoundPort();
   const url = `ws://127.0.0.1:${port}`;

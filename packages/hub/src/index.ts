@@ -10,6 +10,7 @@ import { getHubBuildFingerprintLines } from "@/build-fingerprint";
 import { CommandRouter } from "@/router/command-router";
 import { routeExtensionIngressMessage } from "@/router/extension-router";
 import { routeMcpIngressMessage } from "@/router/mcp-router";
+import { WaitingRoomJoinSoundNotifier } from "@/audio/waiting-room-sound";
 import {
   HUB_CONTROL_COMMANDS,
   HUB_CONTROL_EVENTS,
@@ -35,6 +36,16 @@ const DEFAULT_HUB_HOST = "127.0.0.1";
 type HubRuntimeOptions = {
   port?: number;
   host?: string;
+  waitingRoomJoinSoundNotifier?: WaitingRoomJoinSoundNotifierLike;
+};
+
+type ResolvedHubRuntimeOptions = {
+  port: number;
+  host: string;
+};
+
+type WaitingRoomJoinSoundNotifierLike = {
+  notifyJoinRequest(sessionId: string): Promise<void>;
 };
 
 type ConnectionRole = "unknown" | "mcp" | "extension";
@@ -80,12 +91,13 @@ function getMessageType(parsed: unknown): string | undefined {
 }
 
 export class HubRuntime {
-  private readonly options: Required<HubRuntimeOptions>;
+  private readonly options: ResolvedHubRuntimeOptions;
   private readonly logger = createHubLogger("hub.runtime");
   private readonly connections = new Map<string, ConnectionRecord>();
   private readonly commandRouter = new CommandRouter();
   private readonly sessionStore = new SessionStore();
   private readonly waitingRoomStore = new WaitingRoomStore();
+  private readonly waitingRoomJoinSoundNotifier: WaitingRoomJoinSoundNotifierLike;
   private extensionConnectionId: string | undefined;
   private killSwitchEnabled = true;
   private wss: WebSocketServer | undefined;
@@ -96,6 +108,11 @@ export class HubRuntime {
       port: options.port ?? DEFAULT_HUB_PORT,
       host: options.host ?? DEFAULT_HUB_HOST,
     };
+    this.waitingRoomJoinSoundNotifier =
+      options.waitingRoomJoinSoundNotifier ??
+      new WaitingRoomJoinSoundNotifier({
+        logger: createHubLogger("hub.waiting_room_sound"),
+      });
   }
 
   async start(): Promise<void> {
@@ -407,6 +424,16 @@ export class HubRuntime {
       connectionId,
       decision: "pending",
       sessionId: session.sessionId,
+    });
+
+    void this.waitingRoomJoinSoundNotifier.notifyJoinRequest(session.sessionId).catch((error) => {
+      const details = getErrorDetails(error);
+      this.logger.warn("Unexpected waiting-room join sound notifier failure.", {
+        event: "hub.waiting_room_sound.play",
+        sessionId: session.sessionId,
+        errorName: details.errorName,
+        errorMessage: details.errorMessage,
+      });
     });
 
     this.broadcastWaitingRoomSync();

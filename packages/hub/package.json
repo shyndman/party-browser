@@ -15,6 +15,7 @@
     "service:logs": "journalctl --user -u partybrowser-hub.service -f --no-pager"
   },
   "dependencies": {
+    "@echogarden/audio-io": "^0.4.2",
     "winston": "^3.19.0",
     "ws": "^8.18.1"
   },
