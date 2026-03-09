@@ -153,10 +153,6 @@ const waitForInputSchema = {
       description: "Wait mode: fixed time, text appears, or text disappears",
     },
     value: {
-      oneOf: [
-        { type: "number", description: "Time to wait in seconds (for mode=time)" },
-        { type: "string", description: "Text to wait for (for mode=text or text_gone)" },
-      ],
       description:
         "For mode=time use a number (seconds). For text/text_gone use the text string.",
     },
