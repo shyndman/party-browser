@@ -143,6 +143,44 @@ Session targeting note:
 - Focus the tab you want to automate before enabling/connecting the extension.
 - Per-call `tabId` overrides are not supported in this mode.
 
+### Keep Hub Running with systemd (user service)
+
+1. Build the hub artifact from this checkout:
+
+```bash
+pnpm --filter ./packages/hub build
+```
+
+2. Install and start the user service:
+
+```bash
+pnpm run service:install
+```
+
+3. Check service status:
+
+```bash
+pnpm run service:status
+```
+
+4. Tail logs:
+
+```bash
+pnpm run service:logs
+```
+
+5. Uninstall and stop the service:
+
+```bash
+pnpm run service:uninstall
+```
+
+Notes:
+- The unit file is written to `~/.config/systemd/user/partybrowser-hub.service`.
+- `ExecStart` uses this repository checkout and the current Node executable path.
+- If you want the user service to run without an active login session, run `loginctl enable-linger $USER` once.
+- If `systemctl --user` cannot connect to the bus, run these commands from a login session with the user systemd bus available.
+
 ### Using with OpenCode (local checkout)
 
 If this repo is already checked out on your machine, you can point OpenCode at this local build directly.

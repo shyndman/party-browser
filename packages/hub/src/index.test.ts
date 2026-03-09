@@ -8,6 +8,7 @@ import { HUB_ERROR_CODES } from "@/errors";
 import { addHubLogTransport, getHubLogLevel, removeHubLogTransport, setHubLogLevel } from "@/logger";
 import {
   HUB_CONTROL_COMMANDS,
+  HUB_CONTROL_EVENTS,
   HUB_CONTROL_MESSAGE_TYPES,
   HUB_EXTENSION_MESSAGE_TYPES,
   HUB_JOIN_DECISIONS,
@@ -299,6 +300,188 @@ test("kill switch revoke wins over in-flight command", async () => {
     assert.equal(failedCommand.errorCode, HUB_ERROR_CODES.KILL_SWITCH_DISABLED);
     assert.equal(failedCommand.payload, null);
   } finally {
+    await destroyHarness(harness);
+  }
+});
+
+test("mcp disconnect cleans up pending and active sessions for that connection", async () => {
+  const harness = await createHarness();
+  const captureStream = new LogCaptureStream();
+  const captureTransport = new winston.transports.Stream({
+    stream: captureStream,
+    level: "info",
+  });
+  addHubLogTransport(captureTransport);
+
+  try {
+    const joinDecisionPromise = waitForMessage(
+      harness.mcp,
+      (message) =>
+        message.type === HUB_CONTROL_MESSAGE_TYPES.JOIN_DECISION &&
+        message.decision === HUB_JOIN_DECISIONS.JOIN,
+    );
+
+    harness.mcp.send(
+      JSON.stringify({
+        type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST,
+        name: "Agent D",
+        reason: "Run active command",
+        url: "https://example.com/active-disconnect",
+      }),
+    );
+
+    harness.mcp.send(
+      JSON.stringify({
+        type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST,
+        name: "Agent E",
+        reason: "Remain pending",
+        url: "https://example.com/pending-disconnect",
+      }),
+    );
+
+    harness.extension.send(
+      JSON.stringify({
+        type: HUB_EXTENSION_MESSAGE_TYPES.CONTROL_COMMAND,
+        requestId: "list-mcp-disconnect-initial",
+        command: HUB_CONTROL_COMMANDS.WAITING_ROOM_LIST,
+        payload: {},
+      }),
+    );
+
+    const initialWaitingList = await waitForMessage(
+      harness.extension,
+      (message) =>
+        message.type === HUB_EXTENSION_MESSAGE_TYPES.CONTROL_RESPONSE &&
+        message.requestId === "list-mcp-disconnect-initial",
+    );
+
+    const initialEntries = (
+      initialWaitingList.payload as { entries: Array<{ sessionId: string; url: string }> }
+    ).entries;
+    assert.equal(initialEntries.length, 2);
+
+    const activeEntry = initialEntries.find(
+      (entry) => entry.url === "https://example.com/active-disconnect",
+    );
+    const pendingEntry = initialEntries.find(
+      (entry) => entry.url === "https://example.com/pending-disconnect",
+    );
+    assert.ok(activeEntry, "expected active session waiting-room entry");
+    assert.ok(pendingEntry, "expected pending session waiting-room entry");
+
+    const activeSessionId = activeEntry.sessionId;
+    const pendingSessionId = pendingEntry.sessionId;
+
+    harness.extension.send(
+      JSON.stringify({
+        type: HUB_EXTENSION_MESSAGE_TYPES.CONTROL_COMMAND,
+        requestId: "decide-mcp-disconnect-active",
+        command: HUB_CONTROL_COMMANDS.WAITING_ROOM_DECIDE,
+        payload: {
+          sessionId: activeSessionId,
+          decision: HUB_JOIN_DECISIONS.JOIN,
+        },
+      }),
+    );
+
+    await waitForMessage(
+      harness.extension,
+      (message) =>
+        message.type === HUB_EXTENSION_MESSAGE_TYPES.CONTROL_RESPONSE &&
+        message.requestId === "decide-mcp-disconnect-active",
+    );
+    await joinDecisionPromise;
+
+    harness.mcp.send(
+      JSON.stringify({
+        requestId: "cmd-mcp-disconnect",
+        sessionId: activeSessionId,
+        type: "navigate",
+        payload: {
+          url: "https://partybrowser.io/disconnect",
+        },
+      }),
+    );
+
+    await waitForMessage(
+      harness.extension,
+      (message) =>
+        message.type === HUB_EXTENSION_MESSAGE_TYPES.SESSION_COMMAND &&
+        message.requestId === "cmd-mcp-disconnect",
+    );
+
+    const pendingSessionRevokedPromise = waitForMessage(
+      harness.extension,
+      (message) =>
+        message.type === HUB_EXTENSION_MESSAGE_TYPES.CONTROL_EVENT &&
+        message.event === HUB_CONTROL_EVENTS.SESSION_REVOKED &&
+        (message.payload as { sessionId?: string }).sessionId === pendingSessionId,
+    );
+    const activeSessionRevokedPromise = waitForMessage(
+      harness.extension,
+      (message) =>
+        message.type === HUB_EXTENSION_MESSAGE_TYPES.CONTROL_EVENT &&
+        message.event === HUB_CONTROL_EVENTS.SESSION_REVOKED &&
+        (message.payload as { sessionId?: string }).sessionId === activeSessionId,
+    );
+    const waitingRoomSyncPromise = waitForMessage(
+      harness.extension,
+      (message) =>
+        message.type === HUB_EXTENSION_MESSAGE_TYPES.CONTROL_EVENT &&
+        message.event === HUB_CONTROL_EVENTS.WAITING_ROOM_SYNC &&
+        Array.isArray((message.payload as { entries?: unknown[] }).entries) &&
+        ((message.payload as { entries?: unknown[] }).entries?.length ?? -1) === 0,
+    );
+
+    const mcpClosePromise = new Promise<void>((resolve) => {
+      harness.mcp.once("close", () => resolve());
+    });
+    harness.mcp.close();
+    await mcpClosePromise;
+
+    const pendingSessionRevoked = await pendingSessionRevokedPromise;
+    const activeSessionRevoked = await activeSessionRevokedPromise;
+    await waitingRoomSyncPromise;
+
+    assert.equal(
+      (pendingSessionRevoked.payload as { reason?: string }).reason,
+      "mcp_disconnect",
+    );
+    assert.equal((activeSessionRevoked.payload as { reason?: string }).reason, "mcp_disconnect");
+
+    harness.extension.send(
+      JSON.stringify({
+        type: HUB_EXTENSION_MESSAGE_TYPES.CONTROL_COMMAND,
+        requestId: "list-mcp-disconnect-final",
+        command: HUB_CONTROL_COMMANDS.WAITING_ROOM_LIST,
+        payload: {},
+      }),
+    );
+
+    const finalWaitingList = await waitForMessage(
+      harness.extension,
+      (message) =>
+        message.type === HUB_EXTENSION_MESSAGE_TYPES.CONTROL_RESPONSE &&
+        message.requestId === "list-mcp-disconnect-final",
+    );
+
+    const finalEntries = (
+      finalWaitingList.payload as { entries: Array<{ sessionId: string }> }
+    ).entries;
+    assert.equal(finalEntries.length, 0);
+
+    const disconnectSummaryLine = captureStream.lines.find(
+      (line) =>
+        line.includes("Revoked sessions for disconnected MCP connection.") &&
+        line.includes("affectedSessionCount=2") &&
+        line.includes("removedPendingCount=1") &&
+        line.includes("revokedPendingCount=1") &&
+        line.includes("revokedActiveCount=1") &&
+        line.includes("failedCommandCount=1"),
+    );
+    assert.ok(disconnectSummaryLine, "expected MCP disconnect cleanup summary log line");
+  } finally {
+    removeHubLogTransport(captureTransport);
     await destroyHarness(harness);
   }
 });

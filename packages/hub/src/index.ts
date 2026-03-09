@@ -6,6 +6,7 @@ import {
   type HubErrorCode,
 } from "@/errors";
 import { createHubLogger, getHubLogLevel } from "@/logger";
+import { getHubBuildFingerprintLines } from "@/build-fingerprint";
 import { CommandRouter } from "@/router/command-router";
 import { routeExtensionIngressMessage } from "@/router/extension-router";
 import { routeMcpIngressMessage } from "@/router/mcp-router";
@@ -842,6 +843,69 @@ export class HubRuntime {
     }
   }
 
+  private revokeSessionsForConnection(
+    connectionId: string,
+    reason: string,
+    errorCode: HubErrorCode,
+  ): void {
+    const sessions = [
+      ...this.sessionStore.getSessionsByState(SESSION_LIFECYCLE_STATES.PENDING),
+      ...this.sessionStore.getSessionsByState(SESSION_LIFECYCLE_STATES.ACTIVE),
+    ].filter((session) => session.connectionId === connectionId);
+
+    let removedPendingCount = 0;
+    let revokedPendingCount = 0;
+    let revokedActiveCount = 0;
+    let failedCommandCount = 0;
+
+    for (const session of sessions) {
+      const previousState = session.state;
+      const waitingEntry = this.waitingRoomStore.remove(session.sessionId);
+      if (waitingEntry) {
+        removedPendingCount += 1;
+      }
+
+      const revokeResult = this.sessionStore.revokeSession(session.sessionId, reason);
+      if (revokeResult.changed) {
+        if (previousState === SESSION_LIFECYCLE_STATES.PENDING) {
+          revokedPendingCount += 1;
+        } else if (previousState === SESSION_LIFECYCLE_STATES.ACTIVE) {
+          revokedActiveCount += 1;
+        }
+
+        this.sendControlEvent({
+          type: HUB_EXTENSION_MESSAGE_TYPES.CONTROL_EVENT,
+          event: HUB_CONTROL_EVENTS.SESSION_REVOKED,
+          payload: {
+            sessionId: session.sessionId,
+            reason,
+          },
+        });
+      }
+
+      const failures = this.commandRouter.failSession(session.sessionId, reason, errorCode);
+      failedCommandCount += failures.length;
+      for (const failure of failures) {
+        this.sendMcpSessionResult(failure.mcpConnectionId, failure.response);
+      }
+    }
+
+    if (sessions.length > 0) {
+      this.broadcastWaitingRoomSync();
+    }
+
+    this.logger.info("Revoked sessions for disconnected MCP connection.", {
+      event: "connection.close",
+      connectionId,
+      reason,
+      affectedSessionCount: sessions.length,
+      removedPendingCount,
+      revokedPendingCount,
+      revokedActiveCount,
+      failedCommandCount,
+    });
+  }
+
   private sendToSocket(
     connection: ConnectionRecord,
     body: string,
@@ -1113,6 +1177,15 @@ export class HubRuntime {
         reason: "extension_disconnect",
       });
       this.revokeAll("extension_disconnect", HUB_ERROR_CODES.SESSION_REVOKED);
+      return;
+    }
+
+    if (connection.role === "mcp") {
+      this.revokeSessionsForConnection(
+        connectionId,
+        "mcp_disconnect",
+        HUB_ERROR_CODES.SESSION_REVOKED,
+      );
     }
   }
 
@@ -1133,6 +1206,10 @@ async function run(): Promise<void> {
     port,
     logLevel: getHubLogLevel(),
   });
+
+  const [buildFingerprintLine1, buildFingerprintLine2] = getHubBuildFingerprintLines();
+  processLogger.info(buildFingerprintLine1);
+  processLogger.info(buildFingerprintLine2);
 
   const runtime = new HubRuntime({ port, host });
   let isStopping = false;
