@@ -41,6 +41,7 @@ export type JoinRequestInput = {
 };
 
 export interface HubConnection {
+  probe(): Promise<void>;
   joinSession(request: JoinRequestInput, options?: SendOptions): Promise<string>;
   sendSessionCommand<K extends MessageType<SocketMessageMap>>(
     sessionId: string,
@@ -74,6 +75,10 @@ export class WebSocketHubConnection implements HubConnection {
   private pendingJoinRequest: PendingJoinRequest | undefined;
 
   constructor(private readonly hubUrl: string = mcpConfig.hubWebSocketUrl) {}
+
+  async probe(): Promise<void> {
+    await this.ensureConnected();
+  }
 
   async joinSession(
     request: JoinRequestInput,

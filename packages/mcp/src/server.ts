@@ -17,11 +17,12 @@ type Options = {
   version: string;
   tools: Tool[];
   resources: Resource[];
+  context?: Context;
 };
 
 export async function createServerWithTools(options: Options): Promise<Server> {
   const { name, version, tools, resources } = options;
-  const context = new Context();
+  const context = options.context ?? new Context();
 
   const server = new Server(
     { name, version },

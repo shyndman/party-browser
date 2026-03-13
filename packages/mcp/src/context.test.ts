@@ -11,6 +11,9 @@ import {
 
 function createMockHubConnection(): HubConnection {
   return {
+    async probe() {
+      return;
+    },
     async joinSession() {
       return "session-123";
     },
