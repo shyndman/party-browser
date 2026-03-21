@@ -15,11 +15,15 @@ import {
   moveFocusToNextFocusableElement,
 } from './dom-events';
 import { findElement } from './element-refs';
-import { getSnapshot } from './snapshot';
+import { getSnapshot, type SnapshotCommandParams } from './snapshot';
 
 export type CommandHandlers = ReturnType<typeof createCommandHandlers>;
 
 export function createCommandHandlers() {
+  async function snapshot(params: SnapshotCommandParams = {}): Promise<CommandResult> {
+    return getSnapshot(params);
+  }
+
   async function click(params: { element: string }): Promise<CommandResult> {
     const { element: ref } = params;
     const element = findElement(ref);
@@ -314,7 +318,7 @@ export function createCommandHandlers() {
     click,
     type,
     evaluate,
-    snapshot: getSnapshot,
+    snapshot,
     selectOption,
     pressKey,
     wait,

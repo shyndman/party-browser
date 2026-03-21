@@ -1,6 +1,6 @@
 export interface ParsedRef {
-  type: 'index' | 'css' | 'xpath' | 'text';
-  index?: number;
+  type: 'mcpRef' | 'css' | 'xpath' | 'text';
+  ref?: string;
   selector?: string;
   path?: string;
   text?: string;
@@ -12,7 +12,7 @@ export function parseElementRef(ref: string): ParsedRef | null {
   }
 
   if (ref.match(/^e\d+$/)) {
-    return { type: 'index', index: parseInt(ref.slice(1), 10) };
+    return { type: 'mcpRef', ref };
   }
 
   if (ref.startsWith('css:')) {
@@ -24,6 +24,10 @@ export function parseElementRef(ref: string): ParsedRef | null {
   }
 
   return { type: 'text', text: ref };
+}
+
+function findByMcpRef(ref: string): Element | null {
+  return document.querySelector(`[data-mcp-ref="${ref}"]`);
 }
 
 export function findByXPath(path: string): Element | null {
@@ -64,12 +68,8 @@ export function findElement(ref: string): Element | null {
   }
 
   switch (parsed.type) {
-    case 'index': {
-      const elements = document.querySelectorAll(
-        '[data-mcp-ref], a, button, input, select, textarea, [role="button"], [role="link"]',
-      );
-      return elements[parsed.index!] || null;
-    }
+    case 'mcpRef':
+      return findByMcpRef(parsed.ref!);
     case 'css':
       return document.querySelector(parsed.selector!);
     case 'xpath':

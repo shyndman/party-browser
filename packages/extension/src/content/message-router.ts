@@ -73,7 +73,7 @@ async function executeCommand(
     case 'evaluate':
       return commandHandlers.evaluate(params as { script: string });
     case 'snapshot':
-      return commandHandlers.snapshot();
+      return commandHandlers.snapshot(params as { nextRefStart?: number });
     case 'select_option':
       return commandHandlers.selectOption(params as { element: string; value: string });
     case 'press_key':

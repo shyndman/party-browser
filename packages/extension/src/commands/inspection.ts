@@ -24,11 +24,17 @@ import type { ContentBridge } from '../messaging/content-bridge';
  * Inspection command implementations
  */
 export class InspectionCommands {
+  private nextSnapshotRefByTab = new Map<number, number>();
+
   constructor(
     private sessionManager: SessionManager,
     private networkCapture: NetworkCapture,
     private contentBridge: ContentBridge
-  ) {}
+  ) {
+    this.sessionManager.onLeaseRevoked((_sessionId, lease) => {
+      this.nextSnapshotRefByTab.delete(lease.tabId);
+    });
+  }
 
   /**
    * Take a screenshot of the current tab
@@ -48,8 +54,22 @@ export class InspectionCommands {
    */
   async snapshot(params: SnapshotParams): Promise<CommandResult> {
     const targetTabId = await this.sessionManager.resolveTargetTab(params);
+    const nextRefStart = this.nextSnapshotRefByTab.get(targetTabId) ?? 0;
+    const result = await this.contentBridge.sendCommand(targetTabId, 'snapshot', {
+      nextRefStart,
+    }) as CommandResult<{ nextRefStart?: number }>;
+    const updatedNextRefStart = result.data?.nextRefStart;
 
-    return await this.contentBridge.sendCommand(targetTabId, 'snapshot', {}) as CommandResult;
+    if (
+      result.success
+      && typeof updatedNextRefStart === 'number'
+      && Number.isInteger(updatedNextRefStart)
+      && updatedNextRefStart >= nextRefStart
+    ) {
+      this.nextSnapshotRefByTab.set(targetTabId, updatedNextRefStart);
+    }
+
+    return result;
   }
 
   /**
