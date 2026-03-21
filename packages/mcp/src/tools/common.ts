@@ -164,6 +164,56 @@ const waitForInputSchema = {
   },
   required: ["mode", "value"],
   additionalProperties: false,
+  oneOf: [
+    {
+      type: "object",
+      properties: {
+        mode: { const: "time" },
+        value: {
+          type: "number",
+          description: "Time to wait in seconds",
+        },
+        timeout: {
+          type: "number",
+          description: "Optional maximum wait time in seconds (defaults to value)",
+        },
+      },
+      required: ["mode", "value"],
+      additionalProperties: false,
+    },
+    {
+      type: "object",
+      properties: {
+        mode: { const: "text" },
+        value: {
+          type: "string",
+          description: "Text to wait for (appears in page content)",
+        },
+        timeout: {
+          type: "number",
+          description: "Maximum wait time in seconds",
+        },
+      },
+      required: ["mode", "value", "timeout"],
+      additionalProperties: false,
+    },
+    {
+      type: "object",
+      properties: {
+        mode: { const: "text_gone" },
+        value: {
+          type: "string",
+          description: "Text to wait for (disappears from page content)",
+        },
+        timeout: {
+          type: "number",
+          description: "Maximum wait time in seconds",
+        },
+      },
+      required: ["mode", "value", "timeout"],
+      additionalProperties: false,
+    },
+  ],
 } as const;
 
 export const waitFor: Tool = {

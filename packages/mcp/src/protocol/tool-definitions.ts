@@ -133,7 +133,7 @@ export const SelectOptionTool = z.object({
   description: z.literal("Select an option from a dropdown"),
   arguments: z.object({
     element: z.string().describe("The ref of the select element"),
-    option: z.string().describe("The value or label of the option to select"),
+    value: z.string().describe("The value or label of the option to select"),
   }),
 });
 

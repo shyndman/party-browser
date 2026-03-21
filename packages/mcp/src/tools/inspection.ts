@@ -16,6 +16,52 @@ function formatTime(timestamp: number): string {
   return date.toISOString().split("T")[1].replace("Z", "");
 }
 
+type CommandEnvelope = {
+  success?: boolean;
+  error?: string;
+  errorCode?: string;
+  data?: unknown;
+};
+
+type NetworkRequestEntry = {
+  id?: string;
+  url?: string;
+  method?: string;
+  type?: string;
+  status?: number;
+  timestamp?: number;
+  error?: string;
+};
+
+type NetworkRequestsPayload = {
+  requests?: NetworkRequestEntry[];
+};
+
+type ConsoleLogEntry = {
+  level?: string;
+  message?: string;
+  timestamp?: number;
+  stack?: string;
+};
+
+function unwrapCommandPayload<T>(result: unknown): T {
+  if (
+    result
+    && typeof result === "object"
+    && "data" in result
+    && (result as { data?: unknown }).data !== undefined
+  ) {
+    return (result as { data: T }).data;
+  }
+
+  return result as T;
+}
+
+function extractConsoleLogs(result: unknown): ConsoleLogEntry[] {
+  const payload = unwrapCommandPayload<{ logs?: unknown }>(result);
+  return Array.isArray(payload.logs) ? payload.logs as ConsoleLogEntry[] : [];
+}
+
 /**
  * Network requests tool - retrieve captured network activity from current session
  */
@@ -39,7 +85,8 @@ export const networkRequests: Tool = {
           );
         }
 
-      const requests = response.requests || [];
+      const payload = unwrapCommandPayload<NetworkRequestsPayload>(response);
+      const requests = payload.requests || [];
 
       if (requests.length === 0) {
         return {
@@ -68,15 +115,17 @@ export const networkRequests: Tool = {
       for (const [type, reqs] of Object.entries(byType)) {
         lines.push(`### ${type} (${reqs.length})`);
         for (const req of reqs) {
-          const status = req.status || (req.error ? "ERR" : "---");
+          const numericStatus = req.status;
+          const status = numericStatus ?? (req.error ? "ERR" : "---");
           const statusBadge =
-            req.status >= 400 || req.error
+            (typeof numericStatus === "number" && numericStatus >= 400) || req.error
               ? `[${status}]`
-              : req.status >= 300
+              : typeof numericStatus === "number" && numericStatus >= 300
                 ? `[${status}]`
                 : `[${status}]`;
-          const method = req.method.padEnd(6);
-          const url = req.url.length > 80 ? req.url.slice(0, 77) + "..." : req.url;
+          const method = (req.method ?? "GET").padEnd(6);
+          const rawUrl = req.url ?? "(unknown url)";
+          const url = rawUrl.length > 80 ? rawUrl.slice(0, 77) + "..." : rawUrl;
           lines.push(`${statusBadge} ${method} ${url}`);
           if (req.error) {
             lines.push(`    Error: ${req.error}`);
@@ -131,7 +180,7 @@ export const consoleMessages: Tool = {
           );
         }
 
-      const logs = response.logs || [];
+      const logs = extractConsoleLogs(response);
 
       if (logs.length === 0) {
         return {
@@ -150,7 +199,7 @@ export const consoleMessages: Tool = {
       ];
 
       for (const log of logs) {
-        const time = formatTime(log.timestamp);
+        const time = formatTime(log.timestamp ?? 0);
         const level = (log.level || "log").toUpperCase().padEnd(5);
         const message = log.message || "";
 

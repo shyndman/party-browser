@@ -15,7 +15,7 @@ export interface SocketMessageMap {
   hover: { element: string };
   type: { element: string; text: string };
   press_key: { key: string };
-  select_option: { element: string; option: string };
+  select_option: { element: string; value: string };
   wait: { time: number };
 
   // Snapshot and inspection messages

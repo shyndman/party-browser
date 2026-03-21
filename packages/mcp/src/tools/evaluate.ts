@@ -1,5 +1,7 @@
 import { zodToJsonSchema } from "zod-to-json-schema";
 
+import { MCP_ERROR_CODES } from "@/protocol/constants";
+import { CodedError } from "@/protocol/ws-sender";
 import { EvaluateTool } from "@/protocol/tool-definitions";
 
 import type { Tool } from "./tool";
@@ -12,18 +14,26 @@ export const evaluate: Tool = {
   },
   handle: async (context, params) => {
     const { script } = EvaluateTool.shape.arguments.parse(params);
-    const result = await context.sendSocketMessage("evaluate", { script });
+    const commandResult = await context.sendSocketMessage("evaluate", { script });
+    const { success, value, error, errorCode } = unwrapEvaluateResult(commandResult);
+
+    if (!success) {
+      throw new CodedError(
+        error || "Evaluation failed",
+        errorCode || MCP_ERROR_CODES.INTERNAL_TOOL_ERROR,
+      );
+    }
 
     // Format result based on type for readable output
     let resultText: string;
-    if (result === undefined) {
+    if (value === undefined) {
       resultText = "undefined";
-    } else if (result === null) {
+    } else if (value === null) {
       resultText = "null";
-    } else if (typeof result === "object") {
-      resultText = JSON.stringify(result, null, 2);
+    } else if (typeof value === "object") {
+      resultText = JSON.stringify(value, null, 2);
     } else {
-      resultText = String(result);
+      resultText = String(value);
     }
 
     return {
@@ -34,3 +44,52 @@ export const evaluate: Tool = {
     };
   },
 };
+
+type EvaluateCommandResultEnvelope = {
+  success: boolean;
+  data?: { result?: unknown };
+  error?: string;
+  errorCode?: string;
+  stack?: string;
+};
+
+type UnwrappedEvaluateResult = {
+  success: boolean;
+  value: unknown;
+  error?: string;
+  errorCode?: string;
+};
+
+function unwrapEvaluateResult(payload: unknown): UnwrappedEvaluateResult {
+  if (isEvaluateCommandResultEnvelope(payload)) {
+    return {
+      success: payload.success,
+      value: payload.data?.result,
+      error: payload.error,
+      errorCode: payload.errorCode,
+    };
+  }
+
+  return {
+    success: true,
+    value: payload,
+  };
+}
+
+function isEvaluateCommandResultEnvelope(value: unknown): value is EvaluateCommandResultEnvelope {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const candidate = value as EvaluateCommandResultEnvelope;
+  if (typeof candidate.success !== "boolean") {
+    return false;
+  }
+
+  return (
+    Object.prototype.hasOwnProperty.call(candidate, "data")
+    || Object.prototype.hasOwnProperty.call(candidate, "error")
+    || Object.prototype.hasOwnProperty.call(candidate, "errorCode")
+    || Object.prototype.hasOwnProperty.call(candidate, "stack")
+  );
+}

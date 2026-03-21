@@ -14,7 +14,8 @@ import type {
   DragParams,
   HoverParams,
   WaitParams,
-  WaitForParams
+  WaitForParams,
+  WaitForPayload
 } from '../types/commands';
 import type { SessionManager } from '../session/session-manager';
 import type { ContentBridge } from '../messaging/content-bridge';
@@ -42,10 +43,10 @@ export class InteractionCommands {
    * Type text into an element
    */
   async type(params: TypeParams): Promise<CommandResult> {
-    const { element, value } = params;
+    const { element, text } = params;
     const targetTabId = await this.sessionManager.resolveTargetTab(params);
 
-    return await this.contentBridge.sendCommand(targetTabId, 'type', { element, value }) as CommandResult;
+    return await this.contentBridge.sendCommand(targetTabId, 'type', { element, text }) as CommandResult;
   }
 
   /**
@@ -92,19 +93,26 @@ export class InteractionCommands {
    * Wait for a specified time
    */
   async wait(params: WaitParams): Promise<CommandResult> {
-    const { timeout } = params;
-    await this.sessionManager.resolveTargetTab(params);
-    await new Promise((resolve) => setTimeout(resolve, timeout));
-    return { success: true };
+    const { time } = params;
+    const targetTabId = await this.sessionManager.resolveTargetTab(params);
+    return await this.contentBridge.sendCommand(targetTabId, 'wait', { time }) as CommandResult;
   }
 
   /**
    * Wait for a condition to be met
    */
   async waitFor(params: WaitForParams): Promise<CommandResult> {
-    const { mode, value, timeout } = params;
     const targetTabId = await this.sessionManager.resolveTargetTab(params);
+    let payload: WaitForPayload;
 
-    return await this.contentBridge.sendCommand(targetTabId, 'wait_for', { mode, value, timeout }) as CommandResult;
+    if (params.mode === 'time') {
+      payload = { mode: 'time', value: params.value, timeout: params.timeout };
+    } else if (params.mode === 'text') {
+      payload = { mode: 'text', value: params.value, timeout: params.timeout };
+    } else {
+      payload = { mode: 'text_gone', value: params.value, timeout: params.timeout };
+    }
+
+    return await this.contentBridge.sendCommand(targetTabId, 'wait_for', payload) as CommandResult;
   }
 }

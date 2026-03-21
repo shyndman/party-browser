@@ -1,0 +1,38 @@
+import { strict as assert } from 'node:assert';
+import test from 'node:test';
+
+import type { Context } from '@/context';
+
+import { networkRequests } from './inspection';
+
+test('networkRequests unwraps wrapped payload', async () => {
+  const responses = {
+    get_network_requests: {
+      success: true,
+      data: {
+        count: 1,
+        requests: [
+          {
+            id: 'req-1',
+            url: 'https://example.com/foo',
+            method: 'GET',
+            type: 'xhr',
+            status: 200,
+            timestamp: 1,
+          },
+        ],
+      },
+    },
+  } as const;
+
+  const context = {
+    sendSocketMessage: async (type: keyof typeof responses) => responses[type],
+  } as unknown as Context;
+
+  const result = await networkRequests.handle(context, {});
+  const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+
+  assert.match(text, /Network Requests \(1 total\)/);
+  assert.match(text, /GET/);
+  assert.match(text, /https:\/\/example\.com\/foo/);
+});

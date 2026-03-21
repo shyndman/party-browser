@@ -79,7 +79,7 @@ export interface ClickParams extends SessionScopedParams {
  */
 export interface TypeParams extends SessionScopedParams {
   element: ElementRef;
-  value: string;
+  text: string;
 }
 
 /**
@@ -109,9 +109,10 @@ export interface SelectOptionParams extends SessionScopedParams {
 
 /**
  * Parameters for wait command
+ * `time` specifies the duration to wait, in seconds.
  */
 export interface WaitParams extends SessionScopedParams {
-  timeout: number;
+  time: number;
 }
 
 /**
@@ -155,13 +156,17 @@ export interface PressKeyParams extends SessionScopedParams {
 }
 
 /**
+ * Payload for wait_for command (no session metadata)
+ */
+export type WaitForPayload =
+  | { mode: 'time'; value: number; timeout?: number }
+  | { mode: 'text'; value: string; timeout: number }
+  | { mode: 'text_gone'; value: string; timeout: number };
+
+/**
  * Parameters for wait_for command
  */
-export interface WaitForParams extends SessionScopedParams {
-  mode: 'time' | 'text' | 'text_gone';
-  value: string;
-  timeout?: number;
-}
+export type WaitForParams = SessionScopedParams & WaitForPayload;
 
 /**
  * Parameters for drag command

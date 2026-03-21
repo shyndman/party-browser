@@ -8,7 +8,13 @@
 import { defineContentScript } from 'wxt/utils/define-content-script';
 import type BrowserNamespace from 'webextension-polyfill';
 import type { ContentScriptContext } from 'wxt/utils/content-script-context';
-import type { CommandResult } from '../src/types/commands';
+import type { CommandResult, WaitForPayload } from '../src/types/commands';
+import {
+  createClickEventPlan,
+  createDragEventPlan,
+  createHoverEventPlan,
+  createPressKeyPlan,
+} from '../src/commands/interaction-realism';
 import { ConsoleCapture } from '../src/session/console-capture';
 
 const MAX_CONSOLE_LOGS = 1000;
@@ -117,6 +123,120 @@ export default defineContentScript({
       return null;
     }
 
+    function dispatchMouseLikeEvent(
+      element: Element,
+      type: string,
+      init: MouseEventInit,
+    ): void {
+      const event = new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        view: window,
+        ...init,
+      });
+      element.dispatchEvent(event);
+    }
+
+    function dispatchPointerLikeEvent(
+      element: Element,
+      type: string,
+      init: MouseEventInit,
+    ): void {
+      if (typeof PointerEvent === 'function') {
+        element.dispatchEvent(new PointerEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          view: window,
+          pointerId: 1,
+          pointerType: 'mouse',
+          isPrimary: true,
+          ...init,
+        }));
+        return;
+      }
+
+      dispatchMouseLikeEvent(element, type, init);
+    }
+
+    function dispatchDragLikeEvent(
+      element: Element,
+      type: string,
+      dataTransfer: DataTransfer,
+      init: MouseEventInit,
+    ): void {
+      if (typeof DragEvent === 'function') {
+        element.dispatchEvent(new DragEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          dataTransfer,
+          ...init,
+        }));
+        return;
+      }
+
+      const event = new Event(type, { bubbles: true, cancelable: true, composed: true });
+      Object.defineProperty(event, 'dataTransfer', { value: dataTransfer });
+      element.dispatchEvent(event);
+    }
+
+    function dispatchKeyboardLikeEvent(element: Element, type: string, key: string): boolean {
+      return element.dispatchEvent(new KeyboardEvent(type, {
+        key,
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+      }));
+    }
+
+    function applyTextInsertion(target: HTMLElement, text: string): void {
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+        const start = target.selectionStart ?? target.value.length;
+        const end = target.selectionEnd ?? target.value.length;
+        target.setRangeText(text, start, end, 'end');
+        return;
+      }
+
+      if (target.isContentEditable) {
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) {
+          target.textContent = `${target.textContent ?? ''}${text}`;
+          return;
+        }
+
+        const range = selection.getRangeAt(0);
+        range.deleteContents();
+        range.insertNode(document.createTextNode(text));
+        range.collapse(false);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+    }
+
+    function moveFocusToNextFocusableElement(current: HTMLElement): void {
+      const focusable = Array.from(document.querySelectorAll<HTMLElement>(
+        'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      )).filter((candidate) => !candidate.hasAttribute('disabled') && candidate.tabIndex >= 0);
+
+      const currentIndex = focusable.indexOf(current);
+      if (currentIndex === -1) {
+        return;
+      }
+
+      focusable[(currentIndex + 1) % focusable.length]?.focus();
+    }
+
+    function getKeyboardTarget(): HTMLElement {
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && active !== document.body) {
+        return active;
+      }
+
+      return document.body;
+    }
+
     // ============================================================
     // Command Implementations
     // ============================================================
@@ -132,14 +252,19 @@ export default defineContentScript({
       element.scrollIntoView({ behavior: 'smooth', block: 'center' });
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      const clickEvent = new MouseEvent('click', {
-        bubbles: true,
-        cancelable: true,
-        view: window
-      });
-      element.dispatchEvent(clickEvent);
+      const rect = element.getBoundingClientRect();
+      const eventInit = {
+        clientX: rect.left + rect.width / 2,
+        clientY: rect.top + rect.height / 2,
+      };
 
-      (element as HTMLElement).click();
+      for (const plannedEvent of createClickEventPlan()) {
+        if (plannedEvent.family === 'pointer') {
+          dispatchPointerLikeEvent(element, plannedEvent.type, eventInit);
+        } else {
+          dispatchMouseLikeEvent(element, plannedEvent.type, eventInit);
+        }
+      }
 
       return {
         success: true,
@@ -151,8 +276,8 @@ export default defineContentScript({
       };
     }
 
-    async function typeIntoElement(params: { element: string; value: string }): Promise<CommandResult> {
-      const { element: ref, value } = params;
+    async function typeIntoElement(params: { element: string; text: string }): Promise<CommandResult> {
+      const { element: ref, text } = params;
       const element = findElement(ref) as HTMLInputElement | HTMLTextAreaElement;
 
       if (!element) {
@@ -168,7 +293,7 @@ export default defineContentScript({
         element.dispatchEvent(new Event('change', { bubbles: true }));
       }
 
-      for (const char of value) {
+      for (const char of text) {
         element.dispatchEvent(new KeyboardEvent('keydown', {
           key: char,
           bubbles: true
@@ -194,7 +319,7 @@ export default defineContentScript({
         success: true,
         data: {
           element: ref,
-          value: value.slice(0, 50)
+          value: text.slice(0, 50)
         }
       };
     }
@@ -384,34 +509,77 @@ export default defineContentScript({
     async function pressKey(params: { key: string }): Promise<CommandResult> {
       const { key } = params;
 
-      const keydownEvent = new KeyboardEvent('keydown', {
-        key,
-        bubbles: true,
-        cancelable: true
+      const target = getKeyboardTarget();
+      const plan = createPressKeyPlan(key, {
+        tagName: target.tagName,
+        type: target instanceof HTMLInputElement ? target.type : null,
+        role: target.getAttribute('role'),
+        isContentEditable: target.isContentEditable,
       });
-      document.dispatchEvent(keydownEvent);
 
-      const keyupEvent = new KeyboardEvent('keyup', {
-        key,
-        bubbles: true,
-        cancelable: true
-      });
-      document.dispatchEvent(keyupEvent);
+      let keydownAllowed = true;
+
+      for (const plannedEvent of plan.events) {
+        if (plannedEvent.family === 'keyboard') {
+          const allowed = dispatchKeyboardLikeEvent(target, plannedEvent.type, key);
+          if (plannedEvent.type === 'keydown') {
+            keydownAllowed = allowed;
+          }
+          continue;
+        }
+
+        const inputType = plannedEvent.type === 'beforeinput' ? 'insertText' : 'insertText';
+        const inputEvent = new InputEvent(plannedEvent.type, {
+          bubbles: true,
+          cancelable: plannedEvent.type === 'beforeinput',
+          composed: true,
+          data: plan.insertText ?? null,
+          inputType,
+        });
+
+        const allowed = target.dispatchEvent(inputEvent);
+        if (plannedEvent.type === 'beforeinput' && allowed && plan.insertText) {
+          applyTextInsertion(target, plan.insertText);
+        }
+      }
+
+      if (plan.activateElement && keydownAllowed && typeof target.click === 'function') {
+        target.click();
+      }
+
+      if (plan.moveFocus && keydownAllowed) {
+        moveFocusToNextFocusableElement(target);
+      }
 
       return { success: true, data: { key } };
     }
 
-    async function waitForCondition(params: { mode: string; value: string; timeout?: number }): Promise<CommandResult> {
-      const { mode, value, timeout: timeoutSeconds = 30 } = params;
-      const timeoutMs = timeoutSeconds * 1000;
+    async function waitForDuration(params: { time: number }): Promise<CommandResult> {
+      const seconds = Number(params.time);
+      if (!Number.isFinite(seconds) || seconds < 0) {
+        throw new Error(`Invalid wait time: ${params.time}`);
+      }
+
+      const waitMs = seconds * 1000;
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+      return { success: true, data: { waited: waitMs } };
+    }
+
+    async function waitForCondition(params: WaitForPayload): Promise<CommandResult> {
+      const { mode } = params;
       const startTime = Date.now();
 
       if (mode === 'time') {
-        const seconds = parseInt(value, 10) || 1;
-        const ms = seconds * 1000;
-        await new Promise((resolve) => setTimeout(resolve, ms));
-        return { success: true, data: { mode, waited: ms } };
+        const delayMs = Math.max(0, params.value) * 1000;
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        return { success: true, data: { mode, waited: delayMs } };
       }
+
+      if (typeof params.timeout !== 'number') {
+        throw new Error(`timeout is required for mode=${mode}`);
+      }
+
+      const timeoutMs = params.timeout * 1000;
 
       if (mode === 'text') {
         return new Promise((resolve, reject) => {
@@ -419,14 +587,14 @@ export default defineContentScript({
             const bodyText = document.body.innerText || '';
             const elapsed = Date.now() - startTime;
 
-            if (bodyText.includes(value)) {
+            if (bodyText.includes(params.value)) {
               clearInterval(checkInterval);
               resolve({ success: true, data: { mode, waited: elapsed } });
             }
 
             if (elapsed >= timeoutMs) {
               clearInterval(checkInterval);
-              reject(new Error(`Timeout waiting for text: ${value}`));
+              reject(new Error(`Timeout waiting for text: ${params.value}`));
             }
           }, 100);
         });
@@ -438,14 +606,14 @@ export default defineContentScript({
             const bodyText = document.body.innerText || '';
             const elapsed = Date.now() - startTime;
 
-            if (!bodyText.includes(value)) {
+            if (!bodyText.includes(params.value)) {
               clearInterval(checkInterval);
               resolve({ success: true, data: { mode, waited: elapsed } });
             }
 
             if (elapsed >= timeoutMs) {
               clearInterval(checkInterval);
-              reject(new Error(`Timeout waiting for text to disappear: ${value}`));
+              reject(new Error(`Timeout waiting for text to disappear: ${params.value}`));
             }
           }, 100);
         });
@@ -475,30 +643,22 @@ export default defineContentScript({
       const endX = endRect.left + endRect.width / 2;
       const endY = endRect.top + endRect.height / 2;
 
-      startEl.dispatchEvent(new MouseEvent('mousedown', {
-        bubbles: true,
-        cancelable: true,
-        clientX: startX,
-        clientY: startY
-      }));
+      const dataTransfer = new DataTransfer();
 
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      for (const plannedEvent of createDragEventPlan()) {
+        const target = plannedEvent.target === 'source' ? startEl : endEl;
+        const eventInit = plannedEvent.target === 'source'
+          ? { clientX: startX, clientY: startY }
+          : { clientX: endX, clientY: endY };
 
-      document.dispatchEvent(new MouseEvent('mousemove', {
-        bubbles: true,
-        cancelable: true,
-        clientX: endX,
-        clientY: endY
-      }));
+        if (plannedEvent.family === 'drag') {
+          dispatchDragLikeEvent(target, plannedEvent.type, dataTransfer, eventInit);
+        } else {
+          dispatchMouseLikeEvent(target, plannedEvent.type, eventInit);
+        }
 
-      await new Promise((resolve) => setTimeout(resolve, 50));
-
-      endEl.dispatchEvent(new MouseEvent('mouseup', {
-        bubbles: true,
-        cancelable: true,
-        clientX: endX,
-        clientY: endY
-      }));
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
 
       return { success: true, data: { startElement, endElement } };
     }
@@ -511,15 +671,19 @@ export default defineContentScript({
         throw new Error(`Element not found: ${element}`);
       }
 
-      el.dispatchEvent(new MouseEvent('mouseover', {
-        bubbles: true,
-        cancelable: true
-      }));
+      const rect = el.getBoundingClientRect();
+      const eventInit = {
+        clientX: rect.left + rect.width / 2,
+        clientY: rect.top + rect.height / 2,
+      };
 
-      el.dispatchEvent(new MouseEvent('mouseenter', {
-        bubbles: true,
-        cancelable: true
-      }));
+      for (const plannedEvent of createHoverEventPlan()) {
+        if (plannedEvent.family === 'pointer') {
+          dispatchPointerLikeEvent(el, plannedEvent.type, eventInit);
+        } else {
+          dispatchMouseLikeEvent(el, plannedEvent.type, eventInit);
+        }
+      }
 
       return { success: true, data: { element } };
     }
@@ -540,7 +704,7 @@ export default defineContentScript({
         case 'click':
           return await clickElement(params as { element: string });
         case 'type':
-          return await typeIntoElement(params as { element: string; value: string });
+          return await typeIntoElement(params as { element: string; text: string });
         case 'evaluate':
           return await evaluateScript(params as { script: string });
         case 'snapshot':
@@ -549,8 +713,10 @@ export default defineContentScript({
           return await selectOption(params as { element: string; value: string });
         case 'press_key':
           return await pressKey(params as { key: string });
+        case 'wait':
+          return await waitForDuration(params as { time: number });
         case 'wait_for':
-          return await waitForCondition(params as { mode: string; value: string; timeout?: number });
+          return await waitForCondition(params as WaitForPayload);
         case 'drag':
           return await dragElement(params as { startElement: string; endElement: string });
         case 'hover':

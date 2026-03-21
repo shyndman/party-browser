@@ -4,6 +4,31 @@ import { ScreenshotTool } from "@/protocol/tool-definitions";
 
 import { Tool } from "./tool";
 
+function unwrapScreenshotPayload(response: unknown): string | undefined {
+  if (typeof response === "string") {
+    return response;
+  }
+
+  if (
+    response
+    && typeof response === "object"
+    && !Array.isArray(response)
+  ) {
+    const envelope = response as {
+      success?: boolean;
+      data?: {
+        screenshot?: unknown;
+      };
+    };
+
+    if (envelope.success === true && typeof envelope.data?.screenshot === "string") {
+      return envelope.data.screenshot;
+    }
+  }
+
+  return undefined;
+}
+
 export const screenshot: Tool = {
   schema: {
     name: ScreenshotTool.shape.name.value,
@@ -13,10 +38,11 @@ export const screenshot: Tool = {
   handle: async (context, _params) => {
     try {
       // Extension contract: returns base64-encoded PNG string (not Data URL)
-      const screenshot = await context.sendSocketMessage(
+      const rawResponse = await context.sendSocketMessage(
         "screenshot",
         {},
       );
+      const screenshot = unwrapScreenshotPayload(rawResponse);
 
       // Validate we received data
       if (!screenshot || typeof screenshot !== "string") {

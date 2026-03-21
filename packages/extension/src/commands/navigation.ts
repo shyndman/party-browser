@@ -37,14 +37,6 @@ export class NavigationCommands {
     await browser.tabs.update(targetTabId, { url });
     await this.waitForTabLoad(targetTabId);
 
-    try {
-      await browser.tabs.executeScript(targetTabId, {
-        code: `document.title = 'OC | ' + document.title`
-      });
-    } catch (error) {
-      console.log('[PartyBrowser] Could not update tab title:', (error as Error).message);
-    }
-
     return { success: true, data: { url, tabId: targetTabId } };
   }
 
@@ -54,6 +46,7 @@ export class NavigationCommands {
   async goBack(params: GoBackParams): Promise<CommandResult> {
     const targetTabId = await this.sessionManager.resolveTargetTab(params);
     await browser.tabs.goBack(targetTabId);
+    await this.waitForTabLoad(targetTabId);
     return { success: true };
   }
 
@@ -63,6 +56,7 @@ export class NavigationCommands {
   async goForward(params: GoForwardParams): Promise<CommandResult> {
     const targetTabId = await this.sessionManager.resolveTargetTab(params);
     await browser.tabs.goForward(targetTabId);
+    await this.waitForTabLoad(targetTabId);
     return { success: true };
   }
 
