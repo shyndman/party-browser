@@ -6,7 +6,6 @@
   "type": "module",
   "packageManager": "pnpm@10.30.3+sha512.c961d1e0a2d8e354ecaa5166b822516668b7f44cb5bd95122d590dd81922f606f5473b6d23ec4a5be05e7fcd18e8488d47d978bbe981872f1145d06e9a740017",
   "scripts": {
-    "install:all": "pnpm install",
     "install:extension": "pnpm run build:extension:xpi && open packages/extension/.output/*.xpi",
     "postinstall": "pnpm run -r postinstall",
     "build": "pnpm run -r build && pnpm run build:extension:xpi",
@@ -32,7 +31,9 @@
     "service:uninstall": "pnpm --filter ./packages/hub run service:uninstall",
     "service:status": "pnpm --filter ./packages/hub run service:status",
     "service:logs": "pnpm --filter ./packages/hub run service:logs",
-    "service:redeploy": "pnpm run build:hub && systemctl --user restart partybrowser-hub.service && pnpm run service:status"
+    "service:restart": "systemctl --user restart partybrowser-hub.service && pnpm run service:status",
+    "service:redeploy": "pnpm run build:hub && pnpm run service:restart",
+    "redeploy:all": "pnpm run build && pnpm run install:extension && pnpm run service:restart"
   },
   "devDependencies": {
     "typescript": "^5.6.2"
