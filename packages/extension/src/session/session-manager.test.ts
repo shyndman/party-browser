@@ -20,6 +20,9 @@ function createEventEmitter() {
         listener(...args);
       }
     },
+    listenerCount() {
+      return listeners.size;
+    },
   };
 }
 
@@ -192,6 +195,44 @@ test('lease creation applies deterministic geometry and stores snapshot shape', 
       tabId: lease.tabId,
     },
   });
+});
+
+test('lease creation returns immediately when the initial tab is already fully loaded', async () => {
+  const browserState = installBrowserMock();
+  const manager = new SessionManager();
+
+  let readyStateProbeCount = 0;
+  let titleScriptCount = 0;
+  (globalThis as any).browser.tabs.executeScript = async (
+    tabId: number,
+    details: { code?: string },
+  ) => {
+    assert.equal(typeof tabId, 'number');
+
+    if (details.code === 'document.readyState') {
+      readyStateProbeCount += 1;
+      return ['complete'];
+    }
+
+    if (details.code === `document.title = 'OC | PartyBrowser Session'`) {
+      titleScriptCount += 1;
+      return [];
+    }
+
+    throw new Error(`unexpected script: ${details.code}`);
+  };
+
+  const lease = await manager.createLease('session-ready', 'https://ready.example');
+
+  assert.equal(typeof lease.windowId, 'number');
+  assert.equal(typeof lease.tabId, 'number');
+  assert.equal(readyStateProbeCount, 1);
+  assert.equal(titleScriptCount, 1);
+  assert.equal(
+    browserState.tabOnUpdated.listenerCount(),
+    0,
+    'should not register a load listener when readyState is complete',
+  );
 });
 
 test('window close revokes lease and blocks future routing', async () => {

@@ -63,18 +63,38 @@ export class NavigationCommands {
   /**
    * Wait for tab to finish loading
    */
-  private waitForTabLoad(tabId: number): Promise<void> {
-    return new Promise((resolve) => {
+  private async waitForTabLoad(tabId: number): Promise<void> {
+    try {
+      const [readyState] = await browser.tabs.executeScript(tabId, {
+        code: 'document.readyState',
+      });
+
+      if (readyState === 'complete') {
+        return;
+      }
+    } catch {
+      // Fall back to the load listener when the readiness probe is unavailable.
+    }
+
+    await new Promise<void>((resolve) => {
+      let timeoutId: ReturnType<typeof setTimeout>;
+
+      const cleanup = () => {
+        browser.tabs.onUpdated.removeListener(listener);
+      };
+
       const listener = (updatedTabId: number, changeInfo: { status?: string }) => {
         if (updatedTabId === tabId && changeInfo.status === 'complete') {
-          browser.tabs.onUpdated.removeListener(listener);
+          clearTimeout(timeoutId);
+          cleanup();
           resolve();
         }
       };
+
       browser.tabs.onUpdated.addListener(listener);
 
-      setTimeout(() => {
-        browser.tabs.onUpdated.removeListener(listener);
+      timeoutId = setTimeout(() => {
+        cleanup();
         resolve();
       }, 10000);
     });
