@@ -310,6 +310,101 @@ test("kill switch revoke wins over in-flight command", async () => {
   }
 });
 
+test("approval lifecycle log explains missing lease race after approval", async () => {
+  const harness = await createHarness();
+  const captureStream = new LogCaptureStream();
+  const captureTransport = new winston.transports.Stream({
+    stream: captureStream,
+    level: "info",
+  });
+  addHubLogTransport(captureTransport);
+
+  try {
+    const joinDecisionPromise = waitForMessage(
+      harness.mcp,
+      (message) =>
+        message.type === HUB_CONTROL_MESSAGE_TYPES.JOIN_DECISION &&
+        message.decision === HUB_JOIN_DECISIONS.JOIN,
+    );
+
+    harness.mcp.send(
+      JSON.stringify({
+        type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST,
+        name: "Agent Lease Race",
+        reason: "Race first command after approval",
+        url: "https://example.com/lease-race",
+      }),
+    );
+
+    const sessionId = await approveSinglePendingSession(harness);
+    await joinDecisionPromise;
+
+    harness.mcp.send(
+      JSON.stringify({
+        requestId: "cmd-lease-race",
+        sessionId,
+        type: "navigate",
+        payload: {
+          url: "https://partybrowser.io/lease-race",
+        },
+      }),
+    );
+
+    await waitForMessage(
+      harness.extension,
+      (message) =>
+        message.type === HUB_EXTENSION_MESSAGE_TYPES.SESSION_COMMAND &&
+        message.requestId === "cmd-lease-race",
+    );
+
+    harness.extension.send(
+      JSON.stringify({
+        type: HUB_EXTENSION_MESSAGE_TYPES.SESSION_RESULT,
+        requestId: "cmd-lease-race",
+        sessionId,
+        success: false,
+        error: "No active lease for session.",
+        errorCode: "SESSION_LEASE_NOT_FOUND",
+      }),
+    );
+
+    const failedCommand = await waitForMessage(
+      harness.mcp,
+      (message) => message.requestId === "cmd-lease-race",
+    );
+
+    assert.equal(failedCommand.errorCode, "SESSION_LEASE_NOT_FOUND");
+
+    const approvalLifecycleLine = captureStream.lines.find(
+      (line) =>
+        line.includes("Session approved in hub; MCP approval sent before extension lease-ready ack exists.") &&
+        line.includes("session.lifecycle") &&
+        line.includes(`sessionId=${sessionId}`) &&
+        line.includes("fromState=pending") &&
+        line.includes("toState=active") &&
+        line.includes("leaseReadyAcknowledged=false"),
+    );
+    assert.ok(approvalLifecycleLine, "expected approval lifecycle log line");
+
+    const leaseRaceWarningLine = captureStream.lines.find(
+      (line) =>
+        line.includes(
+          "Extension reported missing session lease; likely approval-before-lease-ready race after hub approval.",
+        ) &&
+        line.includes(`sessionId=${sessionId}`) &&
+        line.includes("requestId=cmd-lease-race") &&
+        line.includes("commandType=navigate") &&
+        line.includes("errorCode=SESSION_LEASE_NOT_FOUND") &&
+        line.includes("sessionState=active") &&
+        line.includes("likelyCause=approval_before_extension_lease_ready"),
+    );
+    assert.ok(leaseRaceWarningLine, "expected missing-lease race warning log line");
+  } finally {
+    removeHubLogTransport(captureTransport);
+    await destroyHarness(harness);
+  }
+});
+
 test("mcp disconnect cleans up pending and active sessions for that connection", async () => {
   const harness = await createHarness();
   const captureStream = new LogCaptureStream();
@@ -486,6 +581,27 @@ test("mcp disconnect cleans up pending and active sessions for that connection",
         line.includes("failedCommandCount=1"),
     );
     assert.ok(disconnectSummaryLine, "expected MCP disconnect cleanup summary log line");
+
+    const activeLifecycleLine = captureStream.lines.find(
+      (line) =>
+        line.includes("Session revoked because MCP connection closed.") &&
+        line.includes(`sessionId=${activeSessionId}`) &&
+        line.includes("fromState=active") &&
+        line.includes("toState=revoked") &&
+        line.includes("reason=mcp_disconnect"),
+    );
+    assert.ok(activeLifecycleLine, "expected active session lifecycle revoke log line");
+
+    const pendingLifecycleLine = captureStream.lines.find(
+      (line) =>
+        line.includes("Session revoked because MCP connection closed.") &&
+        line.includes(`sessionId=${pendingSessionId}`) &&
+        line.includes("fromState=pending") &&
+        line.includes("toState=revoked") &&
+        line.includes("removedFromWaitingRoom=true") &&
+        line.includes("reason=mcp_disconnect"),
+    );
+    assert.ok(pendingLifecycleLine, "expected pending session lifecycle revoke log line");
   } finally {
     removeHubLogTransport(captureTransport);
     await destroyHarness(harness);
