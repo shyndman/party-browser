@@ -178,17 +178,6 @@ export class SessionManager {
     await this.waitForTabLoad(tabId);
 
     try {
-      await browser.tabs.executeScript(tabId, {
-        code: `document.title = 'OC | PartyBrowser Session'`,
-      });
-    } catch (error) {
-      console.log(
-        '[PartyBrowser] Could not set initial tab title:',
-        (error as Error).message,
-      );
-    }
-
-    try {
       await this.addTabToSessionGroup(tabId);
     } catch (error) {
       console.log(

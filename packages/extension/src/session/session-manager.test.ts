@@ -202,7 +202,6 @@ test('lease creation returns immediately when the initial tab is already fully l
   const manager = new SessionManager();
 
   let readyStateProbeCount = 0;
-  let titleScriptCount = 0;
   (globalThis as any).browser.tabs.executeScript = async (
     tabId: number,
     details: { code?: string },
@@ -214,11 +213,6 @@ test('lease creation returns immediately when the initial tab is already fully l
       return ['complete'];
     }
 
-    if (details.code === `document.title = 'OC | PartyBrowser Session'`) {
-      titleScriptCount += 1;
-      return [];
-    }
-
     throw new Error(`unexpected script: ${details.code}`);
   };
 
@@ -227,7 +221,6 @@ test('lease creation returns immediately when the initial tab is already fully l
   assert.equal(typeof lease.windowId, 'number');
   assert.equal(typeof lease.tabId, 'number');
   assert.equal(readyStateProbeCount, 1);
-  assert.equal(titleScriptCount, 1);
   assert.equal(
     browserState.tabOnUpdated.listenerCount(),
     0,
