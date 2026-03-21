@@ -177,15 +177,6 @@ export class SessionManager {
 
     await this.waitForTabLoad(tabId);
 
-    try {
-      await this.addTabToSessionGroup(tabId);
-    } catch (error) {
-      console.log(
-        '[PartyBrowser] Could not add tab to group:',
-        (error as Error).message,
-      );
-    }
-
     return { windowId, tabId };
   }
 
@@ -341,38 +332,6 @@ export class SessionManager {
     callback: (sessionId: string, lease: SessionLease, reason: string) => void,
   ): void {
     this.onLeaseRevokedCallbacks.push(callback);
-  }
-
-  /**
-   * Add tab to the session group (if tabGroups API is available)
-   */
-  private async addTabToSessionGroup(tabId: number): Promise<void> {
-    if (!browser.tabGroups) {
-      console.log('[PartyBrowser] Tab groups API not available');
-      return;
-    }
-
-    const groups = await browser.tabGroups.query({});
-    const existingGroup = groups.find((g) => g.title?.includes('BF') || false);
-
-    if (existingGroup) {
-      await browser.tabs.group({
-        tabIds: tabId,
-        groupId: existingGroup.id,
-      });
-      console.log(
-        `[PartyBrowser] Added tab ${tabId} to existing group: ${existingGroup.title}`,
-      );
-    } else {
-      const groupId = await browser.tabs.group({
-        tabIds: tabId,
-      });
-      await browser.tabGroups.update(groupId, {
-        title: 'BF',
-        color: 'blue',
-      });
-      console.log(`[PartyBrowser] Created new tab group`);
-    }
   }
 
   /**

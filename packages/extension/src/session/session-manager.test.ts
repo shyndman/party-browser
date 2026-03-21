@@ -38,6 +38,10 @@ type BrowserMockState = {
     width?: number;
     height?: number;
   }>;
+  createdLeaseWindows: Array<{
+    id: number;
+    tabs: Array<{ id: number; url?: string; windowId: number }>;
+  }>;
 };
 
 function installBrowserMock(): BrowserMockState {
@@ -52,6 +56,7 @@ function installBrowserMock(): BrowserMockState {
   const existingWindows = new Map<number, { id: number; tabIds: number[] }>();
 
   const createdWindowArgs: BrowserMockState['createdWindowArgs'] = [];
+  const createdLeaseWindows: BrowserMockState['createdLeaseWindows'] = [];
 
   (globalThis as any).browser = {
     tabs: {
@@ -94,9 +99,6 @@ function installBrowserMock(): BrowserMockState {
 
         return Array.from(existingTabs.values()).filter((tab) => tab.windowId === query.windowId);
       },
-      async group() {
-        return 1;
-      },
     },
     windows: {
       onRemoved: windowOnRemoved,
@@ -123,10 +125,13 @@ function installBrowserMock(): BrowserMockState {
         existingTabs.set(tab.id, tab);
         existingWindows.set(nextWindowId, { id: nextWindowId, tabIds: [tab.id] });
 
-        return {
+        const createdWindow = {
           id: nextWindowId,
           tabs: [{ id: tab.id, url: tab.url, windowId: tab.windowId }],
         };
+
+        createdLeaseWindows.push(createdWindow);
+        return createdWindow;
       },
       async remove(windowId: number) {
         const window = existingWindows.get(windowId);
@@ -140,7 +145,6 @@ function installBrowserMock(): BrowserMockState {
         existingWindows.delete(windowId);
       },
     },
-    tabGroups: undefined,
   };
 
   return {
@@ -148,6 +152,7 @@ function installBrowserMock(): BrowserMockState {
     tabOnRemoved,
     windowOnRemoved,
     createdWindowArgs,
+    createdLeaseWindows,
   };
 }
 
@@ -189,10 +194,16 @@ test('lease creation applies deterministic geometry and stores snapshot shape', 
     height: 480,
   });
 
+  const createdWindow = browserState.createdLeaseWindows[0];
+  assert.deepEqual(lease, {
+    windowId: createdWindow.id,
+    tabId: createdWindow.tabs[0].id,
+  });
+
   assert.deepEqual(manager.getLeaseSnapshot(), {
     'session-geometry': {
-      windowId: lease.windowId,
-      tabId: lease.tabId,
+      windowId: createdWindow.id,
+      tabId: createdWindow.tabs[0].id,
     },
   });
 });
