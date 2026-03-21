@@ -12,7 +12,8 @@
     "service:install": "node ../../scripts/install-hub-service.mjs",
     "service:uninstall": "node ../../scripts/uninstall-hub-service.mjs",
     "service:status": "systemctl --user status partybrowser-hub.service --no-pager",
-    "service:logs": "journalctl --user -u partybrowser-hub.service -f --no-pager"
+    "service:logs": "journalctl --user -u partybrowser-hub.service -f --no-pager",
+    "service:logs:dump": "journalctl --user -u partybrowser-hub.service --no-pager"
   },
   "dependencies": {
     "@echogarden/audio-io": "^0.4.2",

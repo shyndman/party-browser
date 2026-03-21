@@ -69,6 +69,15 @@ browser-mcp/
 
 ### General Principles
 
+#### Hub Logs — Start Here
+
+When debugging hub/runtime behavior, use the packaged service log commands before reaching for raw `journalctl`:
+
+- `pnpm run service:logs` — follow the user systemd journal for `partybrowser-hub.service`
+- `pnpm --filter ./packages/hub run service:logs:dump` — dump the existing hub journal without following
+
+These commands are the fastest way to inspect waiting-room decisions, command forwarding, extension responses, and lease-related failures.
+
 #### Don't Assume — When in Doubt, Ask
 
 The cost of asking a clarifying question (30 seconds) is far less than the cost of implementing the wrong thing (30+ minutes). Operators prefer a quick question over rework.
