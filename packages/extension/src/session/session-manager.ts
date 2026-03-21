@@ -43,6 +43,7 @@ export interface SessionLease {
  */
 export class SessionManager {
   private leases = new Map<string, SessionLease>();
+  private leaseCreatedAtMs = new Map<string, number>();
   private onLeaseRevokedCallbacks: Array<
     (sessionId: string, lease: SessionLease, reason: string) => void
   > = [];
@@ -63,14 +64,15 @@ export class SessionManager {
    * disappears, the corresponding session lease is revoked.
    */
   private setupTabRemovedListener(): void {
-    this.onTabRemovedListener = (removedTabId: number) => {
+    this.onTabRemovedListener = (removedTabId: number, removeInfo?: unknown) => {
       for (const [sessionId, lease] of this.leases.entries()) {
         if (lease.tabId !== removedTabId) {
           continue;
         }
 
+        const leaseAgeMs = this.getLeaseAgeMs(sessionId);
         console.warn(
-          `[PartyBrowser] Lease revoked; tab closed for session ${sessionId} (window ${lease.windowId}, tab ${lease.tabId})`,
+          `[PartyBrowser] Lease revoked; tab removed event matched lease for session ${sessionId} (window ${lease.windowId}, tab ${lease.tabId}, ageMs=${leaseAgeMs ?? 'unknown'}, removeInfo=${this.stringifyForLog(removeInfo)})`,
         );
         void this.revokeLease(sessionId, 'tab_closed', false);
         break;
@@ -89,8 +91,9 @@ export class SessionManager {
           continue;
         }
 
+        const leaseAgeMs = this.getLeaseAgeMs(sessionId);
         console.warn(
-          `[PartyBrowser] Lease revoked; window closed for session ${sessionId} (window ${lease.windowId}, tab ${lease.tabId})`,
+          `[PartyBrowser] Lease revoked; window removed event matched lease for session ${sessionId} (window ${lease.windowId}, tab ${lease.tabId}, ageMs=${leaseAgeMs ?? 'unknown'})`,
         );
         void this.revokeLease(sessionId, 'window_closed', false);
         break;
@@ -200,9 +203,10 @@ export class SessionManager {
 
     const lease = await this.createLeaseWindow(url);
     this.leases.set(sessionId, lease);
+    this.leaseCreatedAtMs.set(sessionId, Date.now());
 
     console.log(
-      `[PartyBrowser] Lease created: ${sessionId} -> window ${lease.windowId}, tab ${lease.tabId}`,
+      `[PartyBrowser] Lease created: ${sessionId} -> window ${lease.windowId}, tab ${lease.tabId}, url=${url}`,
     );
 
     return lease;
@@ -298,7 +302,9 @@ export class SessionManager {
       return false;
     }
 
+    const leaseAgeMs = this.getLeaseAgeMs(sessionId);
     this.leases.delete(sessionId);
+    this.leaseCreatedAtMs.delete(sessionId);
 
     if (closeWindow) {
       try {
@@ -309,10 +315,23 @@ export class SessionManager {
     }
 
     console.log(
-      `[PartyBrowser] Lease revoked: ${sessionId} (window ${lease.windowId}, tab ${lease.tabId}, reason: ${reason})`,
+      `[PartyBrowser] Lease revoked: ${sessionId} (window ${lease.windowId}, tab ${lease.tabId}, reason: ${reason}, ageMs=${leaseAgeMs ?? 'unknown'})`,
     );
     this.onLeaseRevokedCallbacks.forEach((cb) => cb(sessionId, { ...lease }, reason));
     return true;
+  }
+
+  private getLeaseAgeMs(sessionId: string): number | null {
+    const createdAtMs = this.leaseCreatedAtMs.get(sessionId);
+    return createdAtMs === undefined ? null : Date.now() - createdAtMs;
+  }
+
+  private stringifyForLog(value: unknown): string {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return '[unserializable]';
+    }
   }
 
   /**

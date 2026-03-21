@@ -164,6 +164,10 @@ export class InspectionCommands {
   async close(params: CloseParams): Promise<CommandResult> {
     await this.sessionManager.resolveTargetTab(params);
 
+    console.warn(
+      `[PartyBrowser] Close command is revoking lease (sessionId=${params.sessionId})`,
+    );
+
     await this.sessionManager.revokeLease(params.sessionId, 'user_close', true);
 
     // Stop network capture

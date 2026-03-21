@@ -102,6 +102,9 @@ export default defineBackground({
       console.log('[PartyBrowser] Kill switch toggled:', isKillSwitchEnabled ? 'ENABLED' : 'DISABLED');
 
       if (!isKillSwitchEnabled) {
+        console.warn(
+          `[PartyBrowser] Kill switch disable path is revoking all leases (leaseCount=${sessionManager.getLeaseCount()})`,
+        );
         mcpBridge.publishKillSwitchState(false);
         mcpBridge.disconnect();
         await sessionManager.revokeAllLeases('kill_switch_disabled', true);

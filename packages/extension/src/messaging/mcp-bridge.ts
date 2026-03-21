@@ -288,6 +288,10 @@ export class McpBridge {
         const sessionId = this.requireString(payload.sessionId, 'payload.sessionId');
         const url = this.requireString(payload.url, 'payload.url');
 
+        console.log(
+          `[PartyBrowser] Control event SESSION_APPROVED received (sessionId=${sessionId}, url=${url}, alreadyLeased=${this.sessionManager.hasLease(sessionId)}, waitingRoomSize=${this.waitingRoom.size})`,
+        );
+
         if (!this.sessionManager.hasLease(sessionId)) {
           const lease = await this.sessionManager.createLease(sessionId, url);
           console.log(
@@ -310,6 +314,10 @@ export class McpBridge {
           typeof payload.reason === 'string' && payload.reason.length > 0
             ? payload.reason
             : 'hub_revoke';
+        const existingLease = this.sessionManager.getLease(sessionId);
+        console.warn(
+          `[PartyBrowser] Control event SESSION_REVOKED received (sessionId=${sessionId}, reason=${reason}, hasLease=${existingLease !== null}, lease=${this.stringifyForLog(existingLease)})`,
+        );
         await this.sessionManager.revokeLease(sessionId, reason, true);
         this.waitingRoom.delete(sessionId);
         this.notifyWaitingRoomChanged();
@@ -321,6 +329,9 @@ export class McpBridge {
           typeof payload.reason === 'string' && payload.reason.length > 0
             ? payload.reason
             : 'hub_revoke_all';
+        console.warn(
+          `[PartyBrowser] Control event SESSIONS_REVOKED_ALL received (reason=${reason}, leaseCount=${this.sessionManager.getLeaseCount()}, waitingRoomSize=${this.waitingRoom.size})`,
+        );
         await this.sessionManager.revokeAllLeases(reason, true);
         this.waitingRoom.clear();
         this.notifyWaitingRoomChanged();
@@ -329,6 +340,9 @@ export class McpBridge {
 
       case ControlEvents.WAITING_ROOM_SYNC: {
         const entries = this.parseWaitingRoomEntries(payload.entries);
+        console.log(
+          `[PartyBrowser] Control event WAITING_ROOM_SYNC received (entryCount=${entries.length}, existingWaitingRoomSize=${this.waitingRoom.size})`,
+        );
         this.waitingRoom.clear();
         for (const entry of entries) {
           this.waitingRoom.set(entry.sessionId, entry);
@@ -339,6 +353,9 @@ export class McpBridge {
 
       case ControlEvents.WAITING_ROOM_ENTRY_ADDED: {
         const entry = this.parseWaitingRoomEntry(payload.entry);
+        console.log(
+          `[PartyBrowser] Control event WAITING_ROOM_ENTRY_ADDED received (sessionId=${entry.sessionId}, url=${entry.url}, reason=${entry.reason})`,
+        );
         this.waitingRoom.set(entry.sessionId, entry);
         this.notifyWaitingRoomChanged();
         return;
@@ -346,6 +363,9 @@ export class McpBridge {
 
       case ControlEvents.WAITING_ROOM_ENTRY_REMOVED: {
         const sessionId = this.requireString(payload.sessionId, 'payload.sessionId');
+        console.log(
+          `[PartyBrowser] Control event WAITING_ROOM_ENTRY_REMOVED received (sessionId=${sessionId}, wasPresent=${this.waitingRoom.has(sessionId)})`,
+        );
         this.waitingRoom.delete(sessionId);
         this.notifyWaitingRoomChanged();
         return;
@@ -353,6 +373,9 @@ export class McpBridge {
 
       case ControlEvents.KILL_SWITCH_CHANGED: {
         const enabled = Boolean(payload.enabled);
+        console.warn(
+          `[PartyBrowser] Control event KILL_SWITCH_CHANGED received (enabled=${enabled}, leaseCount=${this.sessionManager.getLeaseCount()})`,
+        );
         if (!enabled) {
           await this.sessionManager.revokeAllLeases('kill_switch_disabled', true);
         }
@@ -533,6 +556,10 @@ export class McpBridge {
     this.notifyConnectionStateChange(false);
     this.rejectPendingControlRequests('transport disconnected');
 
+    console.warn(
+      `[PartyBrowser] Transport disconnect is revoking all leases (reason=${reason}, leaseCount=${this.sessionManager.getLeaseCount()}, waitingRoomSize=${this.waitingRoom.size}, reconnectAttempts=${this.reconnectAttempts})`,
+    );
+
     void this.sessionManager.revokeAllLeases(reason, true);
 
     this.waitingRoom.clear();
@@ -565,5 +592,13 @@ export class McpBridge {
       error,
       errorCode,
     });
+  }
+
+  private stringifyForLog(value: unknown): string {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return '[unserializable]';
+    }
   }
 }
