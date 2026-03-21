@@ -20,6 +20,15 @@ import { getSnapshot, type SnapshotCommandParams } from './snapshot';
 export type CommandHandlers = ReturnType<typeof createCommandHandlers>;
 
 export function createCommandHandlers() {
+  function describeElement(element: Element, ref: string): string {
+    const role = element.getAttribute('role') || element.tagName.toLowerCase();
+    const name = element.getAttribute('aria-label')
+      || element.getAttribute('placeholder')
+      || element.textContent?.trim().slice(0, 30);
+    
+    return `${role} '${name || ref}'`;
+  }
+
   async function snapshot(params: SnapshotCommandParams = {}): Promise<CommandResult> {
     return getSnapshot(params);
   }
@@ -32,6 +41,7 @@ export function createCommandHandlers() {
       throw new Error(`Element not found: ${ref}`);
     }
 
+    console.log(`[PartyBrowser] Clicking ${describeElement(element, ref)}`);
     element.scrollIntoView({ behavior: 'smooth', block: 'center' });
     await delay(100);
 
@@ -67,6 +77,7 @@ export function createCommandHandlers() {
       throw new Error(`Element not found: ${ref}`);
     }
 
+    console.log(`[PartyBrowser] Typing into ${describeElement(element, ref)}`);
     element.focus();
     await delay(50);
 
@@ -100,27 +111,6 @@ export function createCommandHandlers() {
     };
   }
 
-  async function evaluate(params: { script: string }): Promise<CommandResult> {
-    const { script } = params;
-
-    try {
-      const fn = new Function(script);
-      const result = fn.call(window);
-      const resolved = result instanceof Promise ? await result : result;
-
-      return {
-        success: true,
-        data: { result: serializeResult(resolved) },
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: (error as Error).message,
-        stack: (error as Error).stack,
-      };
-    }
-  }
-
   async function selectOption(params: { element: string; value: string }): Promise<CommandResult> {
     const { element: ref, value } = params;
     const element = findElement(ref) as HTMLSelectElement;
@@ -132,6 +122,8 @@ export function createCommandHandlers() {
     if (element.tagName !== 'SELECT') {
       throw new Error(`Element is not a select: ${ref}`);
     }
+
+    console.log(`[PartyBrowser] Selecting option "${value}" in ${describeElement(element, ref)}`);
 
     const option = Array.from(element.options).find((candidate) =>
       candidate.value === value || candidate.textContent?.trim() === value,
@@ -155,9 +147,33 @@ export function createCommandHandlers() {
     };
   }
 
+  async function evaluate(params: { script: string }): Promise<CommandResult> {
+    const { script } = params;
+    console.log(`[PartyBrowser] Evaluating script: ${script.slice(0, 50)}${script.length > 50 ? '...' : ''}`);
+
+    try {
+      const fn = new Function(script);
+      const result = fn.call(window);
+      const resolved = result instanceof Promise ? await result : result;
+
+      return {
+        success: true,
+        data: { result: serializeResult(resolved) },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: (error as Error).message,
+        stack: (error as Error).stack,
+      };
+    }
+  }
+
   async function pressKey(params: { key: string }): Promise<CommandResult> {
     const { key } = params;
     const target = getKeyboardTarget();
+    console.log(`[PartyBrowser] Pressing key '${key}' on ${describeElement(target, 'active element')}`);
+
     const plan = createPressKeyPlan(key, {
       tagName: target.tagName,
       type: target instanceof HTMLInputElement ? target.type : null,
@@ -207,6 +223,7 @@ export function createCommandHandlers() {
       throw new Error(`Invalid wait time: ${params.time}`);
     }
 
+    console.log(`[PartyBrowser] Waiting for ${seconds}s`);
     const waited = seconds * 1000;
     await delay(waited);
     return { success: true, data: { waited } };
@@ -217,6 +234,7 @@ export function createCommandHandlers() {
     const startTime = Date.now();
 
     if (mode === 'time') {
+      console.log(`[PartyBrowser] Waiting for ${params.value}s`);
       const waited = Math.max(0, params.value) * 1000;
       await delay(waited);
       return { success: true, data: { mode, waited } };
@@ -229,6 +247,7 @@ export function createCommandHandlers() {
     const timeoutMs = params.timeout * 1000;
 
     if (mode === 'text') {
+      console.log(`[PartyBrowser] Waiting for text "${params.value}" to appear (timeout: ${params.timeout}s)`);
       return waitForTextCondition({
         matches: (bodyText) => bodyText.includes(params.value),
         timeoutMs,
@@ -239,6 +258,7 @@ export function createCommandHandlers() {
     }
 
     if (mode === 'text_gone') {
+      console.log(`[PartyBrowser] Waiting for text "${params.value}" to disappear (timeout: ${params.timeout}s)`);
       return waitForTextCondition({
         matches: (bodyText) => !bodyText.includes(params.value),
         timeoutMs,
@@ -263,6 +283,7 @@ export function createCommandHandlers() {
       throw new Error(`End element not found: ${endElement}`);
     }
 
+    console.log(`[PartyBrowser] Dragging ${describeElement(startEl, startElement)} to ${describeElement(endEl, endElement)}`);
     const startRect = startEl.getBoundingClientRect();
     const endRect = endEl.getBoundingClientRect();
     const dataTransfer = new DataTransfer();
@@ -297,6 +318,7 @@ export function createCommandHandlers() {
       throw new Error(`Element not found: ${params.element}`);
     }
 
+    console.log(`[PartyBrowser] Hovering over ${describeElement(element, params.element)}`);
     const rect = element.getBoundingClientRect();
     const eventInit = {
       clientX: rect.left + rect.width / 2,

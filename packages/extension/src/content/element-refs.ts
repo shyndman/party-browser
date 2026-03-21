@@ -64,19 +64,28 @@ export function findByText(text: string): Element | null {
 export function findElement(ref: string): Element | null {
   const parsed = parseElementRef(ref);
   if (!parsed) {
+    console.error(`[PartyBrowser] Invalid element ref: ${ref}`);
     return null;
   }
 
-  switch (parsed.type) {
-    case 'mcpRef':
-      return findByMcpRef(parsed.ref!);
-    case 'css':
-      return document.querySelector(parsed.selector!);
-    case 'xpath':
-      return findByXPath(parsed.path!);
-    case 'text':
-      return findByText(parsed.text!);
-    default:
-      return null;
+  const element = (() => {
+    switch (parsed.type) {
+      case 'mcpRef':
+        return findByMcpRef(parsed.ref!);
+      case 'css':
+        return document.querySelector(parsed.selector!);
+      case 'xpath':
+        return findByXPath(parsed.path!);
+      case 'text':
+        return findByText(parsed.text!);
+      default:
+        return null;
+    }
+  })();
+
+  if (!element) {
+    console.error(`[PartyBrowser] Element not found: ${ref}`);
   }
+
+  return element;
 }

@@ -32,6 +32,8 @@ export function getSnapshot(params: SnapshotCommandParams = {}): CommandResult<S
     params.nextRefStart ?? 0,
   );
 
+  console.log(`[PartyBrowser] Snapshot captured: ${tree.length} elements`);
+
   return {
     success: true,
     data: {
