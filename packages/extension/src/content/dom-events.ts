@@ -4,7 +4,7 @@ export function dispatchMouseLikeEvent(
   init: MouseEventInit,
 ): void {
   element.dispatchEvent(new MouseEvent(type, {
-    bubbles: true,
+    bubbles: shouldBubbleMouseLikeEvent(type),
     cancelable: true,
     composed: true,
     view: window,
@@ -19,7 +19,7 @@ export function dispatchPointerLikeEvent(
 ): void {
   if (typeof PointerEvent === 'function') {
     element.dispatchEvent(new PointerEvent(type, {
-      bubbles: true,
+      bubbles: shouldBubbleMouseLikeEvent(type),
       cancelable: true,
       composed: true,
       view: window,
@@ -32,6 +32,13 @@ export function dispatchPointerLikeEvent(
   }
 
   dispatchMouseLikeEvent(element, type, init);
+}
+
+function shouldBubbleMouseLikeEvent(type: string): boolean {
+  return type !== 'mouseenter'
+    && type !== 'mouseleave'
+    && type !== 'pointerenter'
+    && type !== 'pointerleave';
 }
 
 export function dispatchDragLikeEvent(
