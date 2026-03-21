@@ -27,11 +27,17 @@ import {
   type McpSessionCommandEnvelope,
   type McpSessionResultEnvelope,
 } from "@/protocol/messages";
-import { SessionStore, SESSION_LIFECYCLE_STATES } from "@/state/session-store";
+import {
+  SessionStore,
+  SESSION_LIFECYCLE_STATES,
+  type SessionLifecycleState,
+  type SessionRecord,
+} from "@/state/session-store";
 import { WaitingRoomStore } from "@/state/waiting-room-store";
 
 const DEFAULT_HUB_PORT = 3456;
 const DEFAULT_HUB_HOST = "127.0.0.1";
+const EXTENSION_SESSION_LEASE_NOT_FOUND = "SESSION_LEASE_NOT_FOUND";
 
 type HubRuntimeOptions = {
   port?: number;
@@ -102,6 +108,41 @@ export class HubRuntime {
   private killSwitchEnabled = true;
   private wss: WebSocketServer | undefined;
   private nextConnectionSequence = 0;
+
+  private getSessionLogMetadata(
+    session: Pick<SessionRecord, "sessionId" | "connectionId" | "name" | "url" | "state">,
+  ): Record<string, unknown> {
+    return {
+      sessionId: session.sessionId,
+      sessionConnectionId: session.connectionId,
+      sessionName: session.name,
+      sessionUrl: session.url,
+      sessionState: session.state,
+    };
+  }
+
+  private logSessionLifecycle(
+    message: string,
+    session: Pick<SessionRecord, "sessionId" | "connectionId" | "name" | "url" | "state">,
+    metadata: {
+      fromState?: SessionLifecycleState | "none";
+      toState: SessionLifecycleState;
+      reason?: string;
+      requestId?: string;
+      decision?: string;
+      removedFromWaitingRoom?: boolean;
+      leaseReadyAcknowledged?: boolean;
+      likelyCause?: string;
+    } = {
+      toState: session.state,
+    },
+  ): void {
+    this.logger.info(message, {
+      event: "session.lifecycle",
+      ...this.getSessionLogMetadata(session),
+      ...metadata,
+    });
+  }
 
   constructor(options: HubRuntimeOptions = {}) {
     this.options = {
@@ -425,6 +466,11 @@ export class HubRuntime {
       decision: "pending",
       sessionId: session.sessionId,
     });
+    this.logSessionLifecycle("Session entered waiting room.", session, {
+      fromState: "none",
+      toState: session.state,
+      reason: "join_request_received",
+    });
 
     void this.waitingRoomJoinSoundNotifier.notifyJoinRequest(session.sessionId).catch((error) => {
       const details = getErrorDetails(error);
@@ -589,6 +635,25 @@ export class HubRuntime {
       return;
     }
 
+    if (!message.success && message.errorCode === EXTENSION_SESSION_LEASE_NOT_FOUND) {
+      const session = this.sessionStore.getSession(message.sessionId);
+      this.logger.warn(
+        "Extension reported missing session lease; likely approval-before-lease-ready race after hub approval.",
+        {
+          event: "session.result_resolved",
+          connectionId,
+          mcpConnectionId: resolution.mcpConnectionId,
+          requestId: resolution.response.requestId,
+          sessionId: resolution.response.sessionId,
+          commandType: resolution.response.type,
+          success: false,
+          errorCode: message.errorCode,
+          sessionState: session?.state,
+          likelyCause: "approval_before_extension_lease_ready",
+        },
+      );
+    }
+
     this.logger.info("Resolved extension result to MCP response.", {
       event: "session.result_resolved",
       connectionId,
@@ -729,15 +794,18 @@ export class HubRuntime {
     }
 
     if (decision === HUB_JOIN_DECISIONS.JOIN) {
-      this.sessionStore.activateSession(sessionId);
-      this.logger.info("Waiting-room session approved.", {
-        event: "control.waiting_room_decision",
-        connectionId,
-        requestId: message.requestId,
-        sessionId,
-        decision,
-        success: true,
-      });
+      const activatedSession = this.sessionStore.activateSession(sessionId);
+      this.logSessionLifecycle(
+        "Session approved in hub; MCP approval sent before extension lease-ready ack exists.",
+        activatedSession,
+        {
+          fromState: SESSION_LIFECYCLE_STATES.PENDING,
+          toState: activatedSession.state,
+          requestId: message.requestId,
+          decision,
+          leaseReadyAcknowledged: false,
+        },
+      );
       this.sendJoinDecision(waitingEntry.connectionId, {
         type: HUB_CONTROL_MESSAGE_TYPES.JOIN_DECISION,
         decision: HUB_JOIN_DECISIONS.JOIN,
@@ -752,14 +820,14 @@ export class HubRuntime {
         },
       });
     } else {
-      this.sessionStore.revokeSession(sessionId, "operator_reject");
-      this.logger.info("Waiting-room session rejected.", {
-        event: "control.waiting_room_decision",
-        connectionId,
+      const revokeResult = this.sessionStore.revokeSession(sessionId, "operator_reject");
+      this.logSessionLifecycle("Session rejected and revoked from waiting room.", revokeResult.record, {
+        fromState: SESSION_LIFECYCLE_STATES.PENDING,
+        toState: revokeResult.record.state,
         requestId: message.requestId,
-        sessionId,
         decision,
-        success: true,
+        reason: "operator_reject",
+        removedFromWaitingRoom: true,
       });
       this.sendJoinDecision(waitingEntry.connectionId, {
         type: HUB_CONTROL_MESSAGE_TYPES.JOIN_DECISION,
@@ -839,6 +907,10 @@ export class HubRuntime {
 
   private revokeAll(reason: string, errorCode: HubErrorCode): void {
     const waitingEntries = this.waitingRoomStore.listSorted();
+    const sessionsToRevoke = [
+      ...this.sessionStore.getSessionsByState(SESSION_LIFECYCLE_STATES.PENDING),
+      ...this.sessionStore.getSessionsByState(SESSION_LIFECYCLE_STATES.ACTIVE),
+    ];
     this.logger.info("Revoking all sessions and waiting-room entries.", {
       event: "hub.revoke_all",
       reason,
@@ -855,7 +927,20 @@ export class HubRuntime {
     }
 
     this.waitingRoomStore.clear();
-    this.sessionStore.revokeAllSessions(reason);
+    for (const session of sessionsToRevoke) {
+      const previousState = session.state;
+      const revokeResult = this.sessionStore.revokeSession(session.sessionId, reason);
+      if (!revokeResult.changed) {
+        continue;
+      }
+
+      this.logSessionLifecycle("Session revoked during hub-wide teardown.", revokeResult.record, {
+        fromState: previousState,
+        toState: revokeResult.record.state,
+        reason,
+        removedFromWaitingRoom: previousState === SESSION_LIFECYCLE_STATES.PENDING,
+      });
+    }
     this.broadcastWaitingRoomSync();
 
     const failures = this.commandRouter.failAll(reason, errorCode);
@@ -899,6 +984,13 @@ export class HubRuntime {
         } else if (previousState === SESSION_LIFECYCLE_STATES.ACTIVE) {
           revokedActiveCount += 1;
         }
+
+        this.logSessionLifecycle("Session revoked because MCP connection closed.", revokeResult.record, {
+          fromState: previousState,
+          toState: revokeResult.record.state,
+          reason,
+          removedFromWaitingRoom: Boolean(waitingEntry),
+        });
 
         this.sendControlEvent({
           type: HUB_EXTENSION_MESSAGE_TYPES.CONTROL_EVENT,
