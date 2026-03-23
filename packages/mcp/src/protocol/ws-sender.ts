@@ -315,8 +315,18 @@ export class WebSocketHubConnection implements HubConnection {
   }
 }
 
+const BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+/**
+ * Generates a short, human-readable correlation ID using the base58 alphabet.
+ * Base58 avoids visually ambiguous characters like 0/O and 1/l.
+ */
 function generateMessageId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+  let result = "";
+  for (let i = 0; i < 4; i++) {
+    result += BASE58_ALPHABET.charAt(Math.floor(Math.random() * BASE58_ALPHABET.length));
+  }
+  return result;
 }
 
 function isJoinDecisionMessage(value: unknown): value is JoinDecisionMessage {

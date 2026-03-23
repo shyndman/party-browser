@@ -22,6 +22,7 @@ export type Tool = {
   handle: (
     context: Context,
     params?: Record<string, any>,
+    requestId?: string,
   ) => Promise<ToolResult>;
 };
 
