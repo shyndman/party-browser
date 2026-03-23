@@ -69,18 +69,24 @@ export class McpBridge {
     }
 
     if (this.isServerRunning) {
-      console.log('[PartyBrowser] Server already running');
+      console.log('[PartyBrowser] Connection already active');
       return Promise.resolve();
     }
 
-    console.log(`[PartyBrowser] Starting WebSocket connection on port ${port}`);
+    if (this.reconnectAttempts > 0) {
+      console.log(
+        `[PartyBrowser] (Attempt ${this.reconnectAttempts}) Reconnecting to Hub on port ${port}...`,
+      );
+    } else {
+      console.log(`[PartyBrowser] Connecting to Hub on port ${port}...`);
+    }
 
     return new Promise((resolve, reject) => {
       try {
         this.wsConnection = new WebSocket(`ws://localhost:${port}`);
 
         this.wsConnection.onopen = () => {
-          console.log('[PartyBrowser] Extension connected to MCP/hub');
+          console.log('[PartyBrowser] WebSocket connected successfully');
           this.isServerRunning = true;
           this.reconnectAttempts = 0;
           this.notifyConnectionStateChange(true);
@@ -101,14 +107,18 @@ export class McpBridge {
           }
         };
 
-        this.wsConnection.onclose = () => {
-          this.handleDisconnect();
+        this.wsConnection.onclose = (event) => {
+          console.warn(
+            `[PartyBrowser] WebSocket closed (code: ${event.code}, reason: "${event.reason || 'none'}", wasClean: ${event.wasClean})`,
+          );
+          this.handleDisconnect(event.code, event.reason);
         };
 
-        this.wsConnection.onerror = (error) => {
-          console.error('[PartyBrowser] WebSocket error:', error);
+        this.wsConnection.onerror = () => {
+          // onclose will follow and handle the state/reconnect
+          console.error('[PartyBrowser] WebSocket error occurred');
           this.isServerRunning = false;
-          reject(error);
+          reject(new Error('WebSocket error'));
         };
       } catch (error) {
         console.error('[PartyBrowser] Failed to start WebSocket:', error);
@@ -548,8 +558,13 @@ export class McpBridge {
     return `ctrl_${Date.now()}_${this.controlRequestSeq}`;
   }
 
-  private handleDisconnect(): void {
-    const reason = this.reconnectAttempts > 0 ? 'reconnect' : 'transport_drop';
+  private handleDisconnect(code?: number, closeReason?: string): void {
+    const reason =
+      code === 1000 || code === 1001
+        ? 'normal_closure'
+        : this.reconnectAttempts > 0
+          ? 'reconnect'
+          : 'transport_drop';
 
     this.isServerRunning = false;
     this.wsConnection = null;
@@ -557,7 +572,7 @@ export class McpBridge {
     this.rejectPendingControlRequests('transport disconnected');
 
     console.warn(
-      `[PartyBrowser] Transport disconnect is revoking all leases (reason=${reason}, leaseCount=${this.sessionManager.getLeaseCount()}, waitingRoomSize=${this.waitingRoom.size}, reconnectAttempts=${this.reconnectAttempts})`,
+      `[PartyBrowser] Disconnected (reason=${reason}, code=${code}, closeReason="${closeReason || ''}"). Revoking ${this.sessionManager.getLeaseCount()} leases.`,
     );
 
     void this.sessionManager.revokeAllLeases(reason, true);
@@ -565,14 +580,8 @@ export class McpBridge {
     this.waitingRoom.clear();
     this.notifyWaitingRoomChanged();
 
-    console.warn(
-      `[PartyBrowser] Extension disconnected (reason: ${reason}); pending commands will fail. Reconnecting...`,
-    );
-
     this.reconnectAttempts += 1;
-    console.log(
-      `[PartyBrowser] Attempting reconnect ${this.reconnectAttempts}`,
-    );
+    console.log(`[PartyBrowser] Scheduled reconnect in ${this.config.reconnectInterval}ms`);
     this.reconnectTimer = setTimeout(() => {
       this.connect(this.port).catch((error) => {
         console.error('[PartyBrowser] Reconnect failed:', error);
