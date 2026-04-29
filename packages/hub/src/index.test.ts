@@ -243,6 +243,75 @@ test("command router rejects duplicate pending request ids without overwriting t
   });
 });
 
+test("duplicate pending MCP command returns session result envelope", async () => {
+  const harness = await createHarness();
+
+  try {
+    const joinDecisionPromise = waitForMessage(
+      harness.mcp,
+      (message) =>
+        message.type === HUB_CONTROL_MESSAGE_TYPES.JOIN_DECISION &&
+        message.decision === HUB_JOIN_DECISIONS.JOIN,
+    );
+
+    harness.mcp.send(
+      JSON.stringify({
+        type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST,
+        name: "Agent Duplicate Request",
+        reason: "Verify duplicate command routing",
+        url: "https://example.com/duplicate-request",
+      }),
+    );
+
+    const sessionId = await approveSinglePendingSession(harness);
+    await joinDecisionPromise;
+
+    harness.mcp.send(
+      JSON.stringify({
+        requestId: "cmd-duplicate",
+        sessionId,
+        type: "navigate",
+        payload: {
+          url: "https://partybrowser.io/one",
+        },
+      }),
+    );
+
+    await waitForMessage(
+      harness.extension,
+      (message) =>
+        message.type === HUB_EXTENSION_MESSAGE_TYPES.SESSION_COMMAND &&
+        message.requestId === "cmd-duplicate",
+    );
+
+    harness.mcp.send(
+      JSON.stringify({
+        requestId: "cmd-duplicate",
+        sessionId,
+        type: "navigate",
+        payload: {
+          url: "https://partybrowser.io/two",
+        },
+      }),
+    );
+
+    const duplicateFailure = await waitForMessage(
+      harness.mcp,
+      (message) => message.requestId === "cmd-duplicate",
+    );
+
+    assert.equal(duplicateFailure.sessionId, sessionId);
+    assert.equal(duplicateFailure.type, "navigate");
+    assert.equal(duplicateFailure.payload, null);
+    assert.equal(duplicateFailure.errorCode, HUB_ERROR_CODES.ROUTING_FAILED);
+    assert.match(String(duplicateFailure.error), /Duplicate pending request id/);
+
+    await expectNoMessage(harness.extension);
+  } finally {
+    await destroyHarness(harness);
+  }
+});
+
 test("operator reject returns explicit reject decision", async () => {
   const harness = await createHarness();
 

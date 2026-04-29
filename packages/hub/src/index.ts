@@ -632,7 +632,34 @@ export class HubRuntime {
       return;
     }
 
-    this.commandRouter.forwardToExtension(message, connectionId, extensionConnection.socket);
+    try {
+      this.commandRouter.forwardToExtension(message, connectionId, extensionConnection.socket);
+    } catch (error) {
+      const hubError =
+        error instanceof HubError
+          ? error
+          : new HubError(String(error), HUB_ERROR_CODES.ROUTING_FAILED);
+
+      this.logger.info("MCP session command rejected while forwarding to extension.", {
+        event: "session.command_forwarded",
+        forwarded: false,
+        connectionId,
+        extensionConnectionId: extensionConnection.id,
+        requestId: message.requestId,
+        sessionId: message.sessionId,
+        commandType: message.type,
+        errorCode: hubError.errorCode,
+      });
+      this.sendMcpSessionResult(connectionId, {
+        requestId: message.requestId,
+        sessionId: message.sessionId,
+        type: message.type,
+        payload: null,
+        error: hubError.message,
+        errorCode: hubError.errorCode,
+      });
+      return;
+    }
     this.logger.info("MCP session command forwarded to extension.", {
       event: "session.command_forwarded",
       forwarded: true,
