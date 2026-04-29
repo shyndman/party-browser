@@ -8,7 +8,7 @@ import {
 import { Context } from "@/session";
 import type { Resource } from "@/resources/resource";
 import type { Tool } from "@/tools/tool";
-import { CodedError } from "@/messaging";
+import { CodedError, generateRequestId } from "@/messaging";
 import { MCP_ERROR_CODES } from "@/protocol/constants";
 import { infoLog, errorLog } from "@/utils/log";
 
@@ -43,7 +43,7 @@ export async function createServerWithTools(options: Options): Promise<Server> {
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    const id = (request.params._meta as { requestId?: string })?.requestId || "    ";
+    const id = generateRequestId();
     infoLog(`[MCP] [${id}] → ${request.params.name}`, request.params.arguments);
 
     const tool = tools.find((tool) => tool.schema.name === request.params.name);

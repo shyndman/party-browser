@@ -1,7 +1,9 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
 
-import { waitFor } from './common';
+import type { Context } from '../context';
+
+import { navigate, waitFor } from './common';
 
 test('wait_for exposes a Codex-compatible object schema', () => {
   const schema = waitFor.schema.inputSchema as Record<string, unknown>;
@@ -12,4 +14,28 @@ test('wait_for exposes a Codex-compatible object schema', () => {
   assert.equal(Object.hasOwn(schema, 'allOf'), false);
   assert.equal(Object.hasOwn(schema, 'not'), false);
   assert.equal(Object.hasOwn(schema, 'enum'), false);
+});
+
+test('common session commands propagate the MCP call request id', async () => {
+  let capturedOptions: { requestId?: string } | undefined;
+  const context = {
+    sendSocketMessage: async (
+      type: string,
+      payload: unknown,
+      options: { requestId?: string },
+    ) => {
+      assert.equal(type, 'navigate');
+      assert.deepEqual(payload, { url: 'https://example.com' });
+      capturedOptions = options;
+      return { url: 'https://example.com' };
+    },
+  } as unknown as Context;
+
+  await navigate(false).handle(
+    context,
+    { url: 'https://example.com' },
+    'call-123',
+  );
+
+  assert.deepEqual(capturedOptions, { requestId: 'call-123' });
 });

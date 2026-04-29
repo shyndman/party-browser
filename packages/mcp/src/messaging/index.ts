@@ -7,6 +7,7 @@
 export {
   CodedError,
   createHubConnection,
+  generateRequestId,
   WebSocketHubConnection,
 } from "../protocol/ws-sender";
 

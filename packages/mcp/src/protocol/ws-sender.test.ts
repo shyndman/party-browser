@@ -2,6 +2,7 @@ import { strict as assert } from "node:assert";
 import net from "node:net";
 import test from "node:test";
 import { WebSocketServer } from "ws";
+import type { WebSocket } from "ws";
 
 import { MCP_ERROR_CODES } from "./constants";
 import { CodedError, WebSocketHubConnection } from "./ws-sender";
@@ -61,4 +62,74 @@ test("hub probe succeeds when the hub accepts a websocket connection", async () 
       resolve();
     });
   });
+});
+
+test("session command rejects a duplicate pending request id without overwriting the first", async () => {
+  const port = await getAvailablePort();
+  const server = new WebSocketServer({ host: "127.0.0.1", port });
+  const connection = new WebSocketHubConnection(`ws://127.0.0.1:${port}`);
+  let receivedCount = 0;
+
+  const serverSocketPromise = new Promise<WebSocket>((resolve) => {
+    server.once("connection", (socket) => resolve(socket));
+  });
+
+  try {
+    const firstResultPromise = connection.sendSessionCommand(
+      "session-1",
+      "navigate",
+      { url: "https://example.com/first" },
+      { requestId: "duplicate-id", timeoutMs: 1000 },
+    );
+
+    const serverSocket = await serverSocketPromise;
+    const firstMessage = await new Promise<Record<string, unknown>>((resolve) => {
+      serverSocket.once("message", (raw) => {
+        receivedCount += 1;
+        resolve(JSON.parse(String(raw)) as Record<string, unknown>);
+      });
+    });
+
+    assert.equal(firstMessage.requestId, "duplicate-id");
+
+    await assert.rejects(
+      () =>
+        connection.sendSessionCommand(
+          "session-1",
+          "navigate",
+          { url: "https://example.com/second" },
+          { requestId: "duplicate-id", timeoutMs: 1000 },
+        ),
+      (error: unknown) => {
+        assert.ok(error instanceof CodedError);
+        assert.equal(error.errorCode, MCP_ERROR_CODES.PROTOCOL_INVALID_MESSAGE);
+        assert.match(error.message, /Duplicate pending request id/);
+        return true;
+      },
+    );
+
+    serverSocket.send(
+      JSON.stringify({
+        requestId: "duplicate-id",
+        sessionId: "session-1",
+        type: "navigate",
+        payload: { ok: true },
+      }),
+    );
+
+    assert.deepEqual(await firstResultPromise, { ok: true });
+    assert.equal(receivedCount, 1);
+  } finally {
+    await connection.close();
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
 });

@@ -58,6 +58,31 @@ test("browser command uses approved session envelope route", async () => {
   });
 });
 
+test("browser command forwards caller-provided request id to hub connection", async () => {
+  let capturedOptions: { requestId?: string } | undefined;
+  const context = new Context(
+    createMockHubConnection({
+      async sendSessionCommand(sessionId, type, payload, options) {
+        capturedOptions = options;
+        return { sessionId, type, payload };
+      },
+    }),
+  );
+  await context.joinSession({
+    name: "Test Agent",
+    reason: "Contract test",
+    url: "https://example.com",
+  });
+
+  await context.sendSocketMessage(
+    "navigate",
+    { url: "https://partybrowser.com" },
+    { requestId: "call-123" },
+  );
+
+  assert.deepEqual(capturedOptions, { requestId: "call-123" });
+});
+
 test("legacy id/result response shape is not accepted", () => {
   assert.equal(isSessionResultEnvelope({ id: "old-1", result: {} }), false);
 });

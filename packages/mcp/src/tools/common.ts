@@ -45,9 +45,9 @@ export const navigate: ToolFactory = (snapshot) => ({
     description: NavigateTool.shape.description.value,
     inputSchema: zodToJsonSchema(NavigateTool.shape.arguments),
   },
-  handle: async (context, params) => {
+  handle: async (context, params, requestId) => {
     const { url } = NavigateTool.shape.arguments.parse(params);
-    const result = await context.sendSocketMessage("navigate", { url });
+    const result = await context.sendSocketMessage("navigate", { url }, { requestId });
     if (snapshot) {
       return formatAriaSnapshot(extractPageState(result));
     }
@@ -68,8 +68,8 @@ export const goBack: ToolFactory = (snapshot) => ({
     description: GoBackTool.shape.description.value,
     inputSchema: zodToJsonSchema(GoBackTool.shape.arguments),
   },
-  handle: async (context) => {
-    const result = await context.sendSocketMessage("go_back", {});
+  handle: async (context, _params, requestId) => {
+    const result = await context.sendSocketMessage("go_back", {}, { requestId });
     if (snapshot) {
       return formatAriaSnapshot(extractPageState(result));
     }
@@ -90,8 +90,8 @@ export const goForward: ToolFactory = (snapshot) => ({
     description: GoForwardTool.shape.description.value,
     inputSchema: zodToJsonSchema(GoForwardTool.shape.arguments),
   },
-  handle: async (context) => {
-    const result = await context.sendSocketMessage("go_forward", {});
+  handle: async (context, _params, requestId) => {
+    const result = await context.sendSocketMessage("go_forward", {}, { requestId });
     if (snapshot) {
       return formatAriaSnapshot(extractPageState(result));
     }
@@ -112,9 +112,9 @@ export const wait: Tool = {
     description: WaitTool.shape.description.value,
     inputSchema: zodToJsonSchema(WaitTool.shape.arguments),
   },
-  handle: async (context, params) => {
+  handle: async (context, params, requestId) => {
     const { time } = WaitTool.shape.arguments.parse(params);
-    await context.sendSocketMessage("wait", { time });
+    await context.sendSocketMessage("wait", { time }, { requestId });
     return {
       content: [
         {
@@ -132,9 +132,9 @@ export const pressKey: Tool = {
     description: PressKeyTool.shape.description.value,
     inputSchema: zodToJsonSchema(PressKeyTool.shape.arguments),
   },
-  handle: async (context, params) => {
+  handle: async (context, params, requestId) => {
     const { key } = PressKeyTool.shape.arguments.parse(params);
-    await context.sendSocketMessage("press_key", { key });
+    await context.sendSocketMessage("press_key", { key }, { requestId });
     return {
       content: [
         {
@@ -177,7 +177,7 @@ export const waitFor: Tool = {
     description: WaitForTool.shape.description.value,
     inputSchema: waitForInputSchema,
   },
-  handle: async (context, params) => {
+  handle: async (context, params, requestId) => {
     const args = WaitForTool.shape.arguments.parse(params);
     const { mode, value, timeout } = args;
 
@@ -197,11 +197,11 @@ export const waitFor: Tool = {
     }
 
     if (mode === "time") {
-      await context.sendSocketMessage("wait_for", { mode, value, timeout });
+      await context.sendSocketMessage("wait_for", { mode, value, timeout }, { requestId });
     } else if (mode === "text") {
-      await context.sendSocketMessage("wait_for", { mode, value, timeout });
+      await context.sendSocketMessage("wait_for", { mode, value, timeout }, { requestId });
     } else {
-      await context.sendSocketMessage("wait_for", { mode, value, timeout });
+      await context.sendSocketMessage("wait_for", { mode, value, timeout }, { requestId });
     }
 
     // Generate deterministic, parseable response based on mode
@@ -237,8 +237,8 @@ export const close: Tool = {
     description: CloseTool.shape.description.value,
     inputSchema: zodToJsonSchema(CloseTool.shape.arguments),
   },
-  handle: async (context) => {
-    await context.sendSocketMessage("close", {});
+  handle: async (context, _params, requestId) => {
+    await context.sendSocketMessage("close", {}, { requestId });
     return {
       content: [
         {

@@ -24,6 +24,13 @@ export class CommandRouter {
     mcpConnectionId: string,
     extensionSocket: WebSocket,
   ): void {
+    if (this.pendingByRequestId.has(command.requestId)) {
+      throw new HubError(
+        `Duplicate pending request id: ${command.requestId}`,
+        HUB_ERROR_CODES.ROUTING_FAILED,
+      );
+    }
+
     const envelope: ExtensionSessionCommandMessage = {
       type: HUB_EXTENSION_MESSAGE_TYPES.SESSION_COMMAND,
       requestId: command.requestId,

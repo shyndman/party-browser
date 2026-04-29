@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { WebSocket } from "ws";
 
 import { debugLog } from "@/utils/log";
@@ -32,6 +34,7 @@ export class CodedError extends Error {
 
 type SendOptions = {
   timeoutMs?: number;
+  requestId?: string;
 };
 
 export type JoinRequestInput = {
@@ -142,7 +145,7 @@ export class WebSocketHubConnection implements HubConnection {
     const timeoutMs = options.timeoutMs ?? PROTOCOL_DEFAULTS.REQUEST_TIMEOUT_MS;
 
     return new Promise((resolve, reject) => {
-      const requestId = generateMessageId();
+      const requestId = this.createPendingRequestId(options.requestId);
 
       const timeout = setTimeout(() => {
         this.pendingSessionRequests.delete(requestId);
@@ -300,6 +303,34 @@ export class WebSocketHubConnection implements HubConnection {
     );
   }
 
+  private createPendingRequestId(requestId?: string): string {
+    if (requestId) {
+      this.assertRequestIdAvailable(requestId);
+      return requestId;
+    }
+
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const generatedRequestId = generateRequestId();
+      if (!this.pendingSessionRequests.has(generatedRequestId)) {
+        return generatedRequestId;
+      }
+    }
+
+    throw new CodedError(
+      "Unable to generate a unique request id.",
+      MCP_ERROR_CODES.PROTOCOL_INVALID_MESSAGE,
+    );
+  }
+
+  private assertRequestIdAvailable(requestId: string): void {
+    if (this.pendingSessionRequests.has(requestId)) {
+      throw new CodedError(
+        `Duplicate pending request id: ${requestId}`,
+        MCP_ERROR_CODES.PROTOCOL_INVALID_MESSAGE,
+      );
+    }
+  }
+
   private rejectAllPending(error: CodedError): void {
     for (const [, pending] of this.pendingSessionRequests) {
       clearTimeout(pending.timeout);
@@ -315,18 +346,11 @@ export class WebSocketHubConnection implements HubConnection {
   }
 }
 
-const BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-
 /**
- * Generates a short, human-readable correlation ID using the base58 alphabet.
- * Base58 avoids visually ambiguous characters like 0/O and 1/l.
+ * Generates a collision-resistant correlation ID safe for logs and protocol JSON.
  */
-function generateMessageId(): string {
-  let result = "";
-  for (let i = 0; i < 4; i++) {
-    result += BASE58_ALPHABET.charAt(Math.floor(Math.random() * BASE58_ALPHABET.length));
-  }
-  return result;
+export function generateRequestId(): string {
+  return randomUUID();
 }
 
 function isJoinDecisionMessage(value: unknown): value is JoinDecisionMessage {

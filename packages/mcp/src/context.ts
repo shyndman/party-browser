@@ -32,7 +32,7 @@ export class Context {
   async sendSocketMessage<T extends MessageType<SocketMessageMap>>(
     type: T,
     payload: MessagePayload<SocketMessageMap, T>,
-    options: { timeoutMs?: number } = { timeoutMs: PROTOCOL_DEFAULTS.REQUEST_TIMEOUT_MS },
+    options: { timeoutMs?: number; requestId?: string } = { timeoutMs: PROTOCOL_DEFAULTS.REQUEST_TIMEOUT_MS },
   ): Promise<any> {
     if (!this.sessionId) {
       throw new CodedError(noSessionMessage, MCP_ERROR_CODES.WAITING_ROOM_DECISION_REQUIRED);

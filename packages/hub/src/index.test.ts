@@ -14,6 +14,7 @@ import {
   HUB_JOIN_DECISIONS,
 } from "@/protocol/messages";
 import { HubRuntime } from "@/index";
+import { CommandRouter } from "@/router/command-router";
 
 type Harness = {
   runtime: HubRuntime;
@@ -181,6 +182,65 @@ test("join request blocks until operator decision", async () => {
   } finally {
     await destroyHarness(harness);
   }
+});
+
+test("command router rejects duplicate pending request ids without overwriting the original", () => {
+  const router = new CommandRouter();
+  const sentMessages: string[] = [];
+  const extensionSocket = {
+    send(message: string) {
+      sentMessages.push(message);
+    },
+  } as unknown as WebSocket;
+
+  router.forwardToExtension(
+    {
+      requestId: "duplicate-request",
+      sessionId: "session-1",
+      type: "navigate",
+      payload: { url: "https://example.com/one" },
+    },
+    "mcp-original",
+    extensionSocket,
+  );
+
+  assert.throws(
+    () =>
+      router.forwardToExtension(
+        {
+          requestId: "duplicate-request",
+          sessionId: "session-2",
+          type: "navigate",
+          payload: { url: "https://example.com/two" },
+        },
+        "mcp-overwrite",
+        extensionSocket,
+      ),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /Duplicate pending request id/);
+      return true;
+    },
+  );
+
+  assert.equal(sentMessages.length, 1);
+  const resolution = router.resolveFromExtension({
+    type: HUB_EXTENSION_MESSAGE_TYPES.SESSION_RESULT,
+    requestId: "duplicate-request",
+    sessionId: "session-1",
+    success: true,
+    result: { ok: true },
+  });
+
+  assert.equal(resolution?.mcpConnectionId, "mcp-original");
+  assert.deepEqual(resolution?.response, {
+    requestId: "duplicate-request",
+    sessionId: "session-1",
+    type: "navigate",
+    payload: { ok: true },
+    error: undefined,
+    errorCode: undefined,
+  });
 });
 
 test("operator reject returns explicit reject decision", async () => {
