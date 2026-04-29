@@ -150,43 +150,60 @@ export class SessionManager {
    */
   private async createLeaseWindow(url: string): Promise<SessionLease> {
     const geometry = await this.calculateLeaseWindowGeometry();
-    const createdWindow = await browser.windows.create({
-      url,
-      type: 'normal',
-      left: geometry.left,
-      top: geometry.top,
-      width: geometry.width,
-      height: geometry.height,
-    });
+    let windowId: number | undefined;
 
-    const windowId = createdWindow.id;
-    if (windowId === undefined) {
-      throw new CodedError(
-        'Could not create lease window: missing window id.',
-        ErrorCodes.COMMAND_FAILED,
-      );
+    try {
+      const createdWindow = await browser.windows.create({
+        url,
+        type: 'normal',
+        left: geometry.left,
+        top: geometry.top,
+        width: geometry.width,
+        height: geometry.height,
+      });
+
+      windowId = createdWindow.id;
+      if (windowId === undefined) {
+        throw new CodedError(
+          'Could not create lease window: missing window id.',
+          ErrorCodes.COMMAND_FAILED,
+        );
+      }
+
+      let tabId = createdWindow.tabs?.[0]?.id;
+      if (tabId === undefined) {
+        const tabs = await browser.tabs.query({ windowId });
+        tabId = tabs[0]?.id;
+      }
+
+      if (tabId === undefined) {
+        throw new CodedError(
+          `Could not resolve lease tab for window ${windowId}.`,
+          ErrorCodes.COMMAND_FAILED,
+        );
+      }
+
+      await this.tabLifecycle.waitForTabToSettle({
+        command: 'lease_setup',
+        sessionId: 'lease_setup',
+        tabId,
+      });
+
+      return { windowId, tabId };
+    } catch (error) {
+      if (windowId !== undefined) {
+        try {
+          await browser.windows.remove(windowId);
+        } catch (cleanupError) {
+          console.warn(
+            `[PartyBrowser] Failed to remove lease setup window ${windowId}:`,
+            cleanupError,
+          );
+        }
+      }
+
+      throw error;
     }
-
-    let tabId = createdWindow.tabs?.[0]?.id;
-    if (tabId === undefined) {
-      const tabs = await browser.tabs.query({ windowId });
-      tabId = tabs[0]?.id;
-    }
-
-    if (tabId === undefined) {
-      throw new CodedError(
-        `Could not resolve lease tab for window ${windowId}.`,
-        ErrorCodes.COMMAND_FAILED,
-      );
-    }
-
-    await this.tabLifecycle.waitForTabToSettle({
-      command: 'lease_setup',
-      sessionId: 'lease_setup',
-      tabId,
-    });
-
-    return { windowId, tabId };
   }
 
   /**

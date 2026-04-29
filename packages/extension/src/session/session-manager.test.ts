@@ -43,6 +43,9 @@ type BrowserMockState = {
     id: number;
     tabs: Array<{ id: number; url?: string; windowId: number }>;
   }>;
+  removedWindowIds: number[];
+  failWindowRemove: boolean;
+  createWindowWithoutTab: boolean;
 };
 
 function installBrowserMock(): BrowserMockState {
@@ -59,6 +62,17 @@ function installBrowserMock(): BrowserMockState {
 
   const createdWindowArgs: BrowserMockState['createdWindowArgs'] = [];
   const createdLeaseWindows: BrowserMockState['createdLeaseWindows'] = [];
+  const browserState: BrowserMockState = {
+    navigationOnCompleted,
+    navigationOnErrorOccurred,
+    tabOnRemoved,
+    windowOnRemoved,
+    createdWindowArgs,
+    createdLeaseWindows,
+    removedWindowIds: [],
+    failWindowRemove: false,
+    createWindowWithoutTab: false,
+  };
 
   (globalThis as any).browser = {
     tabs: {
@@ -127,18 +141,29 @@ function installBrowserMock(): BrowserMockState {
         nextTabId += 1;
 
         const tab = { id: nextTabId, url: options.url, windowId: nextWindowId };
-        existingTabs.set(tab.id, tab);
-        existingWindows.set(nextWindowId, { id: nextWindowId, tabIds: [tab.id] });
+        if (browserState.createWindowWithoutTab) {
+          existingWindows.set(nextWindowId, { id: nextWindowId, tabIds: [] });
+        } else {
+          existingTabs.set(tab.id, tab);
+          existingWindows.set(nextWindowId, { id: nextWindowId, tabIds: [tab.id] });
+        }
 
         const createdWindow = {
           id: nextWindowId,
-          tabs: [{ id: tab.id, url: tab.url, windowId: tab.windowId }],
+          tabs: browserState.createWindowWithoutTab
+            ? []
+            : [{ id: tab.id, url: tab.url, windowId: tab.windowId }],
         };
 
         createdLeaseWindows.push(createdWindow);
         return createdWindow;
       },
       async remove(windowId: number) {
+        browserState.removedWindowIds.push(windowId);
+        if (browserState.failWindowRemove) {
+          throw new Error('window remove failed');
+        }
+
         const window = existingWindows.get(windowId);
         if (!window) {
           return;
@@ -152,14 +177,7 @@ function installBrowserMock(): BrowserMockState {
     },
   };
 
-  return {
-    navigationOnCompleted,
-    navigationOnErrorOccurred,
-    tabOnRemoved,
-    windowOnRemoved,
-    createdWindowArgs,
-    createdLeaseWindows,
-  };
+  return browserState;
 }
 
 test('window-backed lease lifecycle create/get/revoke/revokeAll', async () => {
@@ -230,6 +248,80 @@ test('lease creation returns immediately when the initial tab is already fully l
   assert.equal(settleCalls, 1);
   assert.equal(browserState.navigationOnCompleted.listenerCount(), 0);
   assert.equal(browserState.navigationOnErrorOccurred.listenerCount(), 0);
+});
+
+test('lease setup removes the created window when the lease tab cannot be resolved', async () => {
+  const browserState = installBrowserMock();
+  const manager = new SessionManager();
+  browserState.createWindowWithoutTab = true;
+
+  await assert.rejects(
+    () => manager.createLease('session-missing-tab', 'https://missing-tab.example'),
+    (error: unknown) => {
+      assert.ok(error instanceof CodedError);
+      assert.equal(error.errorCode, ErrorCodes.COMMAND_FAILED);
+      assert.match(error.message, /Could not resolve lease tab/);
+      return true;
+    },
+  );
+
+  const createdWindow = browserState.createdLeaseWindows[0];
+  assert.deepEqual(browserState.removedWindowIds, [createdWindow.id]);
+  assert.equal(manager.getLease('session-missing-tab'), null);
+  assert.equal(manager.getLeaseCount(), 0);
+});
+
+test('failed lease setup removes the created window and records no lease', async () => {
+  const browserState = installBrowserMock();
+  const manager = new SessionManager();
+  const setupError = new Error('initial load failed');
+  (manager as any).tabLifecycle.waitForTabToSettle = async () => {
+    throw setupError;
+  };
+
+  let rejectedError: unknown;
+  try {
+    await manager.createLease('session-failed-setup', 'https://fail.example');
+  } catch (error) {
+    rejectedError = error;
+  }
+
+  const createdWindow = browserState.createdLeaseWindows[0];
+  assert.equal(rejectedError, setupError);
+  assert.deepEqual(browserState.removedWindowIds, [createdWindow.id]);
+  assert.equal(manager.getLease('session-failed-setup'), null);
+  assert.equal(manager.getLeaseCount(), 0);
+});
+
+test('failed lease setup keeps original error when created window cleanup fails', async () => {
+  const browserState = installBrowserMock();
+  const manager = new SessionManager();
+  const setupError = new Error('initial load failed');
+  const warn = console.warn;
+  const warnings: unknown[][] = [];
+  browserState.failWindowRemove = true;
+  console.warn = (...args: unknown[]) => {
+    warnings.push(args);
+  };
+  (manager as any).tabLifecycle.waitForTabToSettle = async () => {
+    throw setupError;
+  };
+
+  let rejectedError: unknown;
+  try {
+    await manager.createLease('session-cleanup-fails', 'https://cleanup-fails.example');
+  } catch (error) {
+    rejectedError = error;
+  } finally {
+    console.warn = warn;
+  }
+
+  const createdWindow = browserState.createdLeaseWindows[0];
+  assert.equal(rejectedError, setupError);
+  assert.deepEqual(browserState.removedWindowIds, [createdWindow.id]);
+  assert.equal(manager.getLease('session-cleanup-fails'), null);
+  assert.equal(manager.getLeaseCount(), 0);
+  assert.equal(warnings.length, 1);
 });
 
 test('window close revokes lease and blocks future routing', async () => {
