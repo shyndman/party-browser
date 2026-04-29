@@ -17,12 +17,28 @@ test('type command forwards text payload to content script', async () => {
     },
   } as unknown as ContentBridge;
 
-  const commands = new InteractionCommands(stubSessionManager, stubContentBridge);
+  const pageStateReader = {
+    async read() {
+      return { url: 'https://after.example', title: 'After', tree: {} };
+    },
+  } as any;
+  const lifecycle = {
+    async runCommand({ dispatch, readback }: { dispatch: () => Promise<unknown>; readback: () => Promise<unknown> }) {
+      return {
+        actionResult: await dispatch(),
+        readbackResult: await readback(),
+        workflow: { waitRequired: false, postActionLoading: false },
+      };
+    },
+  } as any;
+
+  const commands = new InteractionCommands(stubSessionManager, stubContentBridge, pageStateReader, lifecycle);
   const payload = { sessionId: 'session-10', element: 'css:.input', text: 'typed text payload' };
 
   const result = await commands.type(payload);
 
   assert.equal(result.success, true);
+  assert.equal((result.data as { pageState: { title: string } }).pageState.title, 'After');
   assert.equal(captured.length, 1);
   assert.equal(captured[0].command, 'type');
   assert.deepEqual(captured[0].params, { element: payload.element, text: payload.text });

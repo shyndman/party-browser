@@ -24,12 +24,28 @@ test('selectOption forwards the requested value to the content script', async ()
     },
   } as unknown as ContentBridge;
 
-  const commands = new InteractionCommands(sessionManagerMock, contentBridgeMock);
+  const pageStateReader = {
+    async read() {
+      return { url: 'https://after.example', title: 'After', tree: {} };
+    },
+  } as any;
+  const lifecycle = {
+    async runCommand({ dispatch, readback }: { dispatch: () => Promise<unknown>; readback: () => Promise<unknown> }) {
+      return {
+        actionResult: await dispatch(),
+        readbackResult: await readback(),
+        workflow: { waitRequired: false, postActionLoading: false },
+      };
+    },
+  } as any;
+
+  const commands = new InteractionCommands(sessionManagerMock, contentBridgeMock, pageStateReader, lifecycle);
   const params = { sessionId: 'session-11', element: 'css:#dropdown', value: 'desired-value' };
 
   const result = await commands.selectOption(params);
 
   assert.equal(result.success, true);
+  assert.equal((result.data as { pageState: { url: string } }).pageState.url, 'https://after.example');
   assert.deepEqual(resolveCalls, [{ sessionId: 'session-11' }]);
   assert.deepEqual(sendCommandCalls, [
     {

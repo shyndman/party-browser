@@ -271,7 +271,7 @@ export class McpBridge {
       return;
     }
 
-    const result = await this.commandHandler.execute(command, payload, sessionId);
+    const result = await this.commandHandler.execute(command, payload, sessionId, requestId);
     this.send({
       type: WsMessageKinds.SESSION_RESULT,
       requestId,

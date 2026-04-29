@@ -5,72 +5,54 @@ import { NavigationCommands } from './navigation';
 import type { GoForwardParams } from '../types/commands';
 import type { SessionManager } from '../session/session-manager';
 import type { NetworkCapture } from '../session/network-capture';
+import type { PageStateReader } from './page-state-reader';
+import type { TabLifecycle } from './tab-lifecycle';
 
-type EventListener = (...args: unknown[]) => void;
-
-type EventEmitter = {
-  addListener: (listener: EventListener) => void;
-  removeListener: (listener: EventListener) => void;
-  emit: (...args: unknown[]) => void;
-};
-
-function createEventEmitter(): EventEmitter {
-  const listeners = new Set<EventListener>();
-  return {
-    addListener(listener: EventListener) {
-      listeners.add(listener);
-    },
-    removeListener(listener: EventListener) {
-      listeners.delete(listener);
-    },
-    emit(...args: unknown[]) {
-      for (const listener of Array.from(listeners)) {
-        listener(...args);
-      }
-    },
-  };
-}
-
-test('goForward waits for tab load before resolving', async () => {
-  const originalBrowser = (globalThis as any).browser;
-  const nativeSetTimeout = globalThis.setTimeout;
+test('goForward routes through the shared lifecycle and waits before readback', async () => {
+  const events: string[] = [];
   const tabId = 101;
-  const tabOnUpdated = createEventEmitter();
-  let goForwardCallCount = 0;
+  const originalBrowser = (globalThis as any).browser;
 
   try {
     (globalThis as any).browser = {
       tabs: {
-        onUpdated: tabOnUpdated,
         async goForward(targetTabId: number) {
           assert.equal(targetTabId, tabId);
-          goForwardCallCount += 1;
+          events.push('dispatch');
         },
       },
     };
-    (globalThis as any).setTimeout = ((callback: (...args: unknown[]) => void) => nativeSetTimeout(callback, 0)) as typeof setTimeout;
 
     const sessionManager = {
       resolveTargetTab: async () => tabId,
     } as unknown as SessionManager;
-    const navigation = new NavigationCommands(sessionManager, {} as NetworkCapture);
+    const pageStateReader = {
+      async read(targetTabId: number) {
+        assert.equal(targetTabId, tabId);
+        events.push('readback');
+        return { url: 'https://after.example', title: 'After', tree: { ok: true } };
+      },
+    } as unknown as PageStateReader;
+    const lifecycle = {
+      async runCommand({ dispatch, readback }: { dispatch: () => Promise<unknown>; readback: () => Promise<unknown> }) {
+        events.push('wait');
+        const actionResult = await dispatch();
+        const readbackResult = await readback();
+        return {
+          actionResult,
+          readbackResult,
+          workflow: { waitRequired: true, postActionLoading: true },
+        };
+      },
+    } as unknown as TabLifecycle;
+    const navigation = new NavigationCommands(sessionManager, {} as NetworkCapture, pageStateReader, lifecycle);
 
-    const goForwardPromise = navigation.goForward({ sessionId: 'session-forward' } as GoForwardParams);
-    let resolved = false;
-    goForwardPromise.then(() => {
-      resolved = true;
-    });
+    const result = await navigation.goForward({ sessionId: 'session-forward' } as GoForwardParams);
 
-    await new Promise((resolve) => nativeSetTimeout(resolve, 0));
-    assert.equal(resolved, false, 'goForward should not resolve before load completes');
-    assert.equal(goForwardCallCount, 1, 'goForward tab API should be invoked exactly once');
-
-    tabOnUpdated.emit(tabId, { status: 'complete' });
-    await goForwardPromise;
-    await new Promise((resolve) => nativeSetTimeout(resolve, 0));
-    assert.equal(resolved, true, 'goForward should resolve after load completes');
+    assert.equal(result.success, true);
+    assert.equal(result.meta?.workflow?.waitRequired, true);
+    assert.deepEqual(events, ['wait', 'dispatch', 'readback']);
   } finally {
-    (globalThis as any).setTimeout = nativeSetTimeout;
     (globalThis as any).browser = originalBrowser;
   }
 });

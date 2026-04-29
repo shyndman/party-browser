@@ -15,10 +15,19 @@ import type {
   HoverParams,
   WaitParams,
   WaitForParams,
-  WaitForPayload
+  WaitForPayload,
+  PageState,
 } from '../types/commands';
 import type { SessionManager } from '../session/session-manager';
 import type { ContentBridge } from '../messaging/content-bridge';
+
+import { requireSuccessfulCommandResult } from './command-result';
+import { PageStateReader } from './page-state-reader';
+import { TabLifecycle } from './tab-lifecycle';
+
+type CommandOptions = {
+  commandId?: string;
+};
 
 /**
  * Interaction command implementations
@@ -26,67 +35,90 @@ import type { ContentBridge } from '../messaging/content-bridge';
 export class InteractionCommands {
   constructor(
     private sessionManager: SessionManager,
-    private contentBridge: ContentBridge
+    private contentBridge: ContentBridge,
+    private pageStateReader: PageStateReader = new PageStateReader(contentBridge, sessionManager),
+    private lifecycle: TabLifecycle = new TabLifecycle(),
   ) {}
 
   /**
    * Click on an element
    */
-  async click(params: ClickParams): Promise<CommandResult> {
+  async click(params: ClickParams, options: CommandOptions = {}): Promise<CommandResult> {
     const { element } = params;
-    const targetTabId = await this.sessionManager.resolveTargetTab(params);
-
-    return await this.contentBridge.sendCommand(targetTabId, 'click', { element }) as CommandResult;
+    return await this.runActionLifecycle('click', params, options, async (targetTabId) => {
+      return requireSuccessfulCommandResult<{ element?: string }>(
+        await this.contentBridge.sendCommand(targetTabId, 'click', { element }),
+        `Click failed for ${element}.`,
+      ).data ?? { element };
+    });
   }
 
   /**
    * Type text into an element
    */
-  async type(params: TypeParams): Promise<CommandResult> {
+  async type(params: TypeParams, options: CommandOptions = {}): Promise<CommandResult> {
     const { element, text } = params;
-    const targetTabId = await this.sessionManager.resolveTargetTab(params);
-
-    return await this.contentBridge.sendCommand(targetTabId, 'type', { element, text }) as CommandResult;
+    return await this.runActionLifecycle('type', params, options, async (targetTabId) => {
+      return requireSuccessfulCommandResult<{ element?: string; text?: string }>(
+        await this.contentBridge.sendCommand(targetTabId, 'type', { element, text }),
+        `Type failed for ${element}.`,
+      ).data ?? { element, text };
+    });
   }
 
   /**
    * Select an option from a dropdown
    */
-  async selectOption(params: SelectOptionParams): Promise<CommandResult> {
+  async selectOption(
+    params: SelectOptionParams,
+    options: CommandOptions = {},
+  ): Promise<CommandResult> {
     const { element, value } = params;
-    const targetTabId = await this.sessionManager.resolveTargetTab(params);
-
-    return await this.contentBridge.sendCommand(targetTabId, 'select_option', { element, value }) as CommandResult;
+    return await this.runActionLifecycle('select_option', params, options, async (targetTabId) => {
+      return requireSuccessfulCommandResult<{ element?: string; value?: string }>(
+        await this.contentBridge.sendCommand(targetTabId, 'select_option', { element, value }),
+        `Select option failed for ${element}.`,
+      ).data ?? { element, value };
+    });
   }
 
   /**
    * Press a key
    */
-  async pressKey(params: PressKeyParams): Promise<CommandResult> {
+  async pressKey(params: PressKeyParams, options: CommandOptions = {}): Promise<CommandResult> {
     const { key } = params;
-    const targetTabId = await this.sessionManager.resolveTargetTab(params);
-
-    return await this.contentBridge.sendCommand(targetTabId, 'press_key', { key }) as CommandResult;
+    return await this.runActionLifecycle('press_key', params, options, async (targetTabId) => {
+      return requireSuccessfulCommandResult<{ key?: string }>(
+        await this.contentBridge.sendCommand(targetTabId, 'press_key', { key }),
+        `Press key failed for ${key}.`,
+      ).data ?? { key };
+    });
   }
 
   /**
    * Drag an element from start to end
    */
-  async drag(params: DragParams): Promise<CommandResult> {
+  async drag(params: DragParams, options: CommandOptions = {}): Promise<CommandResult> {
     const { startElement, endElement } = params;
-    const targetTabId = await this.sessionManager.resolveTargetTab(params);
-
-    return await this.contentBridge.sendCommand(targetTabId, 'drag', { startElement, endElement }) as CommandResult;
+    return await this.runActionLifecycle('drag', params, options, async (targetTabId) => {
+      return requireSuccessfulCommandResult<{ startElement?: string; endElement?: string }>(
+        await this.contentBridge.sendCommand(targetTabId, 'drag', { startElement, endElement }),
+        `Drag failed for ${startElement} -> ${endElement}.`,
+      ).data ?? { startElement, endElement };
+    });
   }
 
   /**
    * Hover over an element
    */
-  async hover(params: HoverParams): Promise<CommandResult> {
+  async hover(params: HoverParams, options: CommandOptions = {}): Promise<CommandResult> {
     const { element } = params;
-    const targetTabId = await this.sessionManager.resolveTargetTab(params);
-
-    return await this.contentBridge.sendCommand(targetTabId, 'hover', { element }) as CommandResult;
+    return await this.runActionLifecycle('hover', params, options, async (targetTabId) => {
+      return requireSuccessfulCommandResult<{ element?: string }>(
+        await this.contentBridge.sendCommand(targetTabId, 'hover', { element }),
+        `Hover failed for ${element}.`,
+      ).data ?? { element };
+    });
   }
 
   /**
@@ -114,5 +146,34 @@ export class InteractionCommands {
     }
 
     return await this.contentBridge.sendCommand(targetTabId, 'wait_for', payload) as CommandResult;
+  }
+
+  private async runActionLifecycle<TActionData>(
+    command: 'click' | 'type' | 'select_option' | 'press_key' | 'drag' | 'hover',
+    params: { sessionId: string },
+    options: CommandOptions,
+    dispatch: (targetTabId: number) => Promise<TActionData>,
+  ): Promise<CommandResult<TActionData & { pageState: PageState }>> {
+    const targetTabId = await this.sessionManager.resolveTargetTab(params);
+    const result = await this.lifecycle.runCommand({
+      command,
+      commandId: options.commandId,
+      sessionId: params.sessionId,
+      tabId: targetTabId,
+      requireStableBeforeDispatch: true,
+      dispatch: () => dispatch(targetTabId),
+      readback: () => this.pageStateReader.read(targetTabId),
+    });
+
+    return {
+      success: true,
+      data: {
+        ...(result.actionResult as Record<string, unknown>),
+        pageState: result.readbackResult,
+      } as TActionData & { pageState: PageState },
+      meta: {
+        workflow: result.workflow,
+      },
+    };
   }
 }

@@ -39,6 +39,20 @@ const DEFAULT_HUB_PORT = 3456;
 const DEFAULT_HUB_HOST = "127.0.0.1";
 const EXTENSION_SESSION_LEASE_NOT_FOUND = "SESSION_LEASE_NOT_FOUND";
 
+type WorkflowLogMetadata = {
+  failedPhase?: string;
+  waitRequired?: boolean;
+};
+
+function extractWorkflowLogMetadata(result: unknown): WorkflowLogMetadata {
+  if (!result || typeof result !== "object") {
+    return {};
+  }
+
+  const workflow = (result as { meta?: { workflow?: WorkflowLogMetadata } }).meta?.workflow;
+  return workflow ?? {};
+}
+
 type HubRuntimeOptions = {
   port?: number;
   host?: string;
@@ -608,6 +622,8 @@ export class HubRuntime {
     connectionId: string,
     message: ExtensionSessionResultMessage,
   ): void {
+    const workflow = extractWorkflowLogMetadata(message.result);
+
     this.logger.info("Extension session result received.", {
       event: "session.result_resolved",
       connectionId,
@@ -615,6 +631,8 @@ export class HubRuntime {
       sessionId: message.sessionId,
       success: message.success,
       errorCode: message.errorCode,
+      failedPhase: workflow.failedPhase,
+      waitRequired: workflow.waitRequired,
     });
     if (this.logger.isLevelEnabled("debug")) {
       this.logger.debug("Extension session result payload.", {
@@ -654,6 +672,20 @@ export class HubRuntime {
       );
     }
 
+    if (!message.success && workflow.failedPhase) {
+      this.logger.warn("Extension command failed during workflow phase.", {
+        event: "session.result_resolved",
+        connectionId,
+        mcpConnectionId: resolution.mcpConnectionId,
+        requestId: resolution.response.requestId,
+        sessionId: resolution.response.sessionId,
+        commandType: resolution.response.type,
+        success: false,
+        failedPhase: workflow.failedPhase,
+        errorCode: message.errorCode,
+      });
+    }
+
     this.logger.info("Resolved extension result to MCP response.", {
       event: "session.result_resolved",
       connectionId,
@@ -663,6 +695,8 @@ export class HubRuntime {
       commandType: resolution.response.type,
       success: !resolution.response.error,
       errorCode: resolution.response.errorCode,
+      failedPhase: workflow.failedPhase,
+      waitRequired: workflow.waitRequired,
     });
 
     this.sendMcpSessionResult(resolution.mcpConnectionId, resolution.response);

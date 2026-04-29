@@ -11,7 +11,11 @@ import {
   WaitTool,
 } from "@/protocol/tool-definitions";
 
-import { captureAriaSnapshot } from "@/utils/aria-snapshot";
+import {
+  captureAriaSnapshot,
+  extractPageState,
+  formatAriaSnapshot,
+} from "@/utils/aria-snapshot";
 
 import type { Tool, ToolFactory } from "./tool";
 
@@ -43,9 +47,9 @@ export const navigate: ToolFactory = (snapshot) => ({
   },
   handle: async (context, params) => {
     const { url } = NavigateTool.shape.arguments.parse(params);
-    await context.sendSocketMessage("navigate", { url });
+    const result = await context.sendSocketMessage("navigate", { url });
     if (snapshot) {
-      return captureAriaSnapshot(context);
+      return formatAriaSnapshot(extractPageState(result));
     }
     return {
       content: [
@@ -65,9 +69,9 @@ export const goBack: ToolFactory = (snapshot) => ({
     inputSchema: zodToJsonSchema(GoBackTool.shape.arguments),
   },
   handle: async (context) => {
-    await context.sendSocketMessage("go_back", {});
+    const result = await context.sendSocketMessage("go_back", {});
     if (snapshot) {
-      return captureAriaSnapshot(context);
+      return formatAriaSnapshot(extractPageState(result));
     }
     return {
       content: [
@@ -87,9 +91,9 @@ export const goForward: ToolFactory = (snapshot) => ({
     inputSchema: zodToJsonSchema(GoForwardTool.shape.arguments),
   },
   handle: async (context) => {
-    await context.sendSocketMessage("go_forward", {});
+    const result = await context.sendSocketMessage("go_forward", {});
     if (snapshot) {
-      return captureAriaSnapshot(context);
+      return formatAriaSnapshot(extractPageState(result));
     }
     return {
       content: [

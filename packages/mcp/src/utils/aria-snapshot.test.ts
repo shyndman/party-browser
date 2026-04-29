@@ -3,7 +3,30 @@ import test from "node:test";
 
 import { Context } from "@/context";
 
-import { captureAriaSnapshot } from "./aria-snapshot";
+import { captureAriaSnapshot, extractPageState, formatAriaSnapshot } from "./aria-snapshot";
+
+test("formatAriaSnapshot preserves response text shape from lifecycle-managed page state", () => {
+  const output = formatAriaSnapshot(
+    extractPageState({
+      success: true,
+      data: {
+        pageState: {
+          url: "https://example.com/after",
+          title: "After",
+          tree: [{ ref: "e1", tagName: "button", name: "Submit" }],
+        },
+      },
+    }),
+    'Clicked "css:#submit"',
+  ).content[0];
+
+  assert.ok(output);
+  assert.equal(output.type, "text");
+  assert.match(output.text, /^Clicked "css:#submit"/);
+  assert.match(output.text, /- Page URL: https:\/\/example\.com\/after/);
+  assert.match(output.text, /- Page Title: After/);
+  assert.match(output.text, /e1 button: Submit/);
+});
 
 test("captureAriaSnapshot reads URL/title/tree from data envelope shape", async () => {
   const responses = {

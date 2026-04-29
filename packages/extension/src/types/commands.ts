@@ -5,6 +5,24 @@
 
 import type { ErrorCode } from '@/utils/errors';
 
+export type CommandPhase = 'precondition' | 'dispatch' | 'wait' | 'readback';
+
+export interface PageState {
+  url?: string;
+  title?: string;
+  tree: unknown;
+}
+
+export interface CommandWorkflowMeta {
+  failedPhase?: CommandPhase;
+  waitRequired?: boolean;
+  postActionLoading?: boolean;
+}
+
+export interface CommandMeta {
+  workflow?: CommandWorkflowMeta;
+}
+
 /**
  * Result of a command execution
  */
@@ -14,6 +32,7 @@ export interface CommandResult<T = unknown> {
   error?: string;
   errorCode?: ErrorCode;
   stack?: string;
+  meta?: CommandMeta;
 }
 
 /**

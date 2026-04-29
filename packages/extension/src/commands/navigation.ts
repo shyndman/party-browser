@@ -9,10 +9,18 @@ import type {
   CommandResult,
   NavigateParams,
   GoBackParams,
-  GoForwardParams
+  GoForwardParams,
+  PageState,
 } from '../types/commands';
 import type { SessionManager } from '../session/session-manager';
 import type { NetworkCapture } from '../session/network-capture';
+
+import { PageStateReader } from './page-state-reader';
+import { TabLifecycle } from './tab-lifecycle';
+
+type CommandOptions = {
+  commandId?: string;
+};
 
 /**
  * Navigation command implementations
@@ -20,13 +28,18 @@ import type { NetworkCapture } from '../session/network-capture';
 export class NavigationCommands {
   constructor(
     private sessionManager: SessionManager,
-    private networkCapture: NetworkCapture
+    private networkCapture: NetworkCapture,
+    private pageStateReader: PageStateReader,
+    private lifecycle: TabLifecycle = new TabLifecycle(),
   ) {}
 
   /**
    * Navigate to a URL in the session tab
    */
-  async navigate(params: NavigateParams): Promise<CommandResult> {
+  async navigate(
+    params: NavigateParams,
+    options: CommandOptions = {},
+  ): Promise<CommandResult<{ url: string; tabId: number; pageState: PageState }>> {
     const { url } = params;
     const targetTabId = await this.sessionManager.resolveTargetTab(params);
 
@@ -34,69 +47,92 @@ export class NavigationCommands {
       this.networkCapture.startCapture(targetTabId);
     }
 
-    await browser.tabs.update(targetTabId, { url });
-    await this.waitForTabLoad(targetTabId);
+    const result = await this.lifecycle.runCommand({
+      command: 'navigate',
+      commandId: options.commandId,
+      sessionId: params.sessionId,
+      tabId: targetTabId,
+      requireStableBeforeDispatch: false,
+      dispatch: async () => {
+        await browser.tabs.update(targetTabId, { url });
+        return { url, tabId: targetTabId };
+      },
+      readback: () => this.pageStateReader.read(targetTabId),
+    });
 
-    return { success: true, data: { url, tabId: targetTabId } };
+    return {
+      success: true,
+      data: {
+        ...result.actionResult,
+        pageState: result.readbackResult,
+      },
+      meta: {
+        workflow: result.workflow,
+      },
+    };
   }
 
   /**
    * Navigate back in history
    */
-  async goBack(params: GoBackParams): Promise<CommandResult> {
+  async goBack(
+    params: GoBackParams,
+    options: CommandOptions = {},
+  ): Promise<CommandResult<{ pageState: PageState }>> {
     const targetTabId = await this.sessionManager.resolveTargetTab(params);
-    await browser.tabs.goBack(targetTabId);
-    await this.waitForTabLoad(targetTabId);
-    return { success: true };
+    const result = await this.lifecycle.runCommand({
+      command: 'go_back',
+      commandId: options.commandId,
+      sessionId: params.sessionId,
+      tabId: targetTabId,
+      requireStableBeforeDispatch: false,
+      dispatch: async () => {
+        await browser.tabs.goBack(targetTabId);
+        return {};
+      },
+      readback: () => this.pageStateReader.read(targetTabId),
+    });
+
+    return {
+      success: true,
+      data: {
+        pageState: result.readbackResult,
+      },
+      meta: {
+        workflow: result.workflow,
+      },
+    };
   }
 
   /**
    * Navigate forward in history
    */
-  async goForward(params: GoForwardParams): Promise<CommandResult> {
+  async goForward(
+    params: GoForwardParams,
+    options: CommandOptions = {},
+  ): Promise<CommandResult<{ pageState: PageState }>> {
     const targetTabId = await this.sessionManager.resolveTargetTab(params);
-    await browser.tabs.goForward(targetTabId);
-    await this.waitForTabLoad(targetTabId);
-    return { success: true };
-  }
-
-  /**
-   * Wait for tab to finish loading
-   */
-  private async waitForTabLoad(tabId: number): Promise<void> {
-    try {
-      const [readyState] = await browser.tabs.executeScript(tabId, {
-        code: 'document.readyState',
-      });
-
-      if (readyState === 'complete') {
-        return;
-      }
-    } catch {
-      // Fall back to the load listener when the readiness probe is unavailable.
-    }
-
-    await new Promise<void>((resolve) => {
-      let timeoutId: ReturnType<typeof setTimeout>;
-
-      const cleanup = () => {
-        browser.tabs.onUpdated.removeListener(listener);
-      };
-
-      const listener = (updatedTabId: number, changeInfo: { status?: string }) => {
-        if (updatedTabId === tabId && changeInfo.status === 'complete') {
-          clearTimeout(timeoutId);
-          cleanup();
-          resolve();
-        }
-      };
-
-      browser.tabs.onUpdated.addListener(listener);
-
-      timeoutId = setTimeout(() => {
-        cleanup();
-        resolve();
-      }, 10000);
+    const result = await this.lifecycle.runCommand({
+      command: 'go_forward',
+      commandId: options.commandId,
+      sessionId: params.sessionId,
+      tabId: targetTabId,
+      requireStableBeforeDispatch: false,
+      dispatch: async () => {
+        await browser.tabs.goForward(targetTabId);
+        return {};
+      },
+      readback: () => this.pageStateReader.read(targetTabId),
     });
+
+    return {
+      success: true,
+      data: {
+        pageState: result.readbackResult,
+      },
+      meta: {
+        workflow: result.workflow,
+      },
+    };
   }
 }

@@ -35,6 +35,9 @@ import type { ContentBridge } from '../messaging/content-bridge';
 import { NavigationCommands } from './navigation';
 import { InteractionCommands } from './interaction';
 import { InspectionCommands } from './inspection';
+import { logCommandPhase } from './command-logging';
+import { PageStateReader } from './page-state-reader';
+import { CommandWorkflowError, TabLifecycle } from './tab-lifecycle';
 
 /**
  * Command handler that routes commands to category modules
@@ -49,9 +52,12 @@ export class CommandHandler {
     private networkCapture: NetworkCapture,
     private contentBridge: ContentBridge
   ) {
-    this.navigation = new NavigationCommands(sessionManager, networkCapture);
-    this.interaction = new InteractionCommands(sessionManager, contentBridge);
-    this.inspection = new InspectionCommands(sessionManager, networkCapture, contentBridge);
+    const pageStateReader = new PageStateReader(contentBridge, sessionManager);
+    const lifecycle = new TabLifecycle();
+
+    this.navigation = new NavigationCommands(sessionManager, networkCapture, pageStateReader, lifecycle);
+    this.interaction = new InteractionCommands(sessionManager, contentBridge, pageStateReader, lifecycle);
+    this.inspection = new InspectionCommands(sessionManager, networkCapture, contentBridge, pageStateReader);
   }
 
   /**
@@ -64,71 +70,121 @@ export class CommandHandler {
     command: CommandName,
     params: Record<string, unknown>,
     sessionId: string,
+    commandId?: string,
   ): Promise<CommandResult> {
     const sessionScopedParams = {
       ...params,
       sessionId,
     };
 
-    console.log('[PartyBrowser] Handling command:', command, sessionScopedParams);
+    logCommandPhase('log', 'Command workflow started.', {
+      command,
+      commandId,
+      origin: 'user',
+      phase: 'begin',
+      sessionId,
+      params: sessionScopedParams,
+    });
 
     try {
       await this.sessionManager.resolveTargetTab(
         sessionScopedParams as { sessionId?: string; tabId?: number },
       );
 
+      let result: CommandResult;
+
       switch (command) {
         // Navigation commands
         case 'navigate':
-          return await this.navigation.navigate(sessionScopedParams as unknown as NavigateParams);
+          result = await this.navigation.navigate(sessionScopedParams as unknown as NavigateParams, { commandId });
+          break;
         case 'go_back':
-          return await this.navigation.goBack(sessionScopedParams as unknown as GoBackParams);
+          result = await this.navigation.goBack(sessionScopedParams as unknown as GoBackParams, { commandId });
+          break;
         case 'go_forward':
-          return await this.navigation.goForward(sessionScopedParams as unknown as GoForwardParams);
+          result = await this.navigation.goForward(sessionScopedParams as unknown as GoForwardParams, { commandId });
+          break;
 
         // Interaction commands
         case 'click':
-          return await this.interaction.click(sessionScopedParams as unknown as ClickParams);
+          result = await this.interaction.click(sessionScopedParams as unknown as ClickParams, { commandId });
+          break;
         case 'type':
-          return await this.interaction.type(sessionScopedParams as unknown as TypeParams);
+          result = await this.interaction.type(sessionScopedParams as unknown as TypeParams, { commandId });
+          break;
         case 'select_option':
-          return await this.interaction.selectOption(sessionScopedParams as unknown as SelectOptionParams);
+          result = await this.interaction.selectOption(sessionScopedParams as unknown as SelectOptionParams, { commandId });
+          break;
         case 'press_key':
-          return await this.interaction.pressKey(sessionScopedParams as unknown as PressKeyParams);
+          result = await this.interaction.pressKey(sessionScopedParams as unknown as PressKeyParams, { commandId });
+          break;
         case 'drag':
-          return await this.interaction.drag(sessionScopedParams as unknown as DragParams);
+          result = await this.interaction.drag(sessionScopedParams as unknown as DragParams, { commandId });
+          break;
         case 'hover':
-          return await this.interaction.hover(sessionScopedParams as unknown as HoverParams);
+          result = await this.interaction.hover(sessionScopedParams as unknown as HoverParams, { commandId });
+          break;
         case 'wait':
-          return await this.interaction.wait(sessionScopedParams as unknown as WaitParams);
+          result = await this.interaction.wait(sessionScopedParams as unknown as WaitParams);
+          break;
         case 'wait_for':
-          return await this.interaction.waitFor(sessionScopedParams as unknown as WaitForParams);
+          result = await this.interaction.waitFor(sessionScopedParams as unknown as WaitForParams);
+          break;
 
         // Inspection commands
         case 'screenshot':
-          return await this.inspection.screenshot(sessionScopedParams as unknown as ScreenshotParams);
+          result = await this.inspection.screenshot(sessionScopedParams as unknown as ScreenshotParams);
+          break;
         case 'snapshot':
-          return await this.inspection.snapshot(sessionScopedParams as unknown as SnapshotParams);
+          result = await this.inspection.snapshot(sessionScopedParams as unknown as SnapshotParams);
+          break;
         case 'getUrl':
-          return await this.inspection.getUrl(sessionScopedParams as unknown as GetUrlParams);
+          result = await this.inspection.getUrl(sessionScopedParams as unknown as GetUrlParams);
+          break;
         case 'getTitle':
-          return await this.inspection.getTitle(sessionScopedParams as unknown as GetTitleParams);
+          result = await this.inspection.getTitle(sessionScopedParams as unknown as GetTitleParams);
+          break;
         case 'getNetworkRequests':
-          return await this.inspection.getNetworkRequests(sessionScopedParams as unknown as GetNetworkRequestsParams);
+          result = await this.inspection.getNetworkRequests(sessionScopedParams as unknown as GetNetworkRequestsParams);
+          break;
         case 'getConsoleMessages':
-          return await this.inspection.getConsoleMessages(sessionScopedParams as unknown as GetConsoleMessagesParams);
+          result = await this.inspection.getConsoleMessages(sessionScopedParams as unknown as GetConsoleMessagesParams);
+          break;
         case 'evaluate':
-          return await this.inspection.evaluate(sessionScopedParams as unknown as EvaluateParams);
+          result = await this.inspection.evaluate(sessionScopedParams as unknown as EvaluateParams);
+          break;
         case 'close':
-          return await this.inspection.close(sessionScopedParams as unknown as CloseParams);
+          result = await this.inspection.close(sessionScopedParams as unknown as CloseParams);
+          break;
         case 'getTabs':
-          return await this.inspection.getTabs();
+          result = await this.inspection.getTabs();
+          break;
 
         default:
           throw new Error(`Unknown command: ${command}`);
       }
+
+      logCommandPhase('log', 'Command workflow succeeded.', {
+        command,
+        commandId,
+        origin: 'user',
+        phase: 'success',
+        sessionId,
+        waitRequired: result.meta?.workflow?.waitRequired,
+      });
+
+      return result;
     } catch (error) {
-      console.error('[PartyBrowser] Command failed:', error);
+      const failedPhase = error instanceof CommandWorkflowError ? error.phase : undefined;
+      logCommandPhase('error', 'Command workflow failed.', {
+        command,
+        commandId,
+        origin: 'user',
+        phase: 'failure',
+        failedPhase,
+        sessionId,
+        error: error instanceof Error ? error.message : String(error),
+      });
 
       // Pass through CodedError as-is
       if (error instanceof CodedError) {
@@ -136,7 +192,10 @@ export class CommandHandler {
           success: false,
           error: error.message,
           errorCode: error.errorCode,
-          stack: error.stack
+          stack: error.stack,
+          meta: failedPhase
+            ? { workflow: { failedPhase } }
+            : undefined,
         };
       }
 
@@ -144,7 +203,10 @@ export class CommandHandler {
         success: false,
         error: (error as Error).message,
         errorCode: (error as { errorCode?: ErrorCode }).errorCode || ErrorCodes.COMMAND_FAILED,
-        stack: (error as Error).stack
+        stack: (error as Error).stack,
+        meta: failedPhase
+          ? { workflow: { failedPhase } }
+          : undefined,
       };
     }
   }

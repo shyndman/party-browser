@@ -40,6 +40,7 @@ export default defineConfig({
       'tabs',
       'tabGroups',
       'storage',
+      'webNavigation',
       'webRequest',
       'ws://localhost:3456/',
       '<all_urls>'

@@ -6,6 +6,7 @@
 /// <reference path="../types/global.d.ts" />
 
 import { CodedError, ErrorCodes } from '../utils/errors';
+import { TabLifecycle } from '../commands/tab-lifecycle';
 
 export interface SessionConfig {
   defaultPort: number;
@@ -44,6 +45,7 @@ export interface SessionLease {
 export class SessionManager {
   private leases = new Map<string, SessionLease>();
   private leaseCreatedAtMs = new Map<string, number>();
+  private readonly tabLifecycle = new TabLifecycle();
   private onLeaseRevokedCallbacks: Array<
     (sessionId: string, lease: SessionLease, reason: string) => void
   > = [];
@@ -178,7 +180,11 @@ export class SessionManager {
       );
     }
 
-    await this.waitForTabLoad(tabId);
+    await this.tabLifecycle.waitForTabToSettle({
+      command: 'lease_setup',
+      sessionId: 'lease_setup',
+      tabId,
+    });
 
     return { windowId, tabId };
   }
@@ -351,49 +357,6 @@ export class SessionManager {
     callback: (sessionId: string, lease: SessionLease, reason: string) => void,
   ): void {
     this.onLeaseRevokedCallbacks.push(callback);
-  }
-
-  /**
-   * Wait for a tab to finish loading
-   */
-  private async waitForTabLoad(tabId: number): Promise<void> {
-    try {
-      const [readyState] = await browser.tabs.executeScript(tabId, {
-        code: 'document.readyState',
-      });
-
-      if (readyState === 'complete') {
-        return;
-      }
-    } catch {
-      // Fall back to the load listener when the readiness probe is unavailable.
-    }
-
-    await new Promise<void>((resolve) => {
-      let timeoutId: ReturnType<typeof setTimeout>;
-
-      const cleanup = () => {
-        browser.tabs.onUpdated.removeListener(listener);
-      };
-
-      const listener = (
-        updatedTabId: number,
-        changeInfo: { status?: string },
-      ) => {
-        if (updatedTabId === tabId && changeInfo.status === 'complete') {
-          clearTimeout(timeoutId);
-          cleanup();
-          resolve();
-        }
-      };
-
-      browser.tabs.onUpdated.addListener(listener);
-
-      timeoutId = setTimeout(() => {
-        cleanup();
-        resolve();
-      }, 10000);
-    });
   }
 
   /**

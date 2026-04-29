@@ -5,45 +5,21 @@ import { NavigationCommands } from './navigation';
 import type { NetworkCapture } from '../session/network-capture';
 import type { SessionManager } from '../session/session-manager';
 import type { GoBackParams } from '../types/commands';
+import type { PageStateReader } from './page-state-reader';
+import type { TabLifecycle } from './tab-lifecycle';
 
-type TabUpdateListener = (tabId: number, changeInfo: { status?: string }) => void;
-
-function createTabUpdateEmitter() {
-  const listeners = new Set<TabUpdateListener>();
-
-  return {
-    addListener(listener: TabUpdateListener) {
-      listeners.add(listener);
-    },
-    removeListener(listener: TabUpdateListener) {
-      listeners.delete(listener);
-    },
-    emit(tabId: number, changeInfo: { status?: string }) {
-      for (const listener of listeners) {
-        listener(tabId, changeInfo);
-      }
-    },
-    listenerCount() {
-      return listeners.size;
-    },
-  };
-}
-
-test('goBack waits for the target tab to finish loading before resolving', async () => {
-  const originalBrowser = (globalThis as any).browser;
+test('goBack routes through the shared lifecycle and waits before readback', async () => {
+  const events: string[] = [];
   const targetTabId = 42;
-  const tabOnUpdated = createTabUpdateEmitter();
-  let goBackCalled = false;
 
+  const originalBrowser = (globalThis as any).browser;
   try {
     (globalThis as any).browser = {
       tabs: {
-        goBack: async (tabId: number) => {
+        async goBack(tabId: number) {
           assert.equal(tabId, targetTabId);
-          goBackCalled = true;
+          events.push('dispatch');
         },
-        executeScript: async () => ['loading'],
-        onUpdated: tabOnUpdated,
       },
     };
 
@@ -51,59 +27,39 @@ test('goBack waits for the target tab to finish loading before resolving', async
       resolveTargetTab: async () => targetTabId,
     } as unknown as SessionManager;
 
-    const networkCaptureStub = {} as NetworkCapture;
-    const navigation = new NavigationCommands(sessionManagerStub, networkCaptureStub);
-
-    let resolved = false;
-    const goBackPromise = navigation.goBack({ sessionId: 'session-1' } satisfies GoBackParams).then(() => {
-      resolved = true;
-    });
-
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    assert.equal(tabOnUpdated.listenerCount(), 1, 'should register a load listener while the page is still loading');
-    assert.equal(resolved, false, 'should not resolve goBack before load completes');
-
-    tabOnUpdated.emit(targetTabId, { status: 'complete' });
-
-    await goBackPromise;
-    assert.equal(resolved, true);
-    assert.equal(goBackCalled, true);
-  } finally {
-    (globalThis as any).browser = originalBrowser;
-  }
-});
-
-test('goBack returns immediately when the current document is already fully loaded', async () => {
-  const originalBrowser = (globalThis as any).browser;
-  const targetTabId = 42;
-  const tabOnUpdated = createTabUpdateEmitter();
-  let goBackCalled = false;
-
-  try {
-    (globalThis as any).browser = {
-      tabs: {
-        goBack: async (tabId: number) => {
-          assert.equal(tabId, targetTabId);
-          goBackCalled = true;
-        },
-        executeScript: async (tabId: number, details: { code?: string }) => {
-          assert.equal(tabId, targetTabId);
-          assert.equal(details.code, 'document.readyState');
-          return ['complete'];
-        },
-        onUpdated: tabOnUpdated,
+    const pageStateReader = {
+      async read(tabId: number) {
+        assert.equal(tabId, targetTabId);
+        events.push('readback');
+        return { url: 'https://after.example', title: 'After', tree: { ok: true } };
       },
-    };
+    } as unknown as PageStateReader;
 
-    const sessionManagerStub = {
-      resolveTargetTab: async () => targetTabId,
-    } as unknown as SessionManager;
+    const lifecycle = {
+      async runCommand({ dispatch, readback }: { dispatch: () => Promise<unknown>; readback: () => Promise<unknown> }) {
+        events.push('wait');
+        const actionResult = await dispatch();
+        const readbackResult = await readback();
+        return {
+          actionResult,
+          readbackResult,
+          workflow: { waitRequired: true, postActionLoading: true },
+        };
+      },
+    } as unknown as TabLifecycle;
 
-    const navigation = new NavigationCommands(sessionManagerStub, {} as NetworkCapture);
-    await navigation.goBack({ sessionId: 'session-ready' } satisfies GoBackParams);
+    const navigation = new NavigationCommands(
+      sessionManagerStub,
+      {} as NetworkCapture,
+      pageStateReader,
+      lifecycle,
+    );
 
-    assert.equal(goBackCalled, true);
-    assert.equal(tabOnUpdated.listenerCount(), 0, 'should not register a load listener when readyState is complete');
+    const result = await navigation.goBack({ sessionId: 'session-1' } satisfies GoBackParams);
+
+    assert.equal(result.success, true);
+    assert.deepEqual(events, ['wait', 'dispatch', 'readback']);
+    assert.equal(result.meta?.workflow?.waitRequired, true);
   } finally {
     (globalThis as any).browser = originalBrowser;
   }

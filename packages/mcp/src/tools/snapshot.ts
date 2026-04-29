@@ -10,7 +10,11 @@ import {
 } from "@/protocol/tool-definitions";
 
 import type { Context } from "@/context";
-import { captureAriaSnapshot } from "@/utils/aria-snapshot";
+import {
+  captureAriaSnapshot,
+  extractPageState,
+  formatAriaSnapshot,
+} from "@/utils/aria-snapshot";
 
 import type { Tool } from "./tool";
 
@@ -33,17 +37,8 @@ export const click: Tool = {
   },
   handle: async (context: Context, params) => {
     const validatedParams = ClickTool.shape.arguments.parse(params);
-    await context.sendSocketMessage("click", validatedParams);
-    const snapshot = await captureAriaSnapshot(context);
-    return {
-      content: [
-        {
-          type: "text",
-          text: `Clicked "${validatedParams.element}"`,
-        },
-        ...snapshot.content,
-      ],
-    };
+    const result = await context.sendSocketMessage("click", validatedParams);
+    return formatAriaSnapshot(extractPageState(result), `Clicked "${validatedParams.element}"`);
   },
 };
 
@@ -55,17 +50,11 @@ export const drag: Tool = {
   },
   handle: async (context: Context, params) => {
     const validatedParams = DragTool.shape.arguments.parse(params);
-    await context.sendSocketMessage("drag", validatedParams);
-    const snapshot = await captureAriaSnapshot(context);
-    return {
-      content: [
-        {
-          type: "text",
-          text: `Dragged "${validatedParams.startElement}" to "${validatedParams.endElement}"`,
-        },
-        ...snapshot.content,
-      ],
-    };
+    const result = await context.sendSocketMessage("drag", validatedParams);
+    return formatAriaSnapshot(
+      extractPageState(result),
+      `Dragged "${validatedParams.startElement}" to "${validatedParams.endElement}"`,
+    );
   },
 };
 
@@ -77,17 +66,8 @@ export const hover: Tool = {
   },
   handle: async (context: Context, params) => {
     const validatedParams = HoverTool.shape.arguments.parse(params);
-    await context.sendSocketMessage("hover", validatedParams);
-    const snapshot = await captureAriaSnapshot(context);
-    return {
-      content: [
-        {
-          type: "text",
-          text: `Hovered over "${validatedParams.element}"`,
-        },
-        ...snapshot.content,
-      ],
-    };
+    const result = await context.sendSocketMessage("hover", validatedParams);
+    return formatAriaSnapshot(extractPageState(result), `Hovered over "${validatedParams.element}"`);
   },
 };
 
@@ -99,17 +79,11 @@ export const type: Tool = {
   },
   handle: async (context: Context, params) => {
     const validatedParams = TypeTool.shape.arguments.parse(params);
-    await context.sendSocketMessage("type", validatedParams);
-    const snapshot = await captureAriaSnapshot(context);
-    return {
-      content: [
-        {
-          type: "text",
-          text: `Typed "${validatedParams.text}" into "${validatedParams.element}"`,
-        },
-        ...snapshot.content,
-      ],
-    };
+    const result = await context.sendSocketMessage("type", validatedParams);
+    return formatAriaSnapshot(
+      extractPageState(result),
+      `Typed "${validatedParams.text}" into "${validatedParams.element}"`,
+    );
   },
 };
 
@@ -121,16 +95,10 @@ export const selectOption: Tool = {
   },
   handle: async (context: Context, params) => {
     const validatedParams = SelectOptionTool.shape.arguments.parse(params);
-    await context.sendSocketMessage("select_option", validatedParams);
-    const snapshot = await captureAriaSnapshot(context);
-    return {
-      content: [
-        {
-          type: "text",
-          text: `Selected option in "${validatedParams.element}"`,
-        },
-        ...snapshot.content,
-      ],
-    };
+    const result = await context.sendSocketMessage("select_option", validatedParams);
+    return formatAriaSnapshot(
+      extractPageState(result),
+      `Selected option in "${validatedParams.element}"`,
+    );
   },
 };

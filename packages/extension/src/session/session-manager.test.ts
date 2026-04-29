@@ -27,7 +27,8 @@ function createEventEmitter() {
 }
 
 type BrowserMockState = {
-  tabOnUpdated: ReturnType<typeof createEventEmitter>;
+  navigationOnCompleted: ReturnType<typeof createEventEmitter>;
+  navigationOnErrorOccurred: ReturnType<typeof createEventEmitter>;
   tabOnRemoved: ReturnType<typeof createEventEmitter>;
   windowOnRemoved: ReturnType<typeof createEventEmitter>;
   createdWindowArgs: Array<{
@@ -45,7 +46,8 @@ type BrowserMockState = {
 };
 
 function installBrowserMock(): BrowserMockState {
-  const tabOnUpdated = createEventEmitter();
+  const navigationOnCompleted = createEventEmitter();
+  const navigationOnErrorOccurred = createEventEmitter();
   const tabOnRemoved = createEventEmitter();
   const windowOnRemoved = createEventEmitter();
 
@@ -60,7 +62,6 @@ function installBrowserMock(): BrowserMockState {
 
   (globalThis as any).browser = {
     tabs: {
-      onUpdated: tabOnUpdated,
       onRemoved: tabOnRemoved,
       async create({ url }: { url: string }) {
         nextTabId += 1;
@@ -99,6 +100,10 @@ function installBrowserMock(): BrowserMockState {
 
         return Array.from(existingTabs.values()).filter((tab) => tab.windowId === query.windowId);
       },
+    },
+    webNavigation: {
+      onCompleted: navigationOnCompleted,
+      onErrorOccurred: navigationOnErrorOccurred,
     },
     windows: {
       onRemoved: windowOnRemoved,
@@ -148,7 +153,8 @@ function installBrowserMock(): BrowserMockState {
   };
 
   return {
-    tabOnUpdated,
+    navigationOnCompleted,
+    navigationOnErrorOccurred,
     tabOnRemoved,
     windowOnRemoved,
     createdWindowArgs,
@@ -159,7 +165,7 @@ function installBrowserMock(): BrowserMockState {
 test('window-backed lease lifecycle create/get/revoke/revokeAll', async () => {
   installBrowserMock();
   const manager = new SessionManager();
-  (manager as any).waitForTabLoad = async () => undefined;
+  (manager as any).tabLifecycle.waitForTabToSettle = async () => undefined;
 
   const leaseOne = await manager.createLease('session-1', 'https://example.com');
   assert.equal(typeof leaseOne.windowId, 'number');
@@ -181,7 +187,7 @@ test('window-backed lease lifecycle create/get/revoke/revokeAll', async () => {
 test('lease creation applies deterministic geometry and stores snapshot shape', async () => {
   const browserState = installBrowserMock();
   const manager = new SessionManager();
-  (manager as any).waitForTabLoad = async () => undefined;
+  (manager as any).tabLifecycle.waitForTabToSettle = async () => undefined;
 
   const lease = await manager.createLease('session-geometry', 'https://geometry.example');
 
@@ -212,37 +218,24 @@ test('lease creation returns immediately when the initial tab is already fully l
   const browserState = installBrowserMock();
   const manager = new SessionManager();
 
-  let readyStateProbeCount = 0;
-  (globalThis as any).browser.tabs.executeScript = async (
-    tabId: number,
-    details: { code?: string },
-  ) => {
-    assert.equal(typeof tabId, 'number');
-
-    if (details.code === 'document.readyState') {
-      readyStateProbeCount += 1;
-      return ['complete'];
-    }
-
-    throw new Error(`unexpected script: ${details.code}`);
+  let settleCalls = 0;
+  (manager as any).tabLifecycle.waitForTabToSettle = async () => {
+    settleCalls += 1;
   };
 
   const lease = await manager.createLease('session-ready', 'https://ready.example');
 
   assert.equal(typeof lease.windowId, 'number');
   assert.equal(typeof lease.tabId, 'number');
-  assert.equal(readyStateProbeCount, 1);
-  assert.equal(
-    browserState.tabOnUpdated.listenerCount(),
-    0,
-    'should not register a load listener when readyState is complete',
-  );
+  assert.equal(settleCalls, 1);
+  assert.equal(browserState.navigationOnCompleted.listenerCount(), 0);
+  assert.equal(browserState.navigationOnErrorOccurred.listenerCount(), 0);
 });
 
 test('window close revokes lease and blocks future routing', async () => {
   const browserState = installBrowserMock();
   const manager = new SessionManager();
-  (manager as any).waitForTabLoad = async () => undefined;
+  (manager as any).tabLifecycle.waitForTabToSettle = async () => undefined;
 
   const lease = await manager.createLease('session-window-close', 'https://example.com');
   browserState.windowOnRemoved.emit(lease.windowId);
@@ -262,7 +255,7 @@ test('window close revokes lease and blocks future routing', async () => {
 test('tab close revokes lease and blocks future routing', async () => {
   const browserState = installBrowserMock();
   const manager = new SessionManager();
-  (manager as any).waitForTabLoad = async () => undefined;
+  (manager as any).tabLifecycle.waitForTabToSettle = async () => undefined;
 
   const lease = await manager.createLease('session-tab-close', 'https://example.com');
   browserState.tabOnRemoved.emit(lease.tabId, { windowId: lease.windowId, isWindowClosing: false });
@@ -305,7 +298,7 @@ test('hard-denies missing and unknown session routing', async () => {
 test('revokeLease is idempotent under repeated calls', async () => {
   installBrowserMock();
   const manager = new SessionManager();
-  (manager as any).waitForTabLoad = async () => undefined;
+  (manager as any).tabLifecycle.waitForTabToSettle = async () => undefined;
 
   await manager.createLease('session-idempotent', 'https://example.com');
 
