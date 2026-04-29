@@ -8,18 +8,23 @@ import { screenshot } from './custom';
 
 test('screenshot tool unwraps wrapped command response', async () => {
   const base64Screenshot = 'Zm9vYmFyZm9vYmFy';
+  let capturedOptions: unknown;
   const context = {
-    sendSocketMessage: async () => ({
+    sendSocketMessage: async (_type: string, _payload: unknown, options: unknown) => {
+      capturedOptions = options;
+      return {
       success: true,
       data: {
         screenshot: base64Screenshot,
       },
-    }),
+      };
+    },
   } as unknown as Context;
 
-  const result = await screenshot.handle(context);
+  const result = await screenshot.handle(context, undefined, 'call-123');
   const image = result.content[0];
 
+  assert.deepEqual(capturedOptions, { requestId: 'call-123' });
   assert.ok(image);
   assert.equal(image.type, 'image');
   assert.equal((image as ImageContent).data, base64Screenshot);

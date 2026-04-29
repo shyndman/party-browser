@@ -71,11 +71,12 @@ export const networkRequests: Tool = {
     description: NetworkRequestsTool.shape.description.value,
     inputSchema: zodToJsonSchema(NetworkRequestsTool.shape.arguments),
   },
-  handle: async (context, params = {}) => {
+  handle: async (context, params = {}, requestId) => {
     try {
       const response = await context.sendSocketMessage(
         "get_network_requests",
-        { filter: params?.filter }
+        { filter: params?.filter },
+        { requestId },
       );
 
         if (!response.success) {
@@ -163,14 +164,15 @@ export const consoleMessages: Tool = {
     description: ConsoleMessagesTool.shape.description.value,
     inputSchema: zodToJsonSchema(ConsoleMessagesTool.shape.arguments),
   },
-  handle: async (context, params = {}) => {
+  handle: async (context, params = {}, requestId) => {
     try {
       const response = await context.sendSocketMessage(
         "get_console_messages",
         {
           level: params?.level || "all",
           since: params?.since,
-        }
+        },
+        { requestId },
       );
 
         if (!response.success) {

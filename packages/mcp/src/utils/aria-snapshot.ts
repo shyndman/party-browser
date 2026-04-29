@@ -71,15 +71,15 @@ ${snapshotYaml}
   };
 }
 
-export async function readPageState(context: Context): Promise<PageState> {
+export async function readPageState(context: Context, requestId?: string): Promise<PageState> {
   const urlResult = unwrapCommandData<{
     url?: string;
-  }>(await context.sendSocketMessage("getUrl", {}));
+  }>(await context.sendSocketMessage("getUrl", {}, { requestId }));
   const titleResult = unwrapCommandData<{
     title?: string;
-  }>(await context.sendSocketMessage("getTitle", {}));
+  }>(await context.sendSocketMessage("getTitle", {}, { requestId }));
   const snapshotResult = unwrapCommandData<unknown>(
-    await context.sendSocketMessage("snapshot", {}),
+    await context.sendSocketMessage("snapshot", {}, { requestId }),
   );
 
   const snapshot =
@@ -100,6 +100,7 @@ export async function readPageState(context: Context): Promise<PageState> {
 export async function captureAriaSnapshot(
   context: Context,
   status: string = "",
+  requestId?: string,
 ): Promise<ToolResult> {
-  return formatAriaSnapshot(await readPageState(context), status);
+  return formatAriaSnapshot(await readPageState(context, requestId), status);
 }

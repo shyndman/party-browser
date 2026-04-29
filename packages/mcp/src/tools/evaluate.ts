@@ -12,9 +12,9 @@ export const evaluate: Tool = {
     description: EvaluateTool.shape.description.value,
     inputSchema: zodToJsonSchema(EvaluateTool.shape.arguments),
   },
-  handle: async (context, params) => {
+  handle: async (context, params, requestId) => {
     const { script } = EvaluateTool.shape.arguments.parse(params);
-    const commandResult = await context.sendSocketMessage("evaluate", { script });
+    const commandResult = await context.sendSocketMessage("evaluate", { script }, { requestId });
     const { success, value, error, errorCode } = unwrapEvaluateResult(commandResult);
 
     if (!success) {

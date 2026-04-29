@@ -9,7 +9,7 @@ import {
   type HubConnection,
 } from "./protocol/ws-sender";
 
-function createMockHubConnection(): HubConnection {
+function createMockHubConnection(overrides: Partial<HubConnection> = {}): HubConnection {
   return {
     async probe() {
       return;
@@ -23,6 +23,7 @@ function createMockHubConnection(): HubConnection {
     async close() {
       return;
     },
+    ...overrides,
   };
 }
 

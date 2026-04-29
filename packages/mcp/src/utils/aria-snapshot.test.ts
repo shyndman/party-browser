@@ -41,14 +41,23 @@ test("captureAriaSnapshot reads URL/title/tree from data envelope shape", async 
       },
     },
   } as const;
+  const capturedOptions: unknown[] = [];
 
   const context = {
-    sendSocketMessage: async (type: keyof typeof responses) => responses[type],
+    sendSocketMessage: async (type: keyof typeof responses, _payload: unknown, options: unknown) => {
+      capturedOptions.push(options);
+      return responses[type];
+    },
   } as unknown as Context;
 
-  const result = await captureAriaSnapshot(context);
+  const result = await captureAriaSnapshot(context, "", "call-123");
   const output = result.content[0]?.type === "text" ? result.content[0].text : "";
 
+  assert.deepEqual(capturedOptions, [
+    { requestId: "call-123" },
+    { requestId: "call-123" },
+    { requestId: "call-123" },
+  ]);
   assert.match(output, /- Page URL: https:\/\/news\.ycombinator\.com/);
   assert.match(output, /- Page Title: Hacker News/);
   assert.match(output, /e1 a: First Link/);

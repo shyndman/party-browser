@@ -35,12 +35,13 @@ export const screenshot: Tool = {
     description: ScreenshotTool.shape.description.value,
     inputSchema: zodToJsonSchema(ScreenshotTool.shape.arguments),
   },
-  handle: async (context, _params) => {
+  handle: async (context, _params, requestId) => {
     try {
       // Extension contract: returns base64-encoded PNG string (not Data URL)
       const rawResponse = await context.sendSocketMessage(
         "screenshot",
         {},
+        { requestId },
       );
       const screenshot = unwrapScreenshotPayload(rawResponse);
 

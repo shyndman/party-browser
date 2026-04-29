@@ -25,10 +25,12 @@ function createHubConnection(
 }
 
 test('click tool preserves response text shape while consuming lifecycle-managed page state', async () => {
+  let capturedOptions: unknown;
   const context = new Context(
-    createHubConnection(async (_sessionId, type, payload) => {
+    createHubConnection(async (_sessionId, type, payload, options) => {
       assert.equal(type, 'click');
       assert.deepEqual(payload, { element: 'css:#submit' });
+      capturedOptions = options;
       return {
         success: true,
         data: {
@@ -48,9 +50,10 @@ test('click tool preserves response text shape while consuming lifecycle-managed
     url: 'https://example.com',
   });
 
-  const result = await click.handle(context, { element: 'css:#submit' });
+  const result = await click.handle(context, { element: 'css:#submit' }, 'call-123');
   const output = result.content[0];
 
+  assert.deepEqual(capturedOptions, { requestId: 'call-123' });
   assert.ok(output);
   assert.equal(output.type, 'text');
   assert.match(output.text, /^Clicked "css:#submit"/);
