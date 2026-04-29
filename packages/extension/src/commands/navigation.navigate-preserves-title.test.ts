@@ -4,6 +4,7 @@ import test from 'node:test';
 import { NavigationCommands } from './navigation';
 import type { SessionManager } from '@/session/session-manager';
 import type { NetworkCapture } from '@/session/network-capture';
+import { CodedError, ErrorCodes } from '../utils/errors';
 import type { PageStateReader } from './page-state-reader';
 import type { TabLifecycle } from './tab-lifecycle';
 
@@ -71,6 +72,80 @@ test('navigate command does not mutate document title', async () => {
       pageState: { url: navigateUrl, title: 'After', tree: { ok: true } },
     });
     assert.equal(captureStarted, true);
+  } finally {
+    (globalThis as any).browser = originalBrowser;
+  }
+});
+
+test('navigate succeeds with URL and title fallback when snapshot readback fails', async () => {
+  const originalBrowser = (globalThis as any).browser;
+
+  try {
+    const targetTabId = 102;
+    const navigateUrl = 'https://fallback.example';
+
+    (globalThis as any).browser = {
+      tabs: {
+        update: async (tabId: number, updateInfo: { url?: string }) => {
+          assert.equal(tabId, targetTabId);
+          assert.equal(updateInfo.url, navigateUrl);
+          return { id: tabId };
+        },
+        get: async (tabId: number) => {
+          assert.equal(tabId, targetTabId);
+          return { id: tabId, url: navigateUrl, title: 'Fallback title' };
+        },
+      },
+    };
+
+    const sessionManager = {
+      resolveTargetTab: async () => targetTabId,
+    } as Pick<SessionManager, 'resolveTargetTab'>;
+
+    const networkCapture = {
+      getCapturingTabId: () => targetTabId,
+      startCapture: () => {
+        throw new Error('capture should already be active');
+      },
+    } as Pick<NetworkCapture, 'getCapturingTabId' | 'startCapture'>;
+
+    const pageStateReader = {
+      async read(tabId: number) {
+        assert.equal(tabId, targetTabId);
+        throw new CodedError('Content script unavailable.', ErrorCodes.COMMAND_FAILED);
+      },
+    } as unknown as PageStateReader;
+
+    const lifecycle = {
+      async runCommand({ dispatch, readback }: { dispatch: () => Promise<unknown>; readback: () => Promise<unknown> }) {
+        const actionResult = await dispatch();
+        const readbackResult = await readback();
+        return {
+          actionResult,
+          readbackResult,
+          workflow: { waitRequired: false, postActionLoading: false },
+        };
+      },
+    } as unknown as TabLifecycle;
+
+    const commands = new NavigationCommands(
+      sessionManager as SessionManager,
+      networkCapture as NetworkCapture,
+      pageStateReader,
+      lifecycle,
+    );
+
+    const result = await commands.navigate({ sessionId: 'session-2', url: navigateUrl });
+
+    assert.equal(result.success, true);
+    assert.deepEqual(result.data, {
+      url: navigateUrl,
+      tabId: targetTabId,
+      pageState: { url: navigateUrl, title: 'Fallback title', tree: {} },
+    });
+    assert.equal(result.meta?.workflow?.readbackError, 'Content script unavailable.');
+    assert.equal(result.meta?.workflow?.readbackErrorCode, ErrorCodes.COMMAND_FAILED);
+    assert.equal(result.meta?.workflow?.waitRequired, false);
   } finally {
     (globalThis as any).browser = originalBrowser;
   }

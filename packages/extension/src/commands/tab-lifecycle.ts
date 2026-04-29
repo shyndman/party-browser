@@ -225,7 +225,7 @@ export class TabLifecycle {
   async runCommand<TAction, TReadback>(
     params: RunCommandLifecycleParams<TAction, TReadback>,
   ): Promise<RunCommandLifecycleResult<TAction, TReadback>> {
-    const waiter = this.loadWaiterFactory(params);
+    let waiter: LoadWaiter | undefined;
 
     try {
       const before = await readTabState(params.tabId);
@@ -263,6 +263,7 @@ export class TabLifecycle {
         tabId: params.tabId,
       });
 
+      waiter = this.loadWaiterFactory(params);
       const after = await readTabState(params.tabId);
       const waitRequired = isTabLoading(after);
       if (waitRequired) {
@@ -320,7 +321,7 @@ export class TabLifecycle {
         },
       };
     } finally {
-      waiter.dispose();
+      waiter?.dispose();
     }
   }
 }

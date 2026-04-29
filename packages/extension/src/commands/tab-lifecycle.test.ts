@@ -256,6 +256,50 @@ test('load waiter rejects on timeout and cleans up listeners', async () => {
   }
 });
 
+test('navigation lifecycle ignores load events from pre-existing loads before dispatch completes', async () => {
+  const browserMock = installBrowserMock([
+    { status: 'loading', url: 'https://before.example', pendingUrl: 'https://old.example' },
+    { status: 'loading', url: 'https://before.example', pendingUrl: 'https://after.example' },
+  ]);
+  const lifecycle = new TabLifecycle((context) => createLoadWaiter(context, 50));
+  let readbackRan = false;
+
+  try {
+    const result = await lifecycle.runCommand({
+      command: 'navigate',
+      commandId: 'NO34',
+      sessionId: 'session-7',
+      tabId: 54,
+      requireStableBeforeDispatch: false,
+      async dispatch() {
+        browserMock.completed.emit({ tabId: 54, frameId: 0, url: 'https://old.example' });
+        browserMock.errored.emit({
+          tabId: 54,
+          frameId: 0,
+          url: 'https://old-error.example',
+          error: 'NS_BINDING_ABORTED',
+        });
+        setTimeout(() => {
+          browserMock.completed.emit({ tabId: 54, frameId: 0, url: 'https://after.example' });
+        }, 0);
+        return { ok: true };
+      },
+      async readback() {
+        readbackRan = true;
+        return { tree: { ok: true } };
+      },
+    });
+
+    assert.equal(readbackRan, true);
+    assert.deepEqual(result.workflow, {
+      waitRequired: true,
+      postActionLoading: true,
+    });
+  } finally {
+    browserMock.restore();
+  }
+});
+
 test('extension manifest requests webNavigation permission', () => {
   const manifestSource = readFileSync(
     path.resolve(import.meta.dirname, '../../wxt.config.ts'),

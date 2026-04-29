@@ -7,6 +7,7 @@
 
 import type {
   CommandResult,
+  CommandWorkflowMeta,
   NavigateParams,
   GoBackParams,
   GoForwardParams,
@@ -14,6 +15,7 @@ import type {
 } from '../types/commands';
 import type { SessionManager } from '../session/session-manager';
 import type { NetworkCapture } from '../session/network-capture';
+import type { ErrorCode } from '../utils/errors';
 
 import { PageStateReader } from './page-state-reader';
 import { TabLifecycle } from './tab-lifecycle';
@@ -21,6 +23,21 @@ import { TabLifecycle } from './tab-lifecycle';
 type CommandOptions = {
   commandId?: string;
 };
+
+type NavigationReadback = {
+  pageState: PageState;
+  workflow: Pick<CommandWorkflowMeta, 'readbackError' | 'readbackErrorCode'>;
+};
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function getErrorCode(error: unknown): ErrorCode | undefined {
+  return typeof error === 'object' && error !== null && 'errorCode' in error
+    ? (error as { errorCode?: ErrorCode }).errorCode
+    : undefined;
+}
 
 /**
  * Navigation command implementations
@@ -32,6 +49,29 @@ export class NavigationCommands {
     private pageStateReader: PageStateReader,
     private lifecycle: TabLifecycle = new TabLifecycle(),
   ) {}
+
+  private async readPageStateAfterNavigation(tabId: number): Promise<NavigationReadback> {
+    try {
+      return {
+        pageState: await this.pageStateReader.read(tabId),
+        workflow: {},
+      };
+    } catch (error) {
+      const tab = await browser.tabs.get(tabId);
+      const readbackErrorCode = getErrorCode(error);
+      return {
+        pageState: {
+          url: tab.url,
+          title: tab.title,
+          tree: {},
+        },
+        workflow: {
+          readbackError: getErrorMessage(error),
+          ...(readbackErrorCode ? { readbackErrorCode } : {}),
+        },
+      };
+    }
+  }
 
   /**
    * Navigate to a URL in the session tab
@@ -57,17 +97,20 @@ export class NavigationCommands {
         await browser.tabs.update(targetTabId, { url });
         return { url, tabId: targetTabId };
       },
-      readback: () => this.pageStateReader.read(targetTabId),
+      readback: () => this.readPageStateAfterNavigation(targetTabId),
     });
 
     return {
       success: true,
       data: {
         ...result.actionResult,
-        pageState: result.readbackResult,
+        pageState: result.readbackResult.pageState,
       },
       meta: {
-        workflow: result.workflow,
+        workflow: {
+          ...result.workflow,
+          ...result.readbackResult.workflow,
+        },
       },
     };
   }
@@ -90,16 +133,19 @@ export class NavigationCommands {
         await browser.tabs.goBack(targetTabId);
         return {};
       },
-      readback: () => this.pageStateReader.read(targetTabId),
+      readback: () => this.readPageStateAfterNavigation(targetTabId),
     });
 
     return {
       success: true,
       data: {
-        pageState: result.readbackResult,
+        pageState: result.readbackResult.pageState,
       },
       meta: {
-        workflow: result.workflow,
+        workflow: {
+          ...result.workflow,
+          ...result.readbackResult.workflow,
+        },
       },
     };
   }
@@ -122,16 +168,19 @@ export class NavigationCommands {
         await browser.tabs.goForward(targetTabId);
         return {};
       },
-      readback: () => this.pageStateReader.read(targetTabId),
+      readback: () => this.readPageStateAfterNavigation(targetTabId),
     });
 
     return {
       success: true,
       data: {
-        pageState: result.readbackResult,
+        pageState: result.readbackResult.pageState,
       },
       meta: {
-        workflow: result.workflow,
+        workflow: {
+          ...result.workflow,
+          ...result.readbackResult.workflow,
+        },
       },
     };
   }

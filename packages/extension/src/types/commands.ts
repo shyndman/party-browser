@@ -17,6 +17,8 @@ export interface CommandWorkflowMeta {
   failedPhase?: CommandPhase;
   waitRequired?: boolean;
   postActionLoading?: boolean;
+  readbackError?: string;
+  readbackErrorCode?: ErrorCode;
 }
 
 export interface CommandMeta {
