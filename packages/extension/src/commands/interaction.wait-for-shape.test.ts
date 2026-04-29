@@ -24,6 +24,9 @@ function createInteractionHarness() {
     async resolveTargetTab() {
       return 123;
     },
+    onLeaseRevoked() {
+      return;
+    },
   } as unknown as SessionManager;
 
   const commands = new InteractionCommands(sessionManager, contentBridge as any);

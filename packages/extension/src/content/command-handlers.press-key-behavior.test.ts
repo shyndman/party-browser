@@ -225,7 +225,7 @@ test('press_key inserts printable text into the focused editable element', async
     const result = await handlers.pressKey({ key: 'a' });
 
     assert.equal(result.success, true);
-    assert.equal(result.data?.key, 'a');
+    assert.equal((result.data as { key: string }).key, 'a');
     assert.equal(input.value, 'a');
     assert.deepEqual(observed, [
       'keydown:a:',
@@ -273,7 +273,7 @@ test('press_key sends non-text keys to the focused target without text insertion
     const result = await handlers.pressKey({ key: 'Escape' });
 
     assert.equal(result.success, true);
-    assert.equal(result.data?.key, 'Escape');
+    assert.equal((result.data as { key: string }).key, 'Escape');
     assert.equal(target.textContent, '');
     assert.deepEqual(observed, ['keydown:Escape', 'keyup:Escape']);
   } finally {

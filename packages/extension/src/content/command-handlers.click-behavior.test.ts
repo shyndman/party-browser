@@ -160,8 +160,8 @@ test('click triggers one ordering-sensitive JS activation without duplicate clic
   globalThis.PointerEvent = undefined as unknown as typeof PointerEvent;
   globalThis.setTimeout = ((callback: (...args: never[]) => void) => {
     callback();
-    return 0 as ReturnType<typeof setTimeout>;
-  }) as typeof setTimeout;
+    return 0 as unknown as ReturnType<typeof setTimeout>;
+  }) as unknown as typeof setTimeout;
   globalThis.document = {
     querySelector(selector: string) {
       return selector === '[data-mcp-ref="e1"]' ? (target as unknown as Element) : null;
@@ -173,9 +173,10 @@ test('click triggers one ordering-sensitive JS activation without duplicate clic
     const result = await handlers.click({ element: 'e1' });
 
     assert.equal(result.success, true);
-    assert.equal(result.data?.element, 'e1');
-    assert.equal(result.data?.tagName, 'BUTTON');
-    assert.equal(result.data?.text, 'Launch');
+    const data = result.data as { element: string; tagName: string; text: string };
+    assert.equal(data.element, 'e1');
+    assert.equal(data.tagName, 'BUTTON');
+    assert.equal(data.text, 'Launch');
     assert.equal(target.scrollIntoViewCalls, 1);
     assert.equal(activationBeforeRelease, false);
     assert.equal(activationCount, 1);

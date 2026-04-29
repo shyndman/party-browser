@@ -12,6 +12,9 @@ test('wait honors the requested duration', async () => {
 
   const sessionManagerMock = {
     resolveTargetTab: async () => tabId,
+    onLeaseRevoked() {
+      return;
+    },
   } as unknown as SessionManager;
 
   const contentBridgeMock = {
