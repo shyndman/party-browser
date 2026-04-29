@@ -518,7 +518,33 @@ export class HubRuntime {
       });
     }
 
-    this.sessionStore.assertSessionConnection(message.sessionId, connectionId);
+    try {
+      this.sessionStore.assertSessionConnection(message.sessionId, connectionId);
+    } catch (error) {
+      const hubError =
+        error instanceof HubError
+          ? error
+          : new HubError(String(error), HUB_ERROR_CODES.ROUTING_FAILED);
+
+      this.logger.info("MCP session command rejected during session routing.", {
+        event: "session.command_forwarded",
+        forwarded: false,
+        connectionId,
+        requestId: message.requestId,
+        sessionId: message.sessionId,
+        commandType: message.type,
+        errorCode: hubError.errorCode,
+      });
+      this.sendMcpSessionResult(connectionId, {
+        requestId: message.requestId,
+        sessionId: message.sessionId,
+        type: message.type,
+        payload: null,
+        error: hubError.message,
+        errorCode: hubError.errorCode,
+      });
+      return;
+    }
 
     if (!this.killSwitchEnabled) {
       this.logger.info("MCP session command rejected by kill switch.", {
@@ -801,6 +827,25 @@ export class HubRuntime {
         requestId: message.requestId,
         success: false,
         error: "Missing sessionId or decision for waiting-room decision.",
+        errorCode: HUB_ERROR_CODES.PROTOCOL_INVALID_MESSAGE,
+      });
+      return;
+    }
+
+    if (decision !== HUB_JOIN_DECISIONS.JOIN && decision !== HUB_JOIN_DECISIONS.REJECT) {
+      this.logger.error("Waiting-room decision has invalid decision value.", {
+        event: "error.protocol",
+        connectionId,
+        requestId: message.requestId,
+        sessionId,
+        decision,
+        errorCode: HUB_ERROR_CODES.PROTOCOL_INVALID_MESSAGE,
+      });
+      this.sendControlResponse(connectionId, {
+        type: HUB_EXTENSION_MESSAGE_TYPES.CONTROL_RESPONSE,
+        requestId: message.requestId,
+        success: false,
+        error: "Waiting-room decision must be join or reject.",
         errorCode: HUB_ERROR_CODES.PROTOCOL_INVALID_MESSAGE,
       });
       return;
@@ -1322,6 +1367,17 @@ export class HubRuntime {
 
     this.connections.delete(connectionId);
     if (connection.role === "extension") {
+      if (this.extensionConnectionId !== connectionId) {
+        this.logger.info("Stale extension connection closed after replacement; current extension remains active.", {
+          event: "connection.close",
+          connectionId,
+          role: connection.role,
+          currentExtensionConnectionId: this.extensionConnectionId,
+          reason: "extension_replaced",
+        });
+        return;
+      }
+
       this.extensionConnectionId = undefined;
       this.logger.info("Extension disconnected; revoking all sessions.", {
         event: "connection.close",

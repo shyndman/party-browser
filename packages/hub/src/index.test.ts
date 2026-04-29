@@ -608,6 +608,241 @@ test("mcp disconnect cleans up pending and active sessions for that connection",
   }
 });
 
+test("replaced extension close does not clear current extension or revoke sessions", async () => {
+  const harness = await createHarness();
+  let replacementExtension: WebSocket | undefined;
+
+  try {
+    const joinDecisionPromise = waitForMessage(
+      harness.mcp,
+      (message) =>
+        message.type === HUB_CONTROL_MESSAGE_TYPES.JOIN_DECISION &&
+        message.decision === HUB_JOIN_DECISIONS.JOIN,
+    );
+
+    harness.mcp.send(
+      JSON.stringify({
+        type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST,
+        name: "Agent Replacement",
+        reason: "Keep session through extension replacement",
+        url: "https://example.com/replacement",
+      }),
+    );
+
+    const sessionId = await approveSinglePendingSession(harness);
+    await joinDecisionPromise;
+
+    const originalExtensionClosed = new Promise<void>((resolve) => {
+      harness.extension.once("close", () => resolve());
+    });
+    replacementExtension = await openSocket(`ws://127.0.0.1:${harness.runtime.getBoundPort()}`);
+    replacementExtension.send(
+      JSON.stringify({
+        type: HUB_EXTENSION_MESSAGE_TYPES.CONTROL_COMMAND,
+        requestId: "replacement-list",
+        command: HUB_CONTROL_COMMANDS.WAITING_ROOM_LIST,
+        payload: {},
+      }),
+    );
+
+    await waitForMessage(
+      replacementExtension,
+      (message) =>
+        message.type === HUB_EXTENSION_MESSAGE_TYPES.CONTROL_RESPONSE &&
+        message.requestId === "replacement-list",
+    );
+    await originalExtensionClosed;
+
+    harness.mcp.send(
+      JSON.stringify({
+        requestId: "cmd-after-replacement",
+        sessionId,
+        type: "navigate",
+        payload: {
+          url: "https://partybrowser.io/after-replacement",
+        },
+      }),
+    );
+
+    const forwardedCommand = await waitForMessage(
+      replacementExtension,
+      (message) =>
+        message.type === HUB_EXTENSION_MESSAGE_TYPES.SESSION_COMMAND &&
+        message.requestId === "cmd-after-replacement",
+    );
+
+    assert.equal(forwardedCommand.sessionId, sessionId);
+    assert.equal(forwardedCommand.command, "navigate");
+  } finally {
+    replacementExtension?.close();
+    await destroyHarness(harness);
+  }
+});
+
+test("current extension close still revokes active sessions", async () => {
+  const harness = await createHarness();
+
+  try {
+    const joinDecisionPromise = waitForMessage(
+      harness.mcp,
+      (message) =>
+        message.type === HUB_CONTROL_MESSAGE_TYPES.JOIN_DECISION &&
+        message.decision === HUB_JOIN_DECISIONS.JOIN,
+    );
+
+    harness.mcp.send(
+      JSON.stringify({
+        type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST,
+        name: "Agent Extension Close",
+        reason: "Verify current extension close revokes",
+        url: "https://example.com/current-extension-close",
+      }),
+    );
+
+    const sessionId = await approveSinglePendingSession(harness);
+    await joinDecisionPromise;
+
+    const extensionClosed = new Promise<void>((resolve) => {
+      harness.extension.once("close", () => resolve());
+    });
+    harness.extension.close();
+    await extensionClosed;
+
+    harness.mcp.send(
+      JSON.stringify({
+        requestId: "cmd-after-current-extension-close",
+        sessionId,
+        type: "navigate",
+        payload: {
+          url: "https://partybrowser.io/current-extension-close",
+        },
+      }),
+    );
+
+    const failedCommand = await waitForMessage(
+      harness.mcp,
+      (message) => message.requestId === "cmd-after-current-extension-close",
+    );
+
+    assert.equal(failedCommand.sessionId, sessionId);
+    assert.equal(failedCommand.type, "navigate");
+    assert.equal(failedCommand.payload, null);
+    assert.equal(failedCommand.errorCode, HUB_ERROR_CODES.SESSION_REVOKED);
+  } finally {
+    await destroyHarness(harness);
+  }
+});
+
+test("mcp session routing failures return session result envelope", async () => {
+  const harness = await createHarness();
+
+  try {
+    harness.mcp.send(
+      JSON.stringify({
+        requestId: "cmd-missing-session",
+        sessionId: "missing-session",
+        type: "navigate",
+        payload: {
+          url: "https://partybrowser.io/missing-session",
+        },
+      }),
+    );
+
+    const failedCommand = await waitForMessage(
+      harness.mcp,
+      (message) => message.requestId === "cmd-missing-session",
+    );
+
+    assert.equal(failedCommand.sessionId, "missing-session");
+    assert.equal(failedCommand.type, "navigate");
+    assert.equal(failedCommand.payload, null);
+    assert.equal(failedCommand.errorCode, HUB_ERROR_CODES.SESSION_NOT_FOUND);
+  } finally {
+    await destroyHarness(harness);
+  }
+});
+
+test("invalid waiting-room decisions are rejected without removing entry", async () => {
+  const harness = await createHarness();
+
+  try {
+    harness.mcp.send(
+      JSON.stringify({
+        type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST,
+        name: "Agent Invalid Decision",
+        reason: "Stay in waiting room after invalid decision",
+        url: "https://example.com/invalid-decision",
+      }),
+    );
+
+    harness.extension.send(
+      JSON.stringify({
+        type: HUB_EXTENSION_MESSAGE_TYPES.CONTROL_COMMAND,
+        requestId: "invalid-decision-list-initial",
+        command: HUB_CONTROL_COMMANDS.WAITING_ROOM_LIST,
+        payload: {},
+      }),
+    );
+
+    const initialWaitingList = await waitForMessage(
+      harness.extension,
+      (message) =>
+        message.type === HUB_EXTENSION_MESSAGE_TYPES.CONTROL_RESPONSE &&
+        message.requestId === "invalid-decision-list-initial",
+    );
+    const sessionId = (
+      initialWaitingList.payload as { entries: Array<{ sessionId: string }> }
+    ).entries[0].sessionId;
+
+    harness.extension.send(
+      JSON.stringify({
+        type: HUB_EXTENSION_MESSAGE_TYPES.CONTROL_COMMAND,
+        requestId: "invalid-decision-decide",
+        command: HUB_CONTROL_COMMANDS.WAITING_ROOM_DECIDE,
+        payload: {
+          sessionId,
+          decision: "maybe",
+        },
+      }),
+    );
+
+    const rejectedDecision = await waitForMessage(
+      harness.extension,
+      (message) =>
+        message.type === HUB_EXTENSION_MESSAGE_TYPES.CONTROL_RESPONSE &&
+        message.requestId === "invalid-decision-decide",
+    );
+
+    assert.equal(rejectedDecision.success, false);
+    assert.equal(rejectedDecision.errorCode, HUB_ERROR_CODES.PROTOCOL_INVALID_MESSAGE);
+    await expectNoMessage(harness.mcp);
+
+    harness.extension.send(
+      JSON.stringify({
+        type: HUB_EXTENSION_MESSAGE_TYPES.CONTROL_COMMAND,
+        requestId: "invalid-decision-list-final",
+        command: HUB_CONTROL_COMMANDS.WAITING_ROOM_LIST,
+        payload: {},
+      }),
+    );
+
+    const finalWaitingList = await waitForMessage(
+      harness.extension,
+      (message) =>
+        message.type === HUB_EXTENSION_MESSAGE_TYPES.CONTROL_RESPONSE &&
+        message.requestId === "invalid-decision-list-final",
+    );
+    const finalEntries = (
+      finalWaitingList.payload as { entries: Array<{ sessionId: string }> }
+    ).entries;
+
+    assert.equal(finalEntries.length, 1);
+    assert.equal(finalEntries[0].sessionId, sessionId);
+  } finally {
+    await destroyHarness(harness);
+  }
+});
+
 test("malformed/unknown envelopes hard-fail", async () => {
   const harness = await createHarness();
 
