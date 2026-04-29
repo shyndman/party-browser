@@ -5,7 +5,9 @@ import path from "node:path";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
 
-import { formatHubBuildFingerprintLines } from "@/build-fingerprint";
+import packageJSON from "../package.json";
+
+import { formatHubBuildFingerprintLines, getHubBuildFingerprintLines } from "@/build-fingerprint";
 
 test("formatHubBuildFingerprintLines returns clean two-line output", () => {
   const lines = formatHubBuildFingerprintLines({
@@ -33,6 +35,7 @@ test("getHubBuildFingerprintLines maps compile-time globals into line tuple", as
   const sourcePath = new URL("./build-fingerprint.ts", import.meta.url);
   const moduleSource = readFileSync(sourcePath, "utf8");
   const runtimeSource = moduleSource
+    .replace('import packageJSON from "../package.json";', 'const packageJSON = { version: "0.0.0" };')
     .replace(
       "declare const __HUB_BUILD_VERSION__: string;",
       'const __HUB_BUILD_VERSION__ = "9.9.9";',
@@ -66,4 +69,11 @@ test("getHubBuildFingerprintLines maps compile-time globals into line tuple", as
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }
+});
+
+test("getHubBuildFingerprintLines falls back in source mode without injected globals", () => {
+  assert.deepEqual(getHubBuildFingerprintLines(), [
+    `v${packageJSON.version} (source*)`,
+    "built at source mode",
+  ]);
 });
