@@ -19,6 +19,7 @@ import {
 import { ErrorCodes, type ErrorCode } from '../utils/errors';
 import type { SessionManager } from '../session/session-manager';
 import type { CommandHandler } from '../commands/command-handler';
+import { SessionLeaseKinds, type SessionLeaseKind } from '../types/session';
 
 export interface McpBridgeConfig {
   reconnectInterval: number;
@@ -192,11 +193,48 @@ export class McpBridge {
     sessionId: string,
     decision: WaitingRoomDecision,
   ): Promise<ControlResponseMessage> {
-    return this.sendControlCommand(
-      ControlCommands.WAITING_ROOM_DECIDE,
-      { sessionId, decision },
-      true,
-    );
+    if (decision === WaitingRoomDecisions.REJECT) {
+      return this.sendControlCommand(
+        ControlCommands.WAITING_ROOM_DECIDE,
+        { sessionId, decision },
+        true,
+      );
+    }
+
+    const entry = this.waitingRoom.get(sessionId);
+    if (!entry) {
+      return this.createLocalControlFailure(
+        `Waiting-room entry not found for session ${sessionId}`,
+        ErrorCodes.WAITING_ROOM_ENTRY_NOT_FOUND,
+      );
+    }
+
+    let leaseCreated = false;
+    try {
+      await this.createLeaseForWaitingRoomEntry(entry);
+      leaseCreated = true;
+
+      const response = await this.sendControlCommand(
+        ControlCommands.WAITING_ROOM_DECIDE,
+        { sessionId, decision },
+        true,
+      );
+
+      if (!response.success) {
+        await this.sessionManager.revokeLease(sessionId, 'hub_decision_failed');
+      }
+
+      return response;
+    } catch (error) {
+      if (leaseCreated) {
+        await this.sessionManager.revokeLease(sessionId, 'hub_decision_failed');
+      }
+
+      return this.createLocalControlFailure(
+        (error as Error).message,
+        (error as { errorCode?: ErrorCode }).errorCode ?? ErrorCodes.COMMAND_FAILED,
+      );
+    }
   }
 
   publishKillSwitchState(enabled: boolean): void {
@@ -296,25 +334,23 @@ export class McpBridge {
     switch (event) {
       case ControlEvents.SESSION_APPROVED: {
         const sessionId = this.requireString(payload.sessionId, 'payload.sessionId');
-        const url = this.requireString(payload.url, 'payload.url');
+        const leaseKind = this.parseSessionLeaseKind(payload.leaseKind, 'payload.leaseKind');
 
         console.log(
-          `[PartyBrowser] Control event SESSION_APPROVED received (sessionId=${sessionId}, url=${url}, alreadyLeased=${this.sessionManager.hasLease(sessionId)}, waitingRoomSize=${this.waitingRoom.size})`,
+          `[PartyBrowser] Control event SESSION_APPROVED received (sessionId=${sessionId}, leaseKind=${leaseKind}, alreadyLeased=${this.sessionManager.hasLease(sessionId)}, waitingRoomSize=${this.waitingRoom.size})`,
         );
 
-        if (!this.sessionManager.hasLease(sessionId)) {
-          const lease = await this.sessionManager.createLease(sessionId, url);
-          console.log(
-            `[PartyBrowser] Approved session lease created: ${sessionId} (window ${lease.windowId}, tab ${lease.tabId})`,
+        const existingLease = this.sessionManager.getLease(sessionId);
+        if (!existingLease) {
+          console.error(
+            `[PartyBrowser] SESSION_APPROVED arrived without a local lease for session ${sessionId}; refusing old post-approval lease creation path.`,
           );
-        } else {
-          const existingLease = this.sessionManager.getLease(sessionId);
-          if (existingLease) {
-            console.log(
-              `[PartyBrowser] Approved session already has lease: ${sessionId} (window ${existingLease.windowId}, tab ${existingLease.tabId})`,
-            );
-          }
+          return;
         }
+
+        console.log(
+          `[PartyBrowser] Approved session already has lease: ${sessionId} (kind=${existingLease.leaseKind}, window ${existingLease.windowId}, tab ${existingLease.tabId})`,
+        );
         return;
       }
 
@@ -328,7 +364,7 @@ export class McpBridge {
         console.warn(
           `[PartyBrowser] Control event SESSION_REVOKED received (sessionId=${sessionId}, reason=${reason}, hasLease=${existingLease !== null}, lease=${this.stringifyForLog(existingLease)})`,
         );
-        await this.sessionManager.revokeLease(sessionId, reason, true);
+        await this.sessionManager.revokeLease(sessionId, reason);
         this.waitingRoom.delete(sessionId);
         this.notifyWaitingRoomChanged();
         return;
@@ -342,7 +378,7 @@ export class McpBridge {
         console.warn(
           `[PartyBrowser] Control event SESSIONS_REVOKED_ALL received (reason=${reason}, leaseCount=${this.sessionManager.getLeaseCount()}, waitingRoomSize=${this.waitingRoom.size})`,
         );
-        await this.sessionManager.revokeAllLeases(reason, true);
+        await this.sessionManager.revokeAllLeases(reason);
         this.waitingRoom.clear();
         this.notifyWaitingRoomChanged();
         return;
@@ -364,7 +400,7 @@ export class McpBridge {
       case ControlEvents.WAITING_ROOM_ENTRY_ADDED: {
         const entry = this.parseWaitingRoomEntry(payload.entry);
         console.log(
-          `[PartyBrowser] Control event WAITING_ROOM_ENTRY_ADDED received (sessionId=${entry.sessionId}, url=${entry.url}, reason=${entry.reason})`,
+          `[PartyBrowser] Control event WAITING_ROOM_ENTRY_ADDED received (sessionId=${entry.sessionId}, leaseKind=${entry.leaseKind}, url=${entry.url ?? 'none'}, reason=${entry.reason})`,
         );
         this.waitingRoom.set(entry.sessionId, entry);
         this.notifyWaitingRoomChanged();
@@ -387,7 +423,7 @@ export class McpBridge {
           `[PartyBrowser] Control event KILL_SWITCH_CHANGED received (enabled=${enabled}, leaseCount=${this.sessionManager.getLeaseCount()})`,
         );
         if (!enabled) {
-          await this.sessionManager.revokeAllLeases('kill_switch_disabled', true);
+          await this.sessionManager.revokeAllLeases('kill_switch_disabled');
         }
         return;
       }
@@ -499,7 +535,20 @@ export class McpBridge {
     const sessionId = this.requireString(entry.sessionId, 'entry.sessionId');
     const name = this.requireString(entry.name, 'entry.name');
     const reason = this.requireString(entry.reason, 'entry.reason');
-    const url = this.requireString(entry.url, 'entry.url');
+    const leaseKind = this.parseSessionLeaseKind(entry.leaseKind, 'entry.leaseKind');
+    const url =
+      leaseKind === SessionLeaseKinds.WORKSPACE
+        ? this.requireString(entry.url, 'entry.url')
+        : undefined;
+
+    if (leaseKind === SessionLeaseKinds.TAKEOVER && entry.url !== undefined) {
+      const error = new Error('takeover waiting-room entries must omit url') as Error & {
+        errorCode?: ErrorCode;
+      };
+      error.errorCode = ErrorCodes.CONTROL_EVENT_INVALID;
+      throw error;
+    }
+
     const joinRequestTime = Number(
       entry.joinRequestTime ?? entry.join_request_time,
     );
@@ -516,6 +565,7 @@ export class McpBridge {
       sessionId,
       name,
       reason,
+      leaseKind,
       url,
       joinRequestTime,
     };
@@ -575,7 +625,7 @@ export class McpBridge {
       `[PartyBrowser] Disconnected (reason=${reason}, code=${code}, closeReason="${closeReason || ''}"). Revoking ${this.sessionManager.getLeaseCount()} leases.`,
     );
 
-    void this.sessionManager.revokeAllLeases(reason, true);
+    void this.sessionManager.revokeAllLeases(reason);
 
     this.waitingRoom.clear();
     this.notifyWaitingRoomChanged();
@@ -609,5 +659,40 @@ export class McpBridge {
     } catch {
       return '[unserializable]';
     }
+  }
+
+  private async createLeaseForWaitingRoomEntry(entry: WaitingRoomEntry): Promise<void> {
+    if (entry.leaseKind === SessionLeaseKinds.WORKSPACE) {
+      if (!entry.url) {
+        throw new Error(`Workspace waiting-room entry ${entry.sessionId} is missing url.`);
+      }
+
+      await this.sessionManager.createWorkspaceLease(entry.sessionId, entry.url);
+      return;
+    }
+
+    await this.sessionManager.createTakeoverLease(entry.sessionId);
+  }
+
+  private parseSessionLeaseKind(value: unknown, fieldName: string): SessionLeaseKind {
+    if (value === SessionLeaseKinds.WORKSPACE || value === SessionLeaseKinds.TAKEOVER) {
+      return value;
+    }
+
+    const error = new Error(`Missing or invalid required field: ${fieldName}`) as Error & {
+      errorCode?: ErrorCode;
+    };
+    error.errorCode = ErrorCodes.CONTROL_EVENT_INVALID;
+    throw error;
+  }
+
+  private createLocalControlFailure(error: string, errorCode: ErrorCode): ControlResponseMessage {
+    return {
+      type: WsMessageKinds.CONTROL_RESPONSE,
+      requestId: this.nextControlRequestId(),
+      success: false,
+      error,
+      errorCode,
+    };
   }
 }

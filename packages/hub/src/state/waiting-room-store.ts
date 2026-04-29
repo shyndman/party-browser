@@ -1,11 +1,16 @@
 import { HUB_ERROR_CODES, HubError } from "@/errors";
+import {
+  SESSION_LEASE_KINDS,
+  type SessionLeaseKind,
+} from "@/protocol/messages";
 
 export type WaitingRoomEntry = {
   sessionId: string;
   connectionId: string;
   name: string;
   reason: string;
-  url: string;
+  leaseKind: SessionLeaseKind;
+  url?: string;
   joinRequestTime: number;
 };
 
@@ -46,9 +51,23 @@ export class WaitingRoomStore {
   }
 
   private assertRequiredFields(entry: WaitingRoomEntry): void {
-    if (!entry.sessionId || !entry.connectionId || !entry.name || !entry.reason || !entry.url) {
+    if (!entry.sessionId || !entry.connectionId || !entry.name || !entry.reason || !entry.leaseKind) {
       throw new HubError(
         "Waiting-room entry is missing required fields.",
+        HUB_ERROR_CODES.PROTOCOL_INVALID_MESSAGE,
+      );
+    }
+
+    if (entry.leaseKind === SESSION_LEASE_KINDS.WORKSPACE && !entry.url) {
+      throw new HubError(
+        "Workspace waiting-room entry is missing required URL.",
+        HUB_ERROR_CODES.PROTOCOL_INVALID_MESSAGE,
+      );
+    }
+
+    if (entry.leaseKind === SESSION_LEASE_KINDS.TAKEOVER && entry.url) {
+      throw new HubError(
+        "Takeover waiting-room entry must not carry a URL.",
         HUB_ERROR_CODES.PROTOCOL_INVALID_MESSAGE,
       );
     }

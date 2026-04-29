@@ -10,7 +10,7 @@ import {
 import { MCP_ERROR_CODES, PROTOCOL_DEFAULTS } from "@/protocol/constants";
 
 const noSessionMessage =
-  "No approved session route is available. Call join_session with required name/reason/url and wait for operator decision.";
+  "No approved session route is available. Call join_session with required name, reason, leaseKind, and workspace url when needed; then wait for operator decision.";
 
 export class Context {
   private sessionId: string | undefined;

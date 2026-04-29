@@ -1,6 +1,10 @@
 import { randomBytes } from "node:crypto";
 
 import { HUB_ERROR_CODES, HubError } from "@/errors";
+import {
+  SESSION_LEASE_KINDS,
+  type SessionLeaseKind,
+} from "@/protocol/messages";
 
 const SESSION_ID_BYTES = 8;
 const SESSION_ID_MAX_RETRIES = 8;
@@ -20,7 +24,8 @@ export type SessionRecord = {
   connectionId: string;
   name: string;
   reason: string;
-  url: string;
+  leaseKind: SessionLeaseKind;
+  url?: string;
   joinRequestTime: number;
   state: SessionLifecycleState;
   revokeReason?: string;
@@ -30,7 +35,8 @@ export type CreatePendingSessionInput = {
   connectionId: string;
   name: string;
   reason: string;
-  url: string;
+  leaseKind: SessionLeaseKind;
+  url?: string;
   joinRequestTime: number;
 };
 
@@ -44,10 +50,12 @@ export class SessionStore {
       connectionId: input.connectionId,
       name: input.name,
       reason: input.reason,
+      leaseKind: input.leaseKind,
       url: input.url,
       joinRequestTime: input.joinRequestTime,
       state: SESSION_LIFECYCLE_STATES.PENDING,
     };
+    this.assertLeaseShape(record);
     this.sessions.set(sessionId, record);
     return record;
   }
@@ -128,6 +136,22 @@ export class SessionStore {
       );
     }
     return record;
+  }
+
+  private assertLeaseShape(record: SessionRecord): void {
+    if (record.leaseKind === SESSION_LEASE_KINDS.WORKSPACE && !record.url) {
+      throw new HubError(
+        "Workspace sessions require a URL.",
+        HUB_ERROR_CODES.PROTOCOL_INVALID_MESSAGE,
+      );
+    }
+
+    if (record.leaseKind === SESSION_LEASE_KINDS.TAKEOVER && record.url) {
+      throw new HubError(
+        "Takeover sessions must not carry a URL.",
+        HUB_ERROR_CODES.PROTOCOL_INVALID_MESSAGE,
+      );
+    }
   }
 
   private mintUniqueSessionId(): string {

@@ -2,6 +2,7 @@ import { strict as assert } from "node:assert";
 import test from "node:test";
 
 import { HUB_ERROR_CODES, HubError } from "@/errors";
+import { SESSION_LEASE_KINDS } from "@/protocol/messages";
 import { SessionStore, SESSION_LIFECYCLE_STATES } from "@/state/session-store";
 
 test("mints 64-bit random session IDs", () => {
@@ -10,6 +11,7 @@ test("mints 64-bit random session IDs", () => {
     connectionId: "conn_1",
     name: "agent-a",
     reason: "test",
+    leaseKind: SESSION_LEASE_KINDS.WORKSPACE,
     url: "https://example.com",
     joinRequestTime: Date.now(),
   });
@@ -28,6 +30,7 @@ test("retries when generated session ID collides", () => {
     connectionId: "conn_1",
     name: "agent-a",
     reason: "first",
+    leaseKind: SESSION_LEASE_KINDS.WORKSPACE,
     url: "https://a.example",
     joinRequestTime: Date.now(),
   });
@@ -43,6 +46,7 @@ test("retries when generated session ID collides", () => {
     connectionId: "conn_2",
     name: "agent-b",
     reason: "second",
+    leaseKind: SESSION_LEASE_KINDS.WORKSPACE,
     url: "https://b.example",
     joinRequestTime: Date.now(),
   });
@@ -57,6 +61,7 @@ test("rejects session command routing from mismatched connection", () => {
     connectionId: "conn_1",
     name: "agent-a",
     reason: "test",
+    leaseKind: SESSION_LEASE_KINDS.WORKSPACE,
     url: "https://example.com",
     joinRequestTime: Date.now(),
   });
@@ -77,6 +82,7 @@ test("revocation is idempotent and wins over activation", () => {
     connectionId: "conn_1",
     name: "agent-a",
     reason: "test",
+    leaseKind: SESSION_LEASE_KINDS.WORKSPACE,
     url: "https://example.com",
     joinRequestTime: Date.now(),
   });
@@ -93,6 +99,57 @@ test("revocation is idempotent and wins over activation", () => {
     (error: unknown) => {
       assert.ok(error instanceof HubError);
       assert.equal(error.errorCode, HUB_ERROR_CODES.SESSION_REVOKED);
+      return true;
+    },
+  );
+});
+
+test("accepts takeover sessions without URL", () => {
+  const store = new SessionStore();
+  const session = store.createPendingSession({
+    connectionId: "conn_1",
+    name: "agent-a",
+    reason: "help in current tab",
+    leaseKind: SESSION_LEASE_KINDS.TAKEOVER,
+    joinRequestTime: Date.now(),
+  });
+
+  assert.equal(session.leaseKind, SESSION_LEASE_KINDS.TAKEOVER);
+  assert.equal(session.url, undefined);
+});
+
+test("rejects invalid lease kind/url combinations", () => {
+  const store = new SessionStore();
+
+  assert.throws(
+    () =>
+      store.createPendingSession({
+        connectionId: "conn_1",
+        name: "agent-a",
+        reason: "missing URL",
+        leaseKind: SESSION_LEASE_KINDS.WORKSPACE,
+        joinRequestTime: Date.now(),
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof HubError);
+      assert.equal(error.errorCode, HUB_ERROR_CODES.PROTOCOL_INVALID_MESSAGE);
+      return true;
+    },
+  );
+
+  assert.throws(
+    () =>
+      store.createPendingSession({
+        connectionId: "conn_1",
+        name: "agent-a",
+        reason: "wrong URL",
+        leaseKind: SESSION_LEASE_KINDS.TAKEOVER,
+        url: "https://example.com",
+        joinRequestTime: Date.now(),
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof HubError);
+      assert.equal(error.errorCode, HUB_ERROR_CODES.PROTOCOL_INVALID_MESSAGE);
       return true;
     },
   );

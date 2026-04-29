@@ -14,6 +14,14 @@ export const HUB_JOIN_DECISIONS = {
   REJECT: "reject",
 } as const;
 
+export const SESSION_LEASE_KINDS = {
+  WORKSPACE: "workspace",
+  TAKEOVER: "takeover",
+} as const;
+
+export type SessionLeaseKind =
+  (typeof SESSION_LEASE_KINDS)[keyof typeof SESSION_LEASE_KINDS];
+
 export const HUB_EXTENSION_MESSAGE_TYPES = {
   SESSION_COMMAND: "session_command",
   SESSION_RESULT: "session_result",
@@ -40,7 +48,8 @@ export type JoinRequestMessage = {
   type: typeof HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST;
   name: string;
   reason: string;
-  url: string;
+  leaseKind: SessionLeaseKind;
+  url?: string;
 };
 
 export type JoinDecisionMessage =
@@ -138,12 +147,24 @@ export function isJoinRequestMessage(value: unknown): value is JoinRequestMessag
     return false;
   }
 
-  return (
+  if (
     value.type === HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST &&
     isNonEmptyString(value.name) &&
     isNonEmptyString(value.reason) &&
-    isNonEmptyString(value.url)
-  );
+    isSessionLeaseKind(value.leaseKind)
+  ) {
+    if (value.leaseKind === SESSION_LEASE_KINDS.WORKSPACE) {
+      return isNonEmptyString(value.url);
+    }
+
+    return value.url === undefined;
+  }
+
+  return false;
+}
+
+export function isSessionLeaseKind(value: unknown): value is SessionLeaseKind {
+  return value === SESSION_LEASE_KINDS.WORKSPACE || value === SESSION_LEASE_KINDS.TAKEOVER;
 }
 
 export function isMcpSessionCommandEnvelope(

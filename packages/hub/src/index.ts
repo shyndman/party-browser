@@ -17,6 +17,7 @@ import {
   HUB_CONTROL_MESSAGE_TYPES,
   HUB_EXTENSION_MESSAGE_TYPES,
   HUB_JOIN_DECISIONS,
+  SESSION_LEASE_KINDS,
   parseJsonMessage,
   type ExtensionControlCommandMessage,
   type ExtensionControlEventMessage,
@@ -124,12 +125,16 @@ export class HubRuntime {
   private nextConnectionSequence = 0;
 
   private getSessionLogMetadata(
-    session: Pick<SessionRecord, "sessionId" | "connectionId" | "name" | "url" | "state">,
+    session: Pick<
+      SessionRecord,
+      "sessionId" | "connectionId" | "name" | "leaseKind" | "url" | "state"
+    >,
   ): Record<string, unknown> {
     return {
       sessionId: session.sessionId,
       sessionConnectionId: session.connectionId,
       sessionName: session.name,
+      sessionLeaseKind: session.leaseKind,
       sessionUrl: session.url,
       sessionState: session.state,
     };
@@ -137,7 +142,10 @@ export class HubRuntime {
 
   private logSessionLifecycle(
     message: string,
-    session: Pick<SessionRecord, "sessionId" | "connectionId" | "name" | "url" | "state">,
+    session: Pick<
+      SessionRecord,
+      "sessionId" | "connectionId" | "name" | "leaseKind" | "url" | "state"
+    >,
     metadata: {
       fromState?: SessionLifecycleState | "none";
       toState: SessionLifecycleState;
@@ -431,6 +439,7 @@ export class HubRuntime {
       event: "session.join_request",
       connectionId,
       name: message.name,
+      leaseKind: message.leaseKind,
       url: message.url,
     });
     if (this.logger.isLevelEnabled("debug")) {
@@ -461,6 +470,7 @@ export class HubRuntime {
       connectionId,
       name: message.name,
       reason: message.reason,
+      leaseKind: message.leaseKind,
       url: message.url,
       joinRequestTime,
     });
@@ -470,6 +480,7 @@ export class HubRuntime {
       connectionId,
       name: message.name,
       reason: message.reason,
+      leaseKind: message.leaseKind,
       url: message.url,
       joinRequestTime,
     });
@@ -902,14 +913,14 @@ export class HubRuntime {
     if (decision === HUB_JOIN_DECISIONS.JOIN) {
       const activatedSession = this.sessionStore.activateSession(sessionId);
       this.logSessionLifecycle(
-        "Session approved in hub; MCP approval sent before extension lease-ready ack exists.",
+        "Session approved in hub after extension requested activation.",
         activatedSession,
         {
           fromState: SESSION_LIFECYCLE_STATES.PENDING,
           toState: activatedSession.state,
           requestId: message.requestId,
           decision,
-          leaseReadyAcknowledged: false,
+          leaseReadyAcknowledged: true,
         },
       );
       this.sendJoinDecision(waitingEntry.connectionId, {
@@ -922,7 +933,10 @@ export class HubRuntime {
         event: HUB_CONTROL_EVENTS.SESSION_APPROVED,
         payload: {
           sessionId,
-          url: waitingEntry.url,
+          leaseKind: waitingEntry.leaseKind,
+          ...(waitingEntry.leaseKind === SESSION_LEASE_KINDS.WORKSPACE
+            ? { url: waitingEntry.url }
+            : {}),
         },
       });
     } else {

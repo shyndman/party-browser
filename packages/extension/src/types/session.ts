@@ -6,6 +6,22 @@
 /**
  * Session state for a browser automation session
  */
+export const SessionLeaseKinds = {
+  WORKSPACE: 'workspace',
+  TAKEOVER: 'takeover',
+} as const;
+
+export type SessionLeaseKind =
+  (typeof SessionLeaseKinds)[keyof typeof SessionLeaseKinds];
+
+export const SessionLeaseOwnerships = {
+  OWNED: 'owned',
+  BORROWED: 'borrowed',
+} as const;
+
+export type SessionLeaseOwnership =
+  (typeof SessionLeaseOwnerships)[keyof typeof SessionLeaseOwnerships];
+
 export interface SessionState {
   tabId: number;
   sessionId: string;

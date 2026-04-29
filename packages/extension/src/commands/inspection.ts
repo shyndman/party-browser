@@ -149,7 +149,7 @@ export class InspectionCommands {
       `[PartyBrowser] Close command is revoking lease (sessionId=${params.sessionId})`,
     );
 
-    await this.sessionManager.revokeLease(params.sessionId, 'user_close', true);
+    await this.sessionManager.revokeLease(params.sessionId, 'user_close');
 
     // Stop network capture
     this.networkCapture.stopCapture();

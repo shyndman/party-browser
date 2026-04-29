@@ -4,6 +4,7 @@
  */
 
 import type { CommandName, CommandParams, CommandResult } from './commands';
+import type { SessionLeaseKind } from './session';
 import type { ErrorCode } from '@/utils/errors';
 
 export const WsMessageKinds = {
@@ -53,7 +54,8 @@ export interface WaitingRoomEntry {
   sessionId: string;
   name: string;
   reason: string;
-  url: string;
+  leaseKind: SessionLeaseKind;
+  url?: string;
   joinRequestTime: number;
 }
 

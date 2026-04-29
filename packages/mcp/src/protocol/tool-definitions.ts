@@ -18,16 +18,43 @@ export const NavigateTool = z.object({
 export type NavigateTool = z.infer<typeof NavigateTool>;
 
 // JoinSession tool - request operator approval and create session route
+const SessionLeaseKind = z.enum(["workspace", "takeover"]);
+
 export const JoinSessionTool = z.object({
   name: z.literal("join_session"),
   description: z.literal(
-    "Request an operator-approved browser session. Blocks until approved or rejected.",
+    "Request an operator-approved browser session. Use workspace with a URL for browsing/search jobs, or takeover without a URL to help in the user's currently focused tab. Blocks until approved or rejected.",
   ),
-  arguments: z.object({
-    name: z.string().min(1).describe("Human-friendly name for this session"),
-    reason: z.string().min(1).describe("Why this session needs browser access"),
-    url: z.string().min(1).describe("Initial URL requested for session startup"),
-  }),
+  arguments: z
+    .object({
+      name: z.string().min(1).describe("Human-friendly name for this session"),
+      reason: z.string().min(1).describe("Why this session needs browser access"),
+      leaseKind: SessionLeaseKind.describe(
+        "workspace opens a new PartyBrowser-owned window at url; takeover borrows the user's currently focused tab when they approve",
+      ),
+      url: z
+        .string()
+        .min(1)
+        .optional()
+        .describe("Required for leaseKind=workspace; omit for leaseKind=takeover"),
+    })
+    .superRefine((value, ctx) => {
+      if (value.leaseKind === "workspace" && !value.url) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "workspace sessions require url",
+          path: ["url"],
+        });
+      }
+
+      if (value.leaseKind === "takeover" && value.url) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "takeover sessions must omit url",
+          path: ["url"],
+        });
+      }
+    }),
 });
 
 export type JoinSessionTool = z.infer<typeof JoinSessionTool>;

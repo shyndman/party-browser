@@ -44,11 +44,7 @@ test('click tool preserves response text shape while consuming lifecycle-managed
       };
     }),
   );
-  await context.joinSession({
-    name: 'Test Agent',
-    reason: 'Contract test',
-    url: 'https://example.com',
-  });
+  await context.joinSession({ name: 'Test Agent', reason: 'Contract test', leaseKind: "workspace", url: 'https://example.com' });
 
   const result = await click.handle(context, { element: 'css:#submit' }, 'call-123');
   const output = result.content[0];
@@ -68,11 +64,7 @@ test('click tool surfaces lifecycle readback failure as a command failure', asyn
       throw new CodedError('Snapshot readback failed.', MCP_ERROR_CODES.PROTOCOL_INVALID_MESSAGE);
     }),
   );
-  await context.joinSession({
-    name: 'Test Agent',
-    reason: 'Failure contract test',
-    url: 'https://example.com',
-  });
+  await context.joinSession({ name: 'Test Agent', reason: 'Failure contract test', leaseKind: "workspace", url: 'https://example.com' });
 
   await assert.rejects(
     () => click.handle(context, { element: 'css:#submit' }),

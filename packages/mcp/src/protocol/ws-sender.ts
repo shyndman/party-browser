@@ -16,8 +16,10 @@ import type {
   MessageType,
   SessionCommandEnvelope,
   SessionCommandResultEnvelope,
+  SessionLeaseKind,
   SocketMessageMap,
 } from "./ws-messages";
+import { SESSION_LEASE_KINDS } from "./ws-messages";
 
 /**
  * Error with machine-readable code for MCP tool failures
@@ -40,7 +42,8 @@ type SendOptions = {
 export type JoinRequestInput = {
   name: string;
   reason: string;
-  url: string;
+  leaseKind: SessionLeaseKind;
+  url?: string;
 };
 
 export interface HubConnection {
@@ -87,10 +90,24 @@ export class WebSocketHubConnection implements HubConnection {
     request: JoinRequestInput,
     options: SendOptions = { timeoutMs: PROTOCOL_DEFAULTS.REQUEST_TIMEOUT_MS },
   ): Promise<string> {
-    const { name, reason, url } = request;
-    if (!name || !reason || !url) {
+    const { name, reason, leaseKind, url } = request;
+    if (!name || !reason || !isSessionLeaseKind(leaseKind)) {
       throw new CodedError(
-        "Join request requires name, reason, and url.",
+        "Join request requires name, reason, and leaseKind.",
+        MCP_ERROR_CODES.PROTOCOL_INVALID_MESSAGE,
+      );
+    }
+
+    if (leaseKind === SESSION_LEASE_KINDS.WORKSPACE && !url) {
+      throw new CodedError(
+        "Workspace join requests require url.",
+        MCP_ERROR_CODES.PROTOCOL_INVALID_MESSAGE,
+      );
+    }
+
+    if (leaseKind === SESSION_LEASE_KINDS.TAKEOVER && url) {
+      throw new CodedError(
+        "Takeover join requests must omit url.",
         MCP_ERROR_CODES.PROTOCOL_INVALID_MESSAGE,
       );
     }
@@ -117,13 +134,16 @@ export class WebSocketHubConnection implements HubConnection {
       }, timeoutMs);
 
       this.pendingJoinRequest = { resolve, reject, timeout };
+      const message = {
+        type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST,
+        name,
+        reason,
+        leaseKind,
+        ...(url ? { url } : {}),
+      };
+
       socket.send(
-        JSON.stringify({
-          type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST,
-          name,
-          reason,
-          url,
-        }),
+        JSON.stringify(message),
       );
     });
   }
@@ -386,4 +406,8 @@ export function isSessionResultEnvelope(value: unknown): value is SessionCommand
 
 export function createHubConnection(hubUrl?: string): HubConnection {
   return new WebSocketHubConnection(hubUrl);
+}
+
+function isSessionLeaseKind(value: unknown): value is SessionLeaseKind {
+  return value === SESSION_LEASE_KINDS.WORKSPACE || value === SESSION_LEASE_KINDS.TAKEOVER;
 }

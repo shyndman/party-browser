@@ -64,6 +64,136 @@ test("hub probe succeeds when the hub accepts a websocket connection", async () 
   });
 });
 
+test("joinSession sends explicit workspace lease kind and url", async () => {
+  const port = await getAvailablePort();
+  const server = new WebSocketServer({ host: "127.0.0.1", port });
+  const connection = new WebSocketHubConnection(`ws://127.0.0.1:${port}`);
+
+  const serverSocketPromise = new Promise<WebSocket>((resolve) => {
+    server.once("connection", (socket) => resolve(socket));
+  });
+
+  try {
+    const joinPromise = connection.joinSession(
+      {
+        name: "Agent Workspace",
+        reason: "Search AliExpress",
+        leaseKind: "workspace",
+        url: "https://aliexpress.com",
+      },
+      { timeoutMs: 1000 },
+    );
+    const serverSocket = await serverSocketPromise;
+    const message = await new Promise<Record<string, unknown>>((resolve) => {
+      serverSocket.once("message", (raw) => {
+        resolve(JSON.parse(String(raw)) as Record<string, unknown>);
+      });
+    });
+
+    assert.equal(message.leaseKind, "workspace");
+    assert.equal(message.url, "https://aliexpress.com");
+
+    serverSocket.send(
+      JSON.stringify({ type: "join_decision", decision: "join", sessionId: "session-1" }),
+    );
+    assert.equal(await joinPromise, "session-1");
+  } finally {
+    await connection.close();
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+});
+
+test("joinSession sends takeover lease kind without url", async () => {
+  const port = await getAvailablePort();
+  const server = new WebSocketServer({ host: "127.0.0.1", port });
+  const connection = new WebSocketHubConnection(`ws://127.0.0.1:${port}`);
+
+  const serverSocketPromise = new Promise<WebSocket>((resolve) => {
+    server.once("connection", (socket) => resolve(socket));
+  });
+
+  try {
+    const joinPromise = connection.joinSession(
+      {
+        name: "Agent Takeover",
+        reason: "Help in my current tab",
+        leaseKind: "takeover",
+      },
+      { timeoutMs: 1000 },
+    );
+    const serverSocket = await serverSocketPromise;
+    const message = await new Promise<Record<string, unknown>>((resolve) => {
+      serverSocket.once("message", (raw) => {
+        resolve(JSON.parse(String(raw)) as Record<string, unknown>);
+      });
+    });
+
+    assert.equal(message.leaseKind, "takeover");
+    assert.equal(Object.hasOwn(message, "url"), false);
+
+    serverSocket.send(
+      JSON.stringify({ type: "join_decision", decision: "join", sessionId: "session-2" }),
+    );
+    assert.equal(await joinPromise, "session-2");
+  } finally {
+    await connection.close();
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+});
+
+test("joinSession rejects missing workspace url and takeover url", async () => {
+  const connection = new WebSocketHubConnection("ws://127.0.0.1:1");
+
+  await assert.rejects(
+    () =>
+      connection.joinSession({
+        name: "Agent Workspace",
+        reason: "Missing URL",
+        leaseKind: "workspace",
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof CodedError);
+      assert.equal(error.errorCode, MCP_ERROR_CODES.PROTOCOL_INVALID_MESSAGE);
+      assert.match(error.message, /Workspace join requests require url/);
+      return true;
+    },
+  );
+
+  await assert.rejects(
+    () =>
+      connection.joinSession({
+        name: "Agent Takeover",
+        reason: "Wrong URL",
+        leaseKind: "takeover",
+        url: "https://example.com",
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof CodedError);
+      assert.equal(error.errorCode, MCP_ERROR_CODES.PROTOCOL_INVALID_MESSAGE);
+      assert.match(error.message, /Takeover join requests must omit url/);
+      return true;
+    },
+  );
+});
+
 test("session command rejects a duplicate pending request id without overwriting the first", async () => {
   const port = await getAvailablePort();
   const server = new WebSocketServer({ host: "127.0.0.1", port });

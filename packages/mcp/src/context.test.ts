@@ -42,11 +42,7 @@ test("browser command hard-fails when no session route exists", async () => {
 
 test("browser command uses approved session envelope route", async () => {
   const context = new Context(createMockHubConnection());
-  await context.joinSession({
-    name: "Test Agent",
-    reason: "Contract test",
-    url: "https://example.com",
-  });
+  await context.joinSession({ name: "Test Agent", reason: "Contract test", leaseKind: "workspace", url: "https://example.com" });
 
   const result = await context.sendSocketMessage("navigate", {
     url: "https://partybrowser.com",
@@ -69,11 +65,7 @@ test("browser command forwards caller-provided request id to hub connection", as
       },
     }),
   );
-  await context.joinSession({
-    name: "Test Agent",
-    reason: "Contract test",
-    url: "https://example.com",
-  });
+  await context.joinSession({ name: "Test Agent", reason: "Contract test", leaseKind: "workspace", url: "https://example.com" });
 
   await context.sendSocketMessage(
     "navigate",

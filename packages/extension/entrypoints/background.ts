@@ -107,7 +107,7 @@ export default defineBackground({
         );
         mcpBridge.publishKillSwitchState(false);
         mcpBridge.disconnect();
-        await sessionManager.revokeAllLeases('kill_switch_disabled', true);
+        await sessionManager.revokeAllLeases('kill_switch_disabled');
         networkCapture.stopCapture();
         networkCapture.clearLogs();
         iconManager.updateFromStatus(false, isKillSwitchEnabled);

@@ -15,6 +15,7 @@ import {
   type WaitingRoomEntry,
   type WaitingRoomListResponse,
 } from '../../src/types/messages';
+import { SessionLeaseKinds } from '../../src/types/session';
 
 interface PopupElements {
   refreshBtn: HTMLButtonElement;
@@ -179,17 +180,22 @@ function renderWaitingRoom(entries: WaitingRoomEntry[]): void {
     const time = formatLocalTime(entry.joinRequestTime);
     const safeName = escapeHtml(entry.name);
     const safeReason = escapeHtml(entry.reason);
-    const safeUrl = escapeHtml(entry.url);
+    const leaseKindLabel = entry.leaseKind === SessionLeaseKinds.TAKEOVER ? 'Takeover' : 'Workspace';
+    const leaseDetail = entry.leaseKind === SessionLeaseKinds.TAKEOVER
+      ? 'Takeover: will use your currently focused tab when you approve'
+      : `Workspace: ${entry.url ?? ''}`;
+    const safeLeaseKind = escapeHtml(leaseKindLabel);
+    const safeLeaseDetail = escapeHtml(leaseDetail);
 
     row.innerHTML = `
       <div class="row-head">
-        <div class="row-name">${safeName}</div>
+        <div class="row-name">${safeName} · ${safeLeaseKind}</div>
         <div class="row-time">${time}</div>
       </div>
       <div class="row-reason">${safeReason}</div>
-      <div class="row-url" title="${safeUrl}">${safeUrl}</div>
+      <div class="row-url" title="${safeLeaseDetail}">${safeLeaseDetail}</div>
       <div class="row-actions">
-        <button class="row-btn join" data-session-id="${entry.sessionId}" data-decision="${WaitingRoomDecisions.JOIN}">Join</button>
+        <button class="row-btn join" data-session-id="${entry.sessionId}" data-decision="${WaitingRoomDecisions.JOIN}">Approve</button>
         <button class="row-btn reject" data-session-id="${entry.sessionId}" data-decision="${WaitingRoomDecisions.REJECT}">Reject</button>
       </div>
     `;

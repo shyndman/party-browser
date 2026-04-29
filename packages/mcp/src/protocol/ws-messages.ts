@@ -3,6 +3,14 @@ import {
   HUB_JOIN_DECISIONS,
 } from "./constants";
 
+export const SESSION_LEASE_KINDS = {
+  WORKSPACE: "workspace",
+  TAKEOVER: "takeover",
+} as const;
+
+export type SessionLeaseKind =
+  (typeof SESSION_LEASE_KINDS)[keyof typeof SESSION_LEASE_KINDS];
+
 export interface SocketMessageMap {
   // Navigation messages
   navigate: { url: string };
@@ -54,7 +62,8 @@ export type JoinRequestMessage = {
   type: typeof HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST;
   name: string;
   reason: string;
-  url: string;
+  leaseKind: SessionLeaseKind;
+  url?: string;
 };
 
 export type JoinDecisionMessage =

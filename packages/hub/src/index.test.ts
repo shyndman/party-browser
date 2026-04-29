@@ -12,6 +12,7 @@ import {
   HUB_CONTROL_MESSAGE_TYPES,
   HUB_EXTENSION_MESSAGE_TYPES,
   HUB_JOIN_DECISIONS,
+  SESSION_LEASE_KINDS,
 } from "@/protocol/messages";
 import { HubRuntime } from "@/index";
 import { CommandRouter } from "@/router/command-router";
@@ -164,12 +165,7 @@ test("join request blocks until operator decision", async () => {
     );
 
     harness.mcp.send(
-      JSON.stringify({
-        type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST,
-        name: "Agent A",
-        reason: "Investigate issue",
-        url: "https://example.com",
-      }),
+      JSON.stringify({ type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST, name: "Agent A", reason: "Investigate issue", leaseKind: SESSION_LEASE_KINDS.WORKSPACE, url: "https://example.com" }),
     );
 
     await expectNoMessage(harness.mcp);
@@ -179,6 +175,77 @@ test("join request blocks until operator decision", async () => {
 
     assert.equal(decision.decision, HUB_JOIN_DECISIONS.JOIN);
     assert.equal(decision.sessionId, sessionId);
+  } finally {
+    await destroyHarness(harness);
+  }
+});
+
+test("takeover join request enters waiting room without URL and approval forwards lease kind", async () => {
+  const harness = await createHarness();
+
+  try {
+    const joinDecisionPromise = waitForMessage(
+      harness.mcp,
+      (message) => message.type === HUB_CONTROL_MESSAGE_TYPES.JOIN_DECISION,
+    );
+    const approvalEventPromise = waitForMessage(
+      harness.extension,
+      (message) =>
+        message.type === HUB_EXTENSION_MESSAGE_TYPES.CONTROL_EVENT &&
+        message.event === HUB_CONTROL_EVENTS.SESSION_APPROVED,
+    );
+
+    harness.mcp.send(
+      JSON.stringify({
+        type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST,
+        name: "Agent Takeover",
+        reason: "Help in current tab",
+        leaseKind: SESSION_LEASE_KINDS.TAKEOVER,
+      }),
+    );
+
+    harness.extension.send(
+      JSON.stringify({
+        type: HUB_EXTENSION_MESSAGE_TYPES.CONTROL_COMMAND,
+        requestId: "list-takeover",
+        command: HUB_CONTROL_COMMANDS.WAITING_ROOM_LIST,
+        payload: {},
+      }),
+    );
+
+    const waitingList = await waitForMessage(
+      harness.extension,
+      (message) =>
+        message.type === HUB_EXTENSION_MESSAGE_TYPES.CONTROL_RESPONSE &&
+        message.requestId === "list-takeover",
+    );
+    const entries = (
+      waitingList.payload as { entries: Array<{ sessionId: string; leaseKind: string; url?: string }> }
+    ).entries;
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0].leaseKind, SESSION_LEASE_KINDS.TAKEOVER);
+    assert.equal(entries[0].url, undefined);
+
+    harness.extension.send(
+      JSON.stringify({
+        type: HUB_EXTENSION_MESSAGE_TYPES.CONTROL_COMMAND,
+        requestId: "decide-takeover",
+        command: HUB_CONTROL_COMMANDS.WAITING_ROOM_DECIDE,
+        payload: {
+          sessionId: entries[0].sessionId,
+          decision: HUB_JOIN_DECISIONS.JOIN,
+        },
+      }),
+    );
+
+    const decision = await joinDecisionPromise;
+    const approvalEvent = await approvalEventPromise;
+
+    assert.equal(decision.decision, HUB_JOIN_DECISIONS.JOIN);
+    assert.deepEqual(approvalEvent.payload, {
+      sessionId: entries[0].sessionId,
+      leaseKind: SESSION_LEASE_KINDS.TAKEOVER,
+    });
   } finally {
     await destroyHarness(harness);
   }
@@ -255,12 +322,7 @@ test("duplicate pending MCP command returns session result envelope", async () =
     );
 
     harness.mcp.send(
-      JSON.stringify({
-        type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST,
-        name: "Agent Duplicate Request",
-        reason: "Verify duplicate command routing",
-        url: "https://example.com/duplicate-request",
-      }),
+      JSON.stringify({ type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST, name: "Agent Duplicate Request", reason: "Verify duplicate command routing", leaseKind: SESSION_LEASE_KINDS.WORKSPACE, url: "https://example.com/duplicate-request" }),
     );
 
     const sessionId = await approveSinglePendingSession(harness);
@@ -322,12 +384,7 @@ test("operator reject returns explicit reject decision", async () => {
     );
 
     harness.mcp.send(
-      JSON.stringify({
-        type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST,
-        name: "Agent B",
-        reason: "Read dashboard",
-        url: "https://example.com/reject",
-      }),
+      JSON.stringify({ type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST, name: "Agent B", reason: "Read dashboard", leaseKind: SESSION_LEASE_KINDS.WORKSPACE, url: "https://example.com/reject" }),
     );
 
     harness.extension.send(
@@ -380,12 +437,7 @@ test("kill switch revoke wins over in-flight command", async () => {
     );
 
     harness.mcp.send(
-      JSON.stringify({
-        type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST,
-        name: "Agent C",
-        reason: "Run command",
-        url: "https://example.com/active",
-      }),
+      JSON.stringify({ type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST, name: "Agent C", reason: "Run command", leaseKind: SESSION_LEASE_KINDS.WORKSPACE, url: "https://example.com/active" }),
     );
 
     const sessionId = await approveSinglePendingSession(harness);
@@ -457,12 +509,7 @@ test("approval lifecycle log explains missing lease race after approval", async 
     );
 
     harness.mcp.send(
-      JSON.stringify({
-        type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST,
-        name: "Agent Lease Race",
-        reason: "Race first command after approval",
-        url: "https://example.com/lease-race",
-      }),
+      JSON.stringify({ type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST, name: "Agent Lease Race", reason: "Race first command after approval", leaseKind: SESSION_LEASE_KINDS.WORKSPACE, url: "https://example.com/lease-race" }),
     );
 
     const sessionId = await approveSinglePendingSession(harness);
@@ -506,12 +553,12 @@ test("approval lifecycle log explains missing lease race after approval", async 
 
     const approvalLifecycleLine = captureStream.lines.find(
       (line) =>
-        line.includes("Session approved in hub; MCP approval sent before extension lease-ready ack exists.") &&
+        line.includes("Session approved in hub after extension requested activation.") &&
         line.includes("session.lifecycle") &&
         line.includes(`sessionId=${sessionId}`) &&
         line.includes("fromState=pending") &&
         line.includes("toState=active") &&
-        line.includes("leaseReadyAcknowledged=false"),
+        line.includes("leaseReadyAcknowledged=true"),
     );
     assert.ok(approvalLifecycleLine, "expected approval lifecycle log line");
 
@@ -552,21 +599,11 @@ test("mcp disconnect cleans up pending and active sessions for that connection",
     );
 
     harness.mcp.send(
-      JSON.stringify({
-        type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST,
-        name: "Agent D",
-        reason: "Run active command",
-        url: "https://example.com/active-disconnect",
-      }),
+      JSON.stringify({ type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST, name: "Agent D", reason: "Run active command", leaseKind: SESSION_LEASE_KINDS.WORKSPACE, url: "https://example.com/active-disconnect" }),
     );
 
     harness.mcp.send(
-      JSON.stringify({
-        type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST,
-        name: "Agent E",
-        reason: "Remain pending",
-        url: "https://example.com/pending-disconnect",
-      }),
+      JSON.stringify({ type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST, name: "Agent E", reason: "Remain pending", leaseKind: SESSION_LEASE_KINDS.WORKSPACE, url: "https://example.com/pending-disconnect" }),
     );
 
     harness.extension.send(
@@ -750,12 +787,7 @@ test("replaced extension close does not clear current extension or revoke sessio
     );
 
     harness.mcp.send(
-      JSON.stringify({
-        type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST,
-        name: "Agent Replacement",
-        reason: "Keep session through extension replacement",
-        url: "https://example.com/replacement",
-      }),
+      JSON.stringify({ type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST, name: "Agent Replacement", reason: "Keep session through extension replacement", leaseKind: SESSION_LEASE_KINDS.WORKSPACE, url: "https://example.com/replacement" }),
     );
 
     const sessionId = await approveSinglePendingSession(harness);
@@ -820,12 +852,7 @@ test("current extension close still revokes active sessions", async () => {
     );
 
     harness.mcp.send(
-      JSON.stringify({
-        type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST,
-        name: "Agent Extension Close",
-        reason: "Verify current extension close revokes",
-        url: "https://example.com/current-extension-close",
-      }),
+      JSON.stringify({ type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST, name: "Agent Extension Close", reason: "Verify current extension close revokes", leaseKind: SESSION_LEASE_KINDS.WORKSPACE, url: "https://example.com/current-extension-close" }),
     );
 
     const sessionId = await approveSinglePendingSession(harness);
@@ -896,12 +923,7 @@ test("invalid waiting-room decisions are rejected without removing entry", async
 
   try {
     harness.mcp.send(
-      JSON.stringify({
-        type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST,
-        name: "Agent Invalid Decision",
-        reason: "Stay in waiting room after invalid decision",
-        url: "https://example.com/invalid-decision",
-      }),
+      JSON.stringify({ type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST, name: "Agent Invalid Decision", reason: "Stay in waiting room after invalid decision", leaseKind: SESSION_LEASE_KINDS.WORKSPACE, url: "https://example.com/invalid-decision" }),
     );
 
     harness.extension.send(
