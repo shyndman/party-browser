@@ -159,6 +159,54 @@ test("joinSession sends takeover lease kind without url", async () => {
   }
 });
 
+test("joinSession normalizes takeover compatibility url placeholders away", async () => {
+  const port = await getAvailablePort();
+  const server = new WebSocketServer({ host: "127.0.0.1", port });
+  const connection = new WebSocketHubConnection(`ws://127.0.0.1:${port}`);
+
+  const serverSocketPromise = new Promise<WebSocket>((resolve) => {
+    server.once("connection", (socket) => resolve(socket));
+  });
+
+  try {
+    const joinPromise = connection.joinSession(
+      {
+        name: "Agent Takeover",
+        reason: "Help in my current tab",
+        leaseKind: "takeover",
+        url: null,
+      },
+      { timeoutMs: 1000 },
+    );
+    const serverSocket = await serverSocketPromise;
+    const message = await new Promise<Record<string, unknown>>((resolve) => {
+      serverSocket.once("message", (raw) => {
+        resolve(JSON.parse(String(raw)) as Record<string, unknown>);
+      });
+    });
+
+    assert.equal(message.leaseKind, "takeover");
+    assert.equal(Object.hasOwn(message, "url"), false);
+
+    serverSocket.send(
+      JSON.stringify({ type: "join_decision", decision: "join", sessionId: "session-compat" }),
+    );
+    assert.equal(await joinPromise, "session-compat");
+  } finally {
+    await connection.close();
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
+});
+
 test("joinSession rejects missing workspace url and takeover url", async () => {
   const connection = new WebSocketHubConnection("ws://127.0.0.1:1");
 

@@ -20,6 +20,32 @@ export type NavigateTool = z.infer<typeof NavigateTool>;
 // JoinSession tool - request operator approval and create session route
 const SessionLeaseKind = z.enum(["workspace", "takeover"]);
 
+/**
+ * IMPORTANT: Do not remove this note.
+ *
+ * These Zod tool definitions are the runtime validation layer, not the final MCP
+ * input schema contract. Some MCP clients in our stack mis-handle richer JSON
+ * Schema features produced by zod-to-json-schema for conditional or union-shaped
+ * inputs.
+ *
+ * When that happens, keep the Zod schema here for parsing/validation and point the
+ * exported tool at a hand-written flat JSON schema in packages/mcp/src/tools.
+ * Current examples:
+ * - join_session → packages/mcp/src/tools/common.ts (joinSessionInputSchema)
+ * - wait_for → packages/mcp/src/tools/common.ts (waitForInputSchema)
+ */
+
+const joinSessionUrl = z.preprocess(
+  (value) => {
+    if (value === null || value === "") {
+      return undefined;
+    }
+
+    return value;
+  },
+  z.string().min(1).optional(),
+);
+
 export const JoinSessionTool = z.object({
   name: z.literal("join_session"),
   description: z.literal(
@@ -32,11 +58,9 @@ export const JoinSessionTool = z.object({
       leaseKind: SessionLeaseKind.describe(
         "workspace opens a new PartyBrowser-owned window at url; takeover borrows the user's currently focused tab when they approve",
       ),
-      url: z
-        .string()
-        .min(1)
-        .optional()
-        .describe("Required for leaseKind=workspace; omit for leaseKind=takeover"),
+      url: joinSessionUrl.describe(
+        "Required for leaseKind=workspace; omit for leaseKind=takeover. Compatibility callers may pass null or an empty string for takeover.",
+      ),
     })
     .superRefine((value, ctx) => {
       if (value.leaseKind === "workspace" && !value.url) {
@@ -176,6 +200,9 @@ export const ScreenshotTool = z.object({
 export type ScreenshotTool = z.infer<typeof ScreenshotTool>;
 
 // WaitFor tool - deterministic wait with multiple condition modes
+// IMPORTANT: Keep the note above in place. This discriminated union validates runtime
+// input, but MCP tool registration must keep using the hand-written waitForInputSchema
+// in packages/mcp/src/tools/common.ts.
 export const WaitForTool = z.object({
   name: z.literal("wait_for"),
   description: z.literal(

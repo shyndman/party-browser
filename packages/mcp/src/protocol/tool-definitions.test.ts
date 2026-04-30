@@ -36,6 +36,25 @@ test("join_session accepts takeover without URL", () => {
   assert.equal(parsed.url, undefined);
 });
 
+test("join_session accepts takeover compatibility url placeholders", () => {
+  const parsedWithNull = JoinSessionTool.shape.arguments.parse({
+    name: "Agent Takeover",
+    reason: "Help in current tab",
+    leaseKind: "takeover",
+    url: null,
+  });
+
+  const parsedWithEmptyString = JoinSessionTool.shape.arguments.parse({
+    name: "Agent Takeover",
+    reason: "Help in current tab",
+    leaseKind: "takeover",
+    url: "",
+  });
+
+  assert.equal(parsedWithNull.url, undefined);
+  assert.equal(parsedWithEmptyString.url, undefined);
+});
+
 test("join_session rejects takeover with URL", () => {
   assert.throws(() =>
     JoinSessionTool.shape.arguments.parse({

@@ -19,11 +19,43 @@ import {
 
 import type { Tool, ToolFactory } from "./tool";
 
+// Hand-written MCP schema. Do not replace this with zodToJsonSchema(JoinSessionTool.shape.arguments).
+// The runtime validator lives in packages/mcp/src/protocol/tool-definitions.ts, but MCP clients in
+// our stack need this flatter shape for join_session.
+const joinSessionInputSchema = {
+  type: "object",
+  properties: {
+    name: {
+      type: "string",
+      minLength: 1,
+      description: "Human-friendly name for this session",
+    },
+    reason: {
+      type: "string",
+      minLength: 1,
+      description: "Why this session needs browser access",
+    },
+    leaseKind: {
+      type: "string",
+      enum: ["workspace", "takeover"],
+      description:
+        "workspace opens a new PartyBrowser-owned window at url; takeover borrows the user's currently focused tab when they approve",
+    },
+    url: {
+      type: ["string", "null"],
+      description:
+        "Required for leaseKind=workspace. For takeover, omit it when possible; compatibility callers may pass null or an empty string.",
+    },
+  },
+  required: ["name", "reason", "leaseKind"],
+  additionalProperties: false,
+} as const;
+
 export const joinSession: Tool = {
   schema: {
     name: JoinSessionTool.shape.name.value,
     description: JoinSessionTool.shape.description.value,
-    inputSchema: zodToJsonSchema(JoinSessionTool.shape.arguments),
+    inputSchema: joinSessionInputSchema,
   },
   handle: async (context, params) => {
     const request = JoinSessionTool.shape.arguments.parse(params);
@@ -148,6 +180,8 @@ export const pressKey: Tool = {
 
 // Unified schema for wait_for - compatible with strict MCP validators
 // Uses consistent field structure across all modes with runtime validation
+// Do not replace this with zodToJsonSchema(WaitForTool.shape.arguments); keep the runtime validator
+// in packages/mcp/src/protocol/tool-definitions.ts and this flatter MCP-facing schema here.
 const waitForInputSchema = {
   type: "object",
   properties: {

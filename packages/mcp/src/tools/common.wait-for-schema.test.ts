@@ -3,7 +3,20 @@ import test from 'node:test';
 
 import type { Context } from '../context';
 
-import { navigate, waitFor } from './common';
+import { joinSession, navigate, waitFor } from './common';
+
+test('join_session exposes a flat schema with nullable url compatibility', () => {
+  const schema = joinSession.schema.inputSchema as Record<string, unknown>;
+  const properties = schema.properties as Record<string, Record<string, unknown>>;
+
+  assert.equal(schema.type, 'object');
+  assert.equal(Object.hasOwn(schema, 'oneOf'), false);
+  assert.equal(Object.hasOwn(schema, 'anyOf'), false);
+  assert.equal(Object.hasOwn(schema, 'allOf'), false);
+  assert.equal(Object.hasOwn(schema, 'not'), false);
+  assert.deepEqual(schema.required, ['name', 'reason', 'leaseKind']);
+  assert.deepEqual(properties.url?.type, ['string', 'null']);
+});
 
 test('wait_for exposes a Codex-compatible object schema', () => {
   const schema = waitFor.schema.inputSchema as Record<string, unknown>;

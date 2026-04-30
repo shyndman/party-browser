@@ -43,7 +43,7 @@ export type JoinRequestInput = {
   name: string;
   reason: string;
   leaseKind: SessionLeaseKind;
-  url?: string;
+  url?: string | null;
 };
 
 export interface HubConnection {
@@ -91,6 +91,7 @@ export class WebSocketHubConnection implements HubConnection {
     options: SendOptions = { timeoutMs: PROTOCOL_DEFAULTS.REQUEST_TIMEOUT_MS },
   ): Promise<string> {
     const { name, reason, leaseKind, url } = request;
+    const normalizedUrl = typeof url === "string" && url.length > 0 ? url : undefined;
     if (!name || !reason || !isSessionLeaseKind(leaseKind)) {
       throw new CodedError(
         "Join request requires name, reason, and leaseKind.",
@@ -98,14 +99,14 @@ export class WebSocketHubConnection implements HubConnection {
       );
     }
 
-    if (leaseKind === SESSION_LEASE_KINDS.WORKSPACE && !url) {
+    if (leaseKind === SESSION_LEASE_KINDS.WORKSPACE && !normalizedUrl) {
       throw new CodedError(
         "Workspace join requests require url.",
         MCP_ERROR_CODES.PROTOCOL_INVALID_MESSAGE,
       );
     }
 
-    if (leaseKind === SESSION_LEASE_KINDS.TAKEOVER && url) {
+    if (leaseKind === SESSION_LEASE_KINDS.TAKEOVER && normalizedUrl) {
       throw new CodedError(
         "Takeover join requests must omit url.",
         MCP_ERROR_CODES.PROTOCOL_INVALID_MESSAGE,
@@ -139,7 +140,7 @@ export class WebSocketHubConnection implements HubConnection {
         name,
         reason,
         leaseKind,
-        ...(url ? { url } : {}),
+        ...(normalizedUrl ? { url: normalizedUrl } : {}),
       };
 
       socket.send(
