@@ -116,7 +116,7 @@ export async function readPageState(context: Context, requestId?: string): Promi
   const title = payload && typeof payload.title === "string" ? payload.title : undefined;
 
   if (!url) throw new Error("Page URL readback failed: snapshot response did not contain a URL.");
-  if (!title) throw new Error("Page title readback failed: snapshot response did not contain a title.");
+  if (title === undefined) throw new Error("Page title readback failed: snapshot response did not contain a title.");
 
   return { url, title, tree: tree ?? {} };
 }

@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { Context } from "@/context";
 
-import { captureAriaSnapshot, extractPageState, formatAriaSnapshot } from "./aria-snapshot";
+import { captureAriaSnapshot, extractPageState, formatAriaSnapshot, readPageState } from "./aria-snapshot";
 
 test("formatAriaSnapshot preserves response text shape from lifecycle-managed page state", () => {
   const output = formatAriaSnapshot(
@@ -88,6 +88,18 @@ test("captureAriaSnapshot preserves legacy atomic snapshot payload shape", async
   const output = result.content[0]?.type === "text" ? result.content[0].text : "";
 
   assert.match(output, /- Page URL: https:\/\/example\.com/);
+
   assert.match(output, /- Page Title: Example/);
   assert.match(output, /"foo": "bar"/);
+});
+
+test("readPageState accepts a legitimately blank title", async () => {
+  const context = {
+    sendSocketMessage: async () => ({
+      success: true,
+      data: { url: "https://example.com", title: "", tree: [] },
+    }),
+  } as unknown as Context;
+  const pageState = await readPageState(context);
+  assert.equal(pageState.title, "");
 });
