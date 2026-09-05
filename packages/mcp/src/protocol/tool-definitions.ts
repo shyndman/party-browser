@@ -49,7 +49,7 @@ const joinSessionUrl = z.preprocess(
 export const JoinSessionTool = z.object({
   name: z.literal("join_session"),
   description: z.literal(
-    "Request an operator-approved browser session. Use workspace with a URL for browsing/search jobs, or takeover without a URL to help in the user's currently focused tab. Blocks until approved or rejected.",
+    "Request an operator-approved browser session. Use workspace with a URL for browsing/search jobs, or takeover without a URL to help in the user's currently focused tab. Blocks until approved or rejected. Clients should use a timeout of at least 5 minutes for this tool call.",
   ),
   arguments: z
     .object({
