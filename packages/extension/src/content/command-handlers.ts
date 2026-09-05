@@ -172,17 +172,19 @@ export function createCommandHandlers() {
     try {
       const fn = new Function(script);
       const result = fn.call(window);
-      const resolved = result instanceof Promise ? await result : result;
+      const resolved = await result;
 
       return {
         success: true,
         data: { result: serializeResult(resolved) },
       };
     } catch (error) {
+      const details = describeEvaluationError(error);
+      console.error('[PartyBrowser] Evaluation failed:', details);
       return {
         success: false,
-        error: (error as Error).message,
-        stack: (error as Error).stack,
+        error: details.message,
+        ...(details.stack ? { stack: details.stack } : {}),
       };
     }
   }
@@ -403,6 +405,23 @@ function isDisabledControlOrDescendant(element: Element): boolean {
   return element.matches(':disabled') || element.closest('button:disabled') !== null;
 }
 
+function describeEvaluationError(error: unknown): { message: string; stack?: string } {
+  if (error instanceof Error) {
+    return { message: error.message, stack: error.stack };
+  }
+
+  return { message: String(error) };
+}
+
+function serializeElement(element: Element): { type: 'Element'; tagName: string; id: string; className: string } {
+  return {
+    type: 'Element',
+    tagName: element.tagName,
+    id: element.id,
+    className: element.className,
+  };
+}
+
 function serializeResult(result: unknown): unknown {
   if (result === null) {
     return null;
@@ -413,26 +432,33 @@ function serializeResult(result: unknown): unknown {
 
   switch (typeof result) {
     case 'boolean':
-    case 'number':
     case 'string':
       return result;
+    case 'number':
+      return Number.isFinite(result) ? result : String(result);
     case 'object':
       if (Array.isArray(result)) {
         return result.map(serializeResult);
       }
       if (result instanceof Element) {
-        return {
-          type: 'Element',
-          tagName: result.tagName,
-          id: result.id,
-          className: result.className,
-        };
+        return serializeElement(result);
       }
       if (result instanceof NodeList || result instanceof HTMLCollection) {
         return Array.from(result).map(serializeResult);
       }
       try {
-        return JSON.parse(JSON.stringify(result));
+        return JSON.parse(JSON.stringify(result, (_key, value: unknown) => {
+          if (typeof value === 'number' && !Number.isFinite(value)) {
+            return String(value);
+          }
+          if (value instanceof Element) {
+            return serializeElement(value);
+          }
+          if (value instanceof NodeList || value instanceof HTMLCollection) {
+            return Array.from(value).map(serializeResult);
+          }
+          return value;
+        }));
       } catch {
         return String(result);
       }
@@ -442,3 +468,4 @@ function serializeResult(result: unknown): unknown {
       return String(result);
   }
 }
+
