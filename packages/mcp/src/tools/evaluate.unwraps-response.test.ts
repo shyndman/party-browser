@@ -6,7 +6,7 @@ import type { TextContent } from '@modelcontextprotocol/sdk/types.js';
 import { evaluate } from './evaluate';
 
 test('evaluate unwraps the extension envelope before formatting the payload', async () => {
-  const script = "return { foo: 'bar' };";
+  const script = "({ foo: 'bar' });";
   let capturedPayload: unknown;
   let capturedOptions: unknown;
 
@@ -34,5 +34,21 @@ test('evaluate unwraps the extension envelope before formatting the payload', as
   assert.equal(
     (content as TextContent).text,
     '```\n{\n  "greeting": "hello"\n}\n```',
+  );
+});
+
+test('evaluate preserves command failure codes and syntax locations', async () => {
+  const error = 'Unexpected token (2:14)';
+  const mockContext = {
+    sendSocketMessage: async () => ({
+      success: false,
+      error,
+      errorCode: 'COMMAND_FAILED',
+    }),
+  } as never;
+
+  await assert.rejects(
+    evaluate.handle(mockContext, { script: 'const value = ;' }, 'call-error'),
+    { message: error, errorCode: 'COMMAND_FAILED' },
   );
 });

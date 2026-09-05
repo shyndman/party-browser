@@ -1,4 +1,5 @@
 import type { CommandResult, WaitForPayload } from '../types/commands';
+import { ErrorCodes } from '../utils/errors';
 import {
   createClickEventPlan,
   createDragEventPlan,
@@ -15,6 +16,7 @@ import {
   moveFocusToNextFocusableElement,
 } from './dom-events';
 import { findElement } from './element-refs';
+import { compileEvaluation } from './evaluation';
 import { getSnapshot, type SnapshotCommandParams } from './snapshot';
 
 export type CommandHandlers = ReturnType<typeof createCommandHandlers>;
@@ -170,9 +172,8 @@ export function createCommandHandlers() {
     console.log(`[PartyBrowser] Evaluating script: ${script.slice(0, 50)}${script.length > 50 ? '...' : ''}`);
 
     try {
-      const fn = new Function(script);
-      const result = fn.call(window);
-      const resolved = await result;
+      const fn = compileEvaluation(script);
+      const resolved = await fn.call(window);
 
       return {
         success: true,
@@ -184,6 +185,7 @@ export function createCommandHandlers() {
       return {
         success: false,
         error: details.message,
+        errorCode: ErrorCodes.COMMAND_FAILED,
         ...(details.stack ? { stack: details.stack } : {}),
       };
     }

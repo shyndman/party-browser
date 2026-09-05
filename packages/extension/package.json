@@ -16,7 +16,9 @@
     "test": "tsx --test \"src/**/*.test.ts\" \"entrypoints/**/*.test.ts\"",
     "test:e2e": "echo 'E2E tests not yet implemented - Phase 9' && exit 0"
   },
-  "dependencies": {},
+  "dependencies": {
+    "acorn": "^8.18.0"
+  },
   "devDependencies": {
     "@types/webextension-polyfill": "^0.12.4",
     "tsx": "^4.20.5",
