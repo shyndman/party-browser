@@ -264,7 +264,7 @@ export const NetworkRequestsTool = z.object({
         types: z
           .array(z.string())
           .optional()
-          .describe("Filter by request types (e.g., 'main_frame', 'script', 'xhr')"),
+          .describe("Filter by request types (e.g., 'main_frame', 'script', 'xmlhttprequest')"),
         urlPattern: z
           .string()
           .optional()

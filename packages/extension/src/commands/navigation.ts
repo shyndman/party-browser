@@ -69,7 +69,7 @@ export class NavigationCommands {
     const { url } = params;
     const targetTabId = await this.sessionManager.resolveTargetTab(params);
 
-    if (this.networkCapture.getCapturingTabId() !== targetTabId) {
+    if (!this.networkCapture.isCapturingTab(targetTabId)) {
       this.networkCapture.startCapture(targetTabId);
     }
 

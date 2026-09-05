@@ -148,6 +148,7 @@ export default defineBackground({
 
 
     sessionManager.onLeaseCreated((sessionId, lease) => {
+      networkCapture.startCapture(lease.tabId);
       console.log('[PartyBrowser] Lease created callback.', {
         sessionId,
         tabId: lease.tabId,
@@ -159,12 +160,8 @@ export default defineBackground({
         leaseSnapshot: summarizeValue(sessionManager.getLeaseSnapshot()),
       });
     });
-
     sessionManager.onLeaseRevoked((sessionId, lease, reason) => {
-      if (networkCapture.getCapturingTabId() === lease.tabId) {
-        networkCapture.stopCapture();
-      }
-
+      networkCapture.stopCapture(lease.tabId);
       networkCapture.clearLogs(lease.tabId);
       console.log('[PartyBrowser] Lease revoked callback.', {
         sessionId,

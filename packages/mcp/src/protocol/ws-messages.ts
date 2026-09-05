@@ -41,7 +41,7 @@ export interface SocketMessageMap {
   close: Record<string, never>;
 
   // Network and console inspection messages (Phase 03.1)
-  get_network_requests: {
+  getNetworkRequests: {
     filter?: { types?: string[]; urlPattern?: string };
   };
   get_console_messages: {

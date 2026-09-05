@@ -13,16 +13,14 @@ export const MAX_LOG_SIZE = 1000;
 export interface NetworkCaptureListener {
   tabId: number;
   onBeforeRequest: (details: BrowserNamespace.WebRequest.OnBeforeRequestDetailsType) => void;
+  onBeforeRedirect: (details: BrowserNamespace.WebRequest.OnBeforeRedirectDetailsType) => void;
   onCompleted: (details: BrowserNamespace.WebRequest.OnCompletedDetailsType) => void;
   onErrorOccurred: (details: BrowserNamespace.WebRequest.OnErrorOccurredDetailsType) => void;
 }
 
-/**
- * Manages network request capture for browser automation sessions
- */
 export class NetworkCapture {
   private sessionNetworkLogs = new Map<number, NetworkRequest[]>();
-  private networkCaptureListener: NetworkCaptureListener | null = null;
+  private networkCaptureListeners = new Map<number, NetworkCaptureListener>();
 
   private logNetworkEvent(
     level: 'log' | 'warn' | 'error',
@@ -30,29 +28,27 @@ export class NetworkCapture {
     tabId: number,
     fields: Record<string, unknown>,
   ): void {
-    console[level](`[PartyBrowser] ${message}`, {
-      tabId,
-      ...fields,
-    });
+    console[level](`[PartyBrowser] ${message}`, { tabId, ...fields });
   }
 
-  /**
-   * Start capturing network requests for a specific tab
-   * @param tabId The tab ID to capture requests for
-   */
-  startCapture(tabId: number): void {
-    this.stopCapture();
+  private findLatestPending(logs: NetworkRequest[], requestId: string): NetworkRequest | undefined {
+    for (let index = logs.length - 1; index >= 0; index -= 1) {
+      const request = logs[index];
+      if (request.requestId === requestId && request.statusCode === null) return request;
+    }
+    return undefined;
+  }
 
+  startCapture(tabId: number): void {
+    if (this.networkCaptureListeners.has(tabId)) return;
     console.log(`[PartyBrowser] Starting network capture for tab ${tabId}`);
-    this.sessionNetworkLogs.set(tabId, []);
+    if (!this.sessionNetworkLogs.has(tabId)) this.sessionNetworkLogs.set(tabId, []);
 
     const onBeforeRequest = (details: BrowserNamespace.WebRequest.OnBeforeRequestDetailsType): void => {
       if (details.tabId !== tabId) return;
-
       const logs = this.sessionNetworkLogs.get(tabId);
       if (!logs) return;
-
-      const requestEntry: NetworkRequest = {
+      logs.push({
         requestId: details.requestId,
         url: details.url,
         method: details.method,
@@ -61,173 +57,103 @@ export class NetworkCapture {
         requestBody: details.requestBody || null,
         statusCode: null,
         responseHeaders: null,
-        error: null
-      };
-
-      logs.push(requestEntry);
-      if (logs.length > MAX_LOG_SIZE) {
-        logs.shift();
-      }
-
+        error: null,
+      });
+      if (logs.length > MAX_LOG_SIZE) logs.shift();
       this.logNetworkEvent('log', 'Network request started.', tabId, {
-        requestId: details.requestId,
-        url: details.url,
-        method: details.method,
-        resourceType: details.type,
-        hasRequestBody: details.requestBody !== undefined,
+        requestId: details.requestId, url: details.url, method: details.method,
+        resourceType: details.type, hasRequestBody: details.requestBody !== undefined,
+      });
+    };
+
+    const onBeforeRedirect = (details: BrowserNamespace.WebRequest.OnBeforeRedirectDetailsType): void => {
+      if (details.tabId !== tabId) return;
+      const logs = this.sessionNetworkLogs.get(tabId);
+      if (!logs) return;
+      const entry = this.findLatestPending(logs, details.requestId);
+      if (entry) {
+        entry.statusCode = details.statusCode;
+        entry.responseHeaders = (details.responseHeaders as unknown as Record<string, string>[]) || null;
+      }
+      this.logNetworkEvent('log', 'Network request redirected.', tabId, {
+        requestId: details.requestId, url: details.url, redirectUrl: details.redirectUrl,
+        statusCode: details.statusCode,
       });
     };
 
     const onCompleted = (details: BrowserNamespace.WebRequest.OnCompletedDetailsType): void => {
       if (details.tabId !== tabId) return;
-
       const logs = this.sessionNetworkLogs.get(tabId);
       if (!logs) return;
-
-      const entry = logs.find((r) => r.requestId === details.requestId);
+      const entry = this.findLatestPending(logs, details.requestId);
       if (entry) {
         entry.statusCode = details.statusCode;
         entry.responseHeaders = (details.responseHeaders as unknown as Record<string, string>[]) || null;
       }
-
       this.logNetworkEvent('log', 'Network request completed.', tabId, {
-        requestId: details.requestId,
-        url: details.url,
-        statusCode: details.statusCode,
-        fromCache: details.fromCache,
-        ip: details.ip,
+        requestId: details.requestId, url: details.url, statusCode: details.statusCode,
+        fromCache: details.fromCache, ip: details.ip,
       });
     };
 
     const onErrorOccurred = (details: BrowserNamespace.WebRequest.OnErrorOccurredDetailsType): void => {
       if (details.tabId !== tabId) return;
-
       const logs = this.sessionNetworkLogs.get(tabId);
       if (!logs) return;
-
-      const entry = logs.find((r) => r.requestId === details.requestId);
-      if (entry) {
-        entry.error = details.error;
-      }
-
+      const entry = (() => {
+        for (let index = logs.length - 1; index >= 0; index -= 1) {
+          const request = logs[index];
+          if (request.requestId === details.requestId && request.error === null) return request;
+        }
+        return undefined;
+      })();
+      if (entry) entry.error = details.error;
       this.logNetworkEvent('error', 'Network request failed.', tabId, {
-        requestId: details.requestId,
-        url: details.url,
-        error: details.error,
+        requestId: details.requestId, url: details.url, error: details.error,
       });
     };
 
-    browser.webRequest.onBeforeRequest.addListener(
-      onBeforeRequest as Parameters<typeof browser.webRequest.onBeforeRequest.addListener>[0],
-      { urls: ['<all_urls>'], tabId },
-      ['requestBody']
-    );
-
-    browser.webRequest.onCompleted.addListener(
-      onCompleted as Parameters<typeof browser.webRequest.onCompleted.addListener>[0],
-      { urls: ['<all_urls>'], tabId },
-      ['responseHeaders']
-    );
-
-    browser.webRequest.onErrorOccurred.addListener(
-      onErrorOccurred as Parameters<typeof browser.webRequest.onErrorOccurred.addListener>[0],
-      { urls: ['<all_urls>'], tabId }
-    );
-
-    this.networkCaptureListener = { tabId, onBeforeRequest, onCompleted, onErrorOccurred };
+    browser.webRequest.onBeforeRequest.addListener(onBeforeRequest as Parameters<typeof browser.webRequest.onBeforeRequest.addListener>[0], { urls: ['<all_urls>'], tabId }, ['requestBody']);
+    browser.webRequest.onBeforeRedirect.addListener(onBeforeRedirect as Parameters<typeof browser.webRequest.onBeforeRedirect.addListener>[0], { urls: ['<all_urls>'], tabId }, ['responseHeaders']);
+    browser.webRequest.onCompleted.addListener(onCompleted as Parameters<typeof browser.webRequest.onCompleted.addListener>[0], { urls: ['<all_urls>'], tabId }, ['responseHeaders']);
+    browser.webRequest.onErrorOccurred.addListener(onErrorOccurred as Parameters<typeof browser.webRequest.onErrorOccurred.addListener>[0], { urls: ['<all_urls>'], tabId });
+    this.networkCaptureListeners.set(tabId, { tabId, onBeforeRequest, onBeforeRedirect, onCompleted, onErrorOccurred });
   }
 
-  /**
-   * Stop capturing network requests
-   */
-  stopCapture(): void {
-    if (this.networkCaptureListener) {
-      const { onBeforeRequest, onCompleted, onErrorOccurred } = this.networkCaptureListener;
-
-      try {
-        browser.webRequest.onBeforeRequest.removeListener(
-          onBeforeRequest as Parameters<typeof browser.webRequest.onBeforeRequest.removeListener>[0]
-        );
-      } catch {
-        // Listener may not exist
-      }
-
-      try {
-        browser.webRequest.onCompleted.removeListener(
-          onCompleted as Parameters<typeof browser.webRequest.onCompleted.removeListener>[0]
-        );
-      } catch {
-        // Listener may not exist
-      }
-
-      try {
-        browser.webRequest.onErrorOccurred.removeListener(
-          onErrorOccurred as Parameters<typeof browser.webRequest.onErrorOccurred.removeListener>[0]
-        );
-      } catch {
-        // Listener may not exist
-      }
-
-      console.log(`[PartyBrowser] Stopped network capture for tab ${this.networkCaptureListener.tabId}`);
-      this.networkCaptureListener = null;
+  stopCapture(tabId?: number): void {
+    for (const [capturedTabId, listener] of this.networkCaptureListeners.entries()) {
+      if (tabId !== undefined && capturedTabId !== tabId) continue;
+      const { onBeforeRequest, onBeforeRedirect, onCompleted, onErrorOccurred } = listener;
+      browser.webRequest.onBeforeRequest.removeListener(onBeforeRequest as Parameters<typeof browser.webRequest.onBeforeRequest.removeListener>[0]);
+      browser.webRequest.onBeforeRedirect.removeListener(onBeforeRedirect as Parameters<typeof browser.webRequest.onBeforeRedirect.removeListener>[0]);
+      browser.webRequest.onCompleted.removeListener(onCompleted as Parameters<typeof browser.webRequest.onCompleted.removeListener>[0]);
+      browser.webRequest.onErrorOccurred.removeListener(onErrorOccurred as Parameters<typeof browser.webRequest.onErrorOccurred.removeListener>[0]);
+      console.log(`[PartyBrowser] Stopped network capture for tab ${capturedTabId}`);
+      this.networkCaptureListeners.delete(capturedTabId);
     }
   }
 
-  /**
-   * Get captured network requests for a tab
-   * @param tabId The tab ID to get requests for
-   * @param filter Optional filter for types or URL pattern
-   * @returns Array of network requests
-   */
   getRequests(tabId: number, filter?: { types?: string[]; urlPattern?: string }): NetworkRequest[] {
     let logs = this.sessionNetworkLogs.get(tabId) || [];
-
-    if (filter?.types && filter.types.length > 0) {
-      logs = logs.filter((r) => filter.types!.includes(r.type));
-    }
-
+    if (filter?.types && filter.types.length > 0) logs = logs.filter((request) => filter.types!.includes(request.type));
     if (filter?.urlPattern) {
       const pattern = filter.urlPattern.toLowerCase();
-      logs = logs.filter((r) => r.url.toLowerCase().includes(pattern));
+      logs = logs.filter((request) => request.url.toLowerCase().includes(pattern));
     }
-
     return [...logs];
   }
 
-  /**
-   * Clear network logs for a specific tab or all tabs
-   * @param tabId Optional tab ID to clear (clears all if not provided)
-   */
   clearLogs(tabId?: number): void {
-    if (tabId !== undefined) {
-      this.sessionNetworkLogs.delete(tabId);
-    } else {
-      this.sessionNetworkLogs.clear();
-    }
+    if (tabId === undefined) this.sessionNetworkLogs.clear();
+    else this.sessionNetworkLogs.delete(tabId);
   }
 
-  /**
-   * Check if capture is currently active
-   */
-  isCapturing(): boolean {
-    return this.networkCaptureListener !== null;
-  }
+  isCapturingTab(tabId: number): boolean { return this.networkCaptureListeners.has(tabId); }
+  isCapturing(): boolean { return this.networkCaptureListeners.size > 0; }
 
-  /**
-   * Get the currently captured tab ID (if any)
-   */
-  getCapturingTabId(): number | null {
-    return this.networkCaptureListener?.tabId ?? null;
-  }
-
-  /**
-   * Get all captured request counts by tab
-   */
   getLogCounts(): Map<number, number> {
     const counts = new Map<number, number>();
-    for (const [tabId, logs] of this.sessionNetworkLogs.entries()) {
-      counts.set(tabId, logs.length);
-    }
+    for (const [tabId, logs] of this.sessionNetworkLogs.entries()) counts.set(tabId, logs.length);
     return counts;
   }
 }

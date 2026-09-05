@@ -31,12 +31,12 @@ test('navigate command does not mutate document title', async () => {
     } as Pick<SessionManager, 'resolveTargetTab'>;
 
     const networkCapture = {
-      getCapturingTabId: () => null,
+      isCapturingTab: () => false,
       startCapture: (tabId: number) => {
         assert.equal(tabId, targetTabId);
         captureStarted = true;
       },
-    } as Pick<NetworkCapture, 'getCapturingTabId' | 'startCapture'>;
+    } as Pick<NetworkCapture, 'isCapturingTab' | 'startCapture'>;
 
     const pageStateReader = {
       async read(tabId: number) {
@@ -103,11 +103,11 @@ test('navigate propagates snapshot readback failures', async () => {
     } as Pick<SessionManager, 'resolveTargetTab'>;
 
     const networkCapture = {
-      getCapturingTabId: () => targetTabId,
+      isCapturingTab: () => true,
       startCapture: () => {
         throw new Error('capture should already be active');
       },
-    } as Pick<NetworkCapture, 'getCapturingTabId' | 'startCapture'>;
+    } as Pick<NetworkCapture, 'isCapturingTab' | 'startCapture'>;
 
     const pageStateReader = {
       async read(tabId: number) {

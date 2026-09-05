@@ -74,7 +74,7 @@ export const networkRequests: Tool = {
   handle: async (context, params = {}, requestId) => {
     try {
       const response = await context.sendSocketMessage(
-        "get_network_requests",
+        "getNetworkRequests",
         { filter: params?.filter },
         { requestId },
       );
@@ -94,7 +94,7 @@ export const networkRequests: Tool = {
           content: [
             {
               type: "text",
-              text: "No network requests captured in current session.\n\nNote: Network capture starts when you navigate to a page.",
+              text: "No matching network requests captured in the current session.",
             },
           ],
         };
