@@ -29,6 +29,7 @@ export {
 // Inspection tools
 export {
   networkRequests,
+  networkRequestDetails,
   consoleMessages,
 } from "./inspection";
 

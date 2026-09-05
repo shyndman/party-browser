@@ -17,6 +17,7 @@ import type {
   SelectOptionParams,
   WaitParams,
   GetNetworkRequestsParams,
+  GetNetworkRequestDetailsParams,
   GetConsoleMessagesParams,
   GoBackParams,
   GoForwardParams,
@@ -146,6 +147,9 @@ export class CommandHandler {
           break;
         case 'getNetworkRequests':
           result = await this.inspection.getNetworkRequests(sessionScopedParams as unknown as GetNetworkRequestsParams);
+          break;
+        case 'getNetworkRequestDetails':
+          result = await this.inspection.getNetworkRequestDetails(sessionScopedParams as unknown as GetNetworkRequestDetailsParams);
           break;
         case 'getConsoleMessages':
           result = await this.inspection.getConsoleMessages(sessionScopedParams as unknown as GetConsoleMessagesParams);

@@ -44,6 +44,10 @@ export interface SocketMessageMap {
   getNetworkRequests: {
     filter?: { types?: string[]; urlPattern?: string };
   };
+  getNetworkRequestDetails: {
+    id: string;
+    encoding?: string;
+  };
   get_console_messages: {
     level?: "all" | "log" | "warn" | "error";
     since?: number;

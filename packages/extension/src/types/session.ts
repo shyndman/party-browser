@@ -3,6 +3,8 @@
  * Session-scoped state and network/console capture types
  */
 
+import type BrowserNamespace from 'webextension-polyfill';
+
 /**
  * Session state for a browser automation session
  */
@@ -32,14 +34,16 @@ export interface SessionState {
  * Network request entry captured via webRequest API
  */
 export interface NetworkRequest {
+  id: string;
   requestId: string;
   url: string;
   method: string;
   type: string;
   timestamp: number;
-  requestBody: unknown | null;
+  requestHeaders: BrowserNamespace.WebRequest.HttpHeaders | null;
+  requestBody: BrowserNamespace.WebRequest.OnBeforeRequestDetailsTypeRequestBodyType | null;
   statusCode: number | null;
-  responseHeaders: Record<string, string>[] | null;
+  responseHeaders: BrowserNamespace.WebRequest.HttpHeaders | null;
   /** Complete response bytes for xmlhttprequest, or null when no body was captured. */
   responseBody: Blob | null;
   error: string | null;

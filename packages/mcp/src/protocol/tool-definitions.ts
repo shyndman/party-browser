@@ -277,6 +277,27 @@ export const NetworkRequestsTool = z.object({
 
 export type NetworkRequestsTool = z.infer<typeof NetworkRequestsTool>;
 
+// NetworkRequestDetails tool - get complete captured data for one network request
+export const NetworkRequestDetailsTool = z.object({
+  name: z.literal("network_request_details"),
+  description: z.literal(
+    "Get headers, bodies, status, and other captured data for one network request"
+  ),
+  arguments: z.object({
+    id: z
+      .string()
+      .min(1)
+      .describe("Request identifier returned by network_requests"),
+    encoding: z
+      .string()
+      .min(1)
+      .default("utf-8")
+      .describe("Text encoding used to decode request and response bodies"),
+  }),
+});
+
+export type NetworkRequestDetailsTool = z.infer<typeof NetworkRequestDetailsTool>;
+
 // ConsoleMessages tool - get captured console messages for current session
 export const ConsoleMessagesTool = z.object({
   name: z.literal("console_messages"),

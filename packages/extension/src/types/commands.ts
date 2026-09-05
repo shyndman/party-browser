@@ -63,6 +63,7 @@ export type CommandName =
   | 'wait'
   | 'getTabs'
   | 'getNetworkRequests'
+  | 'getNetworkRequestDetails'
   | 'getConsoleMessages'
   | 'go_back'
   | 'go_forward'
@@ -159,6 +160,14 @@ export interface GetNetworkRequestsParams extends SessionScopedParams {
 }
 
 /**
+ * Parameters for getNetworkRequestDetails command
+ */
+export interface GetNetworkRequestDetailsParams extends SessionScopedParams {
+  id: string;
+  encoding?: string;
+}
+
+/**
  * Parameters for getConsoleMessages command
  */
 export interface GetConsoleMessagesParams extends SessionScopedParams {
@@ -239,6 +248,7 @@ export type CommandParams =
   | SelectOptionParams
   | WaitParams
   | GetNetworkRequestsParams
+  | GetNetworkRequestDetailsParams
   | GetConsoleMessagesParams
   | GoBackParams
   | GoForwardParams

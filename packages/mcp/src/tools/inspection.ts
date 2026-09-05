@@ -3,8 +3,10 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 import {
   ConsoleMessagesTool,
   NetworkRequestsTool,
+  NetworkRequestDetailsTool,
 } from "@/protocol/tool-definitions";
 import { CodedError } from "@/protocol/ws-sender";
+import { errorLog } from "@/utils/log";
 
 import { Tool } from "./tool";
 
@@ -24,7 +26,7 @@ type CommandEnvelope = {
 };
 
 type NetworkRequestEntry = {
-  id?: string;
+  id: string;
   url?: string;
   method?: string;
   type?: string;
@@ -128,6 +130,7 @@ export const networkRequests: Tool = {
           const rawUrl = req.url ?? "(unknown url)";
           const url = rawUrl.length > 80 ? rawUrl.slice(0, 77) + "..." : rawUrl;
           lines.push(`${statusBadge} ${method} ${url}`);
+          lines.push(`    ID: ${req.id}`);
           if (req.error) {
             lines.push(`    Error: ${req.error}`);
           }
@@ -150,6 +153,54 @@ export const networkRequests: Tool = {
       throw new CodedError(
         "NETWORK_REQUESTS_FAILED",
         `Failed to get network requests: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  },
+};
+
+/**
+ * Network request details tool - retrieve all captured data for one request
+ */
+export const networkRequestDetails: Tool = {
+  schema: {
+    name: NetworkRequestDetailsTool.shape.name.value,
+    description: NetworkRequestDetailsTool.shape.description.value,
+    inputSchema: zodToJsonSchema(NetworkRequestDetailsTool.shape.arguments),
+  },
+  handle: async (context, params = {}, requestId) => {
+    try {
+      const { id, encoding } = NetworkRequestDetailsTool.shape.arguments.parse(params);
+      const response = await context.sendSocketMessage(
+        "getNetworkRequestDetails",
+        { id, encoding },
+        { requestId },
+      );
+
+      if (!response.success) {
+        throw new CodedError(
+          response.error || "Failed to retrieve network request details",
+          response.errorCode || "REQUEST_FAILED",
+        );
+      }
+
+      const details = unwrapCommandPayload<Record<string, unknown>>(response);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(details, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      errorLog("[PartyBrowser] Failed to get network request details.", {
+        id: params.id,
+        error,
+      });
+      if (error instanceof CodedError) throw error;
+      throw new CodedError(
+        `Failed to get network request details: ${error instanceof Error ? error.message : String(error)}`,
+        "NETWORK_REQUEST_DETAILS_FAILED",
       );
     }
   },

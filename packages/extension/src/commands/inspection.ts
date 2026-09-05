@@ -5,11 +5,14 @@
 
 /// <reference path="../types/global.d.ts" />
 
+import type BrowserNamespace from 'webextension-polyfill';
+
 import type {
   CommandResult,
   ScreenshotParams,
   SnapshotParams,
   GetNetworkRequestsParams,
+  GetNetworkRequestDetailsParams,
   GetConsoleMessagesParams,
   GetUrlParams,
   GetTitleParams,
@@ -20,6 +23,34 @@ import type { SessionManager } from '../session/session-manager';
 import type { NetworkCapture } from '../session/network-capture';
 import type { ContentBridge } from '../messaging/content-bridge';
 import { PageStateReader } from './page-state-reader';
+
+const DEFAULT_NETWORK_BODY_ENCODING = 'utf-8';
+
+interface DecodedUploadData {
+  body?: string;
+  file?: string;
+}
+
+interface DecodedRequestBody {
+  error?: string;
+  formData?: Record<string, string>;
+  raw?: DecodedUploadData[];
+}
+
+function decodeRequestBody(
+  requestBody: BrowserNamespace.WebRequest.OnBeforeRequestDetailsTypeRequestBodyType | null,
+  decoder: TextDecoder,
+): DecodedRequestBody | null {
+  if (!requestBody) return null;
+  return {
+    error: requestBody.error,
+    formData: requestBody.formData,
+    raw: requestBody.raw?.map(({ bytes, file }) => ({
+      body: bytes instanceof ArrayBuffer ? decoder.decode(bytes) : undefined,
+      file,
+    })),
+  };
+}
 
 /**
  * Inspection command implementations
@@ -96,6 +127,40 @@ export class InspectionCommands {
         count: formatted.length,
         requests: formatted
       }
+    };
+  }
+
+  /**
+   * Get all captured data for one network request.
+   */
+  async getNetworkRequestDetails(params: GetNetworkRequestDetailsParams): Promise<CommandResult> {
+    const tabId = await this.sessionManager.resolveTargetTab(params);
+    const request = this.networkCapture.getRequest(tabId, params.id);
+    if (!request) throw new Error(`Network request "${params.id}" is no longer available.`);
+
+    const encoding = params.encoding ?? DEFAULT_NETWORK_BODY_ENCODING;
+    const decoder = new TextDecoder(encoding);
+    const responseBody = request.responseBody
+      ? decoder.decode(await request.responseBody.arrayBuffer())
+      : null;
+
+    return {
+      success: true,
+      data: {
+        id: request.id,
+        requestId: request.requestId,
+        url: request.url,
+        method: request.method,
+        type: request.type,
+        timestamp: request.timestamp,
+        requestHeaders: request.requestHeaders,
+        requestBody: decodeRequestBody(request.requestBody, decoder),
+        status: request.statusCode,
+        responseHeaders: request.responseHeaders,
+        responseBody,
+        encoding,
+        error: request.error,
+      },
     };
   }
 

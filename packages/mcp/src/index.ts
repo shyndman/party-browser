@@ -39,6 +39,7 @@ const customTools: Tool[] = [
   custom.screenshot,
   evaluate,
   inspection.networkRequests,
+  inspection.networkRequestDetails,
   inspection.consoleMessages,
 ];
 

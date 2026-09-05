@@ -41,5 +41,6 @@ test('networkRequests unwraps wrapped payload', async () => {
   assert.equal(capturedType, 'getNetworkRequests');
   assert.match(text, /Network Requests \(1 total\)/);
   assert.match(text, /GET/);
+  assert.match(text, /ID: req-1/);
   assert.match(text, /https:\/\/example\.com\/foo/);
 });
