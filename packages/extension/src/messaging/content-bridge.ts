@@ -7,6 +7,8 @@
 
 import type { ConsoleLogEntry } from '../types/session';
 
+type LogFields = Record<string, unknown>;
+
 /**
  * Wraps browser.tabs.sendMessage with error handling
  */
@@ -19,14 +21,35 @@ export class ContentBridge {
    * @returns Promise resolving to command result
    */
   async sendCommand(tabId: number, command: string, params: unknown): Promise<unknown> {
+    const startedAt = Date.now();
+    logContentBridge('log', 'Background content command sending.', {
+      tabId,
+      command,
+      params: summarizeValue(params),
+    });
+
     try {
-      return await browser.tabs.sendMessage(tabId, {
+      const response = await browser.tabs.sendMessage(tabId, {
         type: 'executeCommand',
         command,
         params
       });
+
+      logContentBridge('log', 'Background content command completed.', {
+        tabId,
+        command,
+        durationMs: Date.now() - startedAt,
+        response: summarizeCommandResult(response),
+      });
+
+      return response;
     } catch (error) {
-      console.error(`[PartyBrowser] Failed to send command to tab ${tabId}:`, error);
+      logContentBridge('error', 'Background content command failed.', {
+        tabId,
+        command,
+        durationMs: Date.now() - startedAt,
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   }
@@ -38,6 +61,8 @@ export class ContentBridge {
    * @returns Promise resolving to console log entries
    */
   async getConsoleMessages(tabId: number, clear = false): Promise<ConsoleLogEntry[]> {
+    const startedAt = Date.now();
+
     try {
       const response = await browser.tabs.sendMessage(tabId, {
         type: 'getConsoleMessages',
@@ -45,11 +70,29 @@ export class ContentBridge {
       }) as { success?: boolean; logs?: ConsoleLogEntry[] };
 
       if (response?.success) {
+        logContentBridge('log', 'Background console log retrieval completed.', {
+          tabId,
+          clear,
+          durationMs: Date.now() - startedAt,
+          logCount: response.logs?.length ?? 0,
+        });
         return response.logs || [];
       }
+
+      logContentBridge('warn', 'Background console log retrieval returned unsuccessful response.', {
+        tabId,
+        clear,
+        durationMs: Date.now() - startedAt,
+        response: summarizeValue(response),
+      });
       return [];
     } catch (error) {
-      console.log('[PartyBrowser] Content script not available for console messages:', (error as Error).message);
+      logContentBridge('log', 'Content script unavailable for console log retrieval.', {
+        tabId,
+        clear,
+        durationMs: Date.now() - startedAt,
+        error: (error as Error).message,
+      });
       return [];
     }
   }
@@ -66,5 +109,52 @@ export class ContentBridge {
     } catch {
       return false;
     }
+  }
+}
+
+function summarizeCommandResult(result: unknown): unknown {
+  if (!result || typeof result !== 'object') {
+    return summarizeValue(result);
+  }
+
+  const response = result as {
+    success?: unknown;
+    error?: unknown;
+    data?: unknown;
+    meta?: unknown;
+  };
+
+  const data = response.data;
+  const meta = response.meta;
+
+  return {
+    success: response.success,
+    error: typeof response.error === 'string' ? response.error : undefined,
+    dataKeys: data && typeof data === 'object' ? Object.keys(data as Record<string, unknown>) : undefined,
+    metaKeys: meta && typeof meta === 'object' ? Object.keys(meta as Record<string, unknown>) : undefined,
+  };
+}
+
+function logContentBridge(
+  level: 'log' | 'warn' | 'error',
+  message: string,
+  fields: LogFields,
+): void {
+  console[level]('[PartyBrowser] ' + message, fields);
+}
+
+function summarizeValue(value: unknown): unknown {
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return value;
+  }
+
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return String(value);
   }
 }

@@ -28,16 +28,31 @@ export function createRuntimeMessageListener(
     const runtimeMessage = message as RuntimeMessage;
 
     if (runtimeMessage.type === 'executeCommand') {
+      console.log('[PartyBrowser] Content command received.', {
+        command: runtimeMessage.command,
+        params: summarizeParams(runtimeMessage.params || {}),
+        receivedAtMs: Date.now(),
+      });
+
       executeCommand(commandHandlers, {
         command: runtimeMessage.command!,
         params: runtimeMessage.params || {},
       })
-        .then((result) => sendResponse(result))
-        .catch((error) => sendResponse({
-          success: false,
-          error: (error as Error).message,
-          stack: (error as Error).stack,
-        }));
+        .then((result) => {
+          sendResponse(result);
+        })
+        .catch((error) => {
+          console.error('[PartyBrowser] Content command crashed before response.', {
+            command: runtimeMessage.command,
+            error: (error as Error).message,
+            stack: (error as Error).stack,
+          });
+          sendResponse({
+            success: false,
+            error: (error as Error).message,
+            stack: (error as Error).stack,
+          });
+        });
       return true;
     }
 
@@ -63,7 +78,13 @@ async function executeCommand(
   message: CommandMessage,
 ): Promise<CommandResult> {
   const { command, params } = message;
-  console.log(`[PartyBrowser] → ${command}${summarizeParams(params)}`);
+  const startedAt = Date.now();
+
+  console.log('[PartyBrowser] Content command handler starting.', {
+    command,
+    params: summarizeParams(params),
+    startedAtMs: startedAt,
+  });
 
   try {
     const result = await (async () => {
@@ -94,31 +115,56 @@ async function executeCommand(
     })();
 
     if (result.success) {
-      console.log(`[PartyBrowser] ✓ ${command}`);
+      console.log('[PartyBrowser] Content command handler completed.', {
+        command,
+        durationMs: Date.now() - startedAt,
+        result: summarizeResult(result),
+      });
     } else {
-      console.error(`[PartyBrowser] ✗ ${command} failed: ${result.error}`);
+      console.error('[PartyBrowser] Content command handler returned failure.', {
+        command,
+        durationMs: Date.now() - startedAt,
+        result: summarizeResult(result),
+      });
     }
     return result;
   } catch (error) {
-    const message = (error as Error).message;
-    console.error(`[PartyBrowser] ✗ ${command} failed: ${message}`);
+    console.error('[PartyBrowser] Content command handler threw.', {
+      command,
+      durationMs: Date.now() - startedAt,
+      error: (error as Error).message,
+      stack: (error as Error).stack,
+    });
     throw error;
   }
 }
 
-function summarizeParams(params: Record<string, unknown>): string {
-  const parts: string[] = [];
-  if (params.element) parts.push(`element: ${params.element}`);
-  if (params.startElement) parts.push(`startElement: ${params.startElement}`);
-  if (params.endElement) parts.push(`endElement: ${params.endElement}`);
+function summarizeParams(params: Record<string, unknown>): Record<string, unknown> {
+  const parts: Record<string, unknown> = {};
+  if (params.element) parts.element = params.element;
+  if (params.startElement) parts.startElement = params.startElement;
+  if (params.endElement) parts.endElement = params.endElement;
   if (params.text) {
     const text = params.text as string;
-    parts.push(`text: "${text.length > 20 ? `${text.slice(0, 20)}...` : text}"`);
+    parts.text = text.length > 20 ? `${text.slice(0, 20)}...` : text;
   }
-  if (params.key) parts.push(`key: ${params.key}`);
-  if (params.value !== undefined) parts.push(`value: ${params.value}`);
-  if (params.time) parts.push(`time: ${params.time}s`);
-  if (params.mode) parts.push(`mode: ${params.mode}`);
+  if (params.key) parts.key = params.key;
+  if (params.value !== undefined) parts.value = params.value;
+  if (params.time) parts.timeSeconds = params.time;
+  if (params.mode) parts.mode = params.mode;
+  if (params.nextRefStart !== undefined) parts.nextRefStart = params.nextRefStart;
 
-  return parts.length > 0 ? ` (${parts.join(', ')})` : '';
+  return parts;
+}
+
+function summarizeResult(result: CommandResult): Record<string, unknown> {
+  const data = result.data;
+  const meta = result.meta;
+
+  return {
+    success: result.success,
+    error: result.success ? undefined : result.error,
+    dataKeys: data && typeof data === 'object' ? Object.keys(data as Record<string, unknown>) : undefined,
+    metaKeys: meta && typeof meta === 'object' ? Object.keys(meta as Record<string, unknown>) : undefined,
+  };
 }
