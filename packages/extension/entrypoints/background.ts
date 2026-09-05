@@ -36,6 +36,7 @@ export default defineBackground({
     // Initialize modules
     const sessionManager = new SessionManager(DEFAULT_SESSION_CONFIG);
     const networkCapture = new NetworkCapture();
+    globalThis.networkRequests = networkCapture.sessionNetworkLogs;
     const iconManager = new IconManager();
     const contentBridge = new ContentBridge();
 

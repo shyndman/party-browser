@@ -42,6 +42,7 @@ export default defineConfig({
       'storage',
       'webNavigation',
       'webRequest',
+      'webRequestBlocking',
       'ws://localhost:3456/',
       '<all_urls>'
     ],

@@ -19,8 +19,13 @@ export interface NetworkCaptureListener {
 }
 
 export class NetworkCapture {
-  private sessionNetworkLogs = new Map<number, NetworkRequest[]>();
+  readonly sessionNetworkLogs = new Map<number, NetworkRequest[]>();
   private networkCaptureListeners = new Map<number, NetworkCaptureListener>();
+  private responseFilters = new Map<NetworkRequest, {
+    tabId: number;
+    filter: BrowserNamespace.WebRequest.StreamFilter;
+    chunks: ArrayBuffer[];
+  }>();
 
   private logNetworkEvent(
     level: 'log' | 'warn' | 'error',
@@ -39,6 +44,46 @@ export class NetworkCapture {
     return undefined;
   }
 
+  private captureResponseBody(tabId: number, entry: NetworkRequest): void {
+    let filter: BrowserNamespace.WebRequest.StreamFilter;
+    try {
+      filter = browser.webRequest.filterResponseData(entry.requestId);
+    } catch (error) {
+      this.logNetworkEvent('error', 'Response body capture failed to start.', tabId, {
+        requestId: entry.requestId, url: entry.url, error,
+      });
+      return;
+    }
+
+    const chunks: ArrayBuffer[] = [];
+    this.responseFilters.set(entry, { tabId, filter, chunks });
+    filter.ondata = ({ data }) => {
+      filter.write(data);
+      chunks.push(data);
+    };
+    filter.onstop = () => {
+      filter.close();
+      entry.responseBody = new Blob(chunks);
+      chunks.length = 0;
+      this.responseFilters.delete(entry);
+    };
+    filter.onerror = () => {
+      chunks.length = 0;
+      this.responseFilters.delete(entry);
+      this.logNetworkEvent('error', 'Response body capture failed.', tabId, {
+        requestId: entry.requestId, url: entry.url, error: filter.error,
+      });
+    };
+  }
+
+  private disconnectResponseBody(entry: NetworkRequest): void {
+    const capture = this.responseFilters.get(entry);
+    if (!capture) return;
+    capture.filter.disconnect();
+    capture.chunks.length = 0;
+    this.responseFilters.delete(entry);
+  }
+
   startCapture(tabId: number): void {
     if (this.networkCaptureListeners.has(tabId)) return;
     console.log(`[PartyBrowser] Starting network capture for tab ${tabId}`);
@@ -48,7 +93,7 @@ export class NetworkCapture {
       if (details.tabId !== tabId) return;
       const logs = this.sessionNetworkLogs.get(tabId);
       if (!logs) return;
-      logs.push({
+      const entry: NetworkRequest = {
         requestId: details.requestId,
         url: details.url,
         method: details.method,
@@ -57,8 +102,11 @@ export class NetworkCapture {
         requestBody: details.requestBody || null,
         statusCode: null,
         responseHeaders: null,
+        responseBody: null,
         error: null,
-      });
+      };
+      logs.push(entry);
+      if (entry.type === 'xmlhttprequest') this.captureResponseBody(tabId, entry);
       if (logs.length > MAX_LOG_SIZE) logs.shift();
       this.logNetworkEvent('log', 'Network request started.', tabId, {
         requestId: details.requestId, url: details.url, method: details.method,
@@ -107,13 +155,16 @@ export class NetworkCapture {
         }
         return undefined;
       })();
-      if (entry) entry.error = details.error;
+      if (entry) {
+        entry.error = details.error;
+        this.disconnectResponseBody(entry);
+      }
       this.logNetworkEvent('error', 'Network request failed.', tabId, {
         requestId: details.requestId, url: details.url, error: details.error,
       });
     };
 
-    browser.webRequest.onBeforeRequest.addListener(onBeforeRequest as Parameters<typeof browser.webRequest.onBeforeRequest.addListener>[0], { urls: ['<all_urls>'], tabId }, ['requestBody']);
+    browser.webRequest.onBeforeRequest.addListener(onBeforeRequest as Parameters<typeof browser.webRequest.onBeforeRequest.addListener>[0], { urls: ['<all_urls>'], tabId }, ['requestBody', 'blocking']);
     browser.webRequest.onBeforeRedirect.addListener(onBeforeRedirect as Parameters<typeof browser.webRequest.onBeforeRedirect.addListener>[0], { urls: ['<all_urls>'], tabId }, ['responseHeaders']);
     browser.webRequest.onCompleted.addListener(onCompleted as Parameters<typeof browser.webRequest.onCompleted.addListener>[0], { urls: ['<all_urls>'], tabId }, ['responseHeaders']);
     browser.webRequest.onErrorOccurred.addListener(onErrorOccurred as Parameters<typeof browser.webRequest.onErrorOccurred.addListener>[0], { urls: ['<all_urls>'], tabId });
@@ -130,6 +181,9 @@ export class NetworkCapture {
       browser.webRequest.onErrorOccurred.removeListener(onErrorOccurred as Parameters<typeof browser.webRequest.onErrorOccurred.removeListener>[0]);
       console.log(`[PartyBrowser] Stopped network capture for tab ${capturedTabId}`);
       this.networkCaptureListeners.delete(capturedTabId);
+    }
+    for (const [entry, capture] of this.responseFilters) {
+      if (tabId === undefined || capture.tabId === tabId) this.disconnectResponseBody(entry);
     }
   }
 

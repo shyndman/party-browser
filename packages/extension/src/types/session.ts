@@ -40,6 +40,8 @@ export interface NetworkRequest {
   requestBody: unknown | null;
   statusCode: number | null;
   responseHeaders: Record<string, string>[] | null;
+  /** Complete response bytes for xmlhttprequest, or null when no body was captured. */
+  responseBody: Blob | null;
   error: string | null;
 }
 
