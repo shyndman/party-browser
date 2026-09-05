@@ -24,6 +24,18 @@ export class NetworkCapture {
   private sessionNetworkLogs = new Map<number, NetworkRequest[]>();
   private networkCaptureListener: NetworkCaptureListener | null = null;
 
+  private logNetworkEvent(
+    level: 'log' | 'warn' | 'error',
+    message: string,
+    tabId: number,
+    fields: Record<string, unknown>,
+  ): void {
+    console[level](`[PartyBrowser] ${message}`, {
+      tabId,
+      ...fields,
+    });
+  }
+
   /**
    * Start capturing network requests for a specific tab
    * @param tabId The tab ID to capture requests for
@@ -56,6 +68,14 @@ export class NetworkCapture {
       if (logs.length > MAX_LOG_SIZE) {
         logs.shift();
       }
+
+      this.logNetworkEvent('log', 'Network request started.', tabId, {
+        requestId: details.requestId,
+        url: details.url,
+        method: details.method,
+        resourceType: details.type,
+        hasRequestBody: details.requestBody !== undefined,
+      });
     };
 
     const onCompleted = (details: BrowserNamespace.WebRequest.OnCompletedDetailsType): void => {
@@ -69,6 +89,14 @@ export class NetworkCapture {
         entry.statusCode = details.statusCode;
         entry.responseHeaders = (details.responseHeaders as unknown as Record<string, string>[]) || null;
       }
+
+      this.logNetworkEvent('log', 'Network request completed.', tabId, {
+        requestId: details.requestId,
+        url: details.url,
+        statusCode: details.statusCode,
+        fromCache: details.fromCache,
+        ip: details.ip,
+      });
     };
 
     const onErrorOccurred = (details: BrowserNamespace.WebRequest.OnErrorOccurredDetailsType): void => {
@@ -81,6 +109,12 @@ export class NetworkCapture {
       if (entry) {
         entry.error = details.error;
       }
+
+      this.logNetworkEvent('error', 'Network request failed.', tabId, {
+        requestId: details.requestId,
+        url: details.url,
+        error: details.error,
+      });
     };
 
     browser.webRequest.onBeforeRequest.addListener(

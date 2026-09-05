@@ -55,6 +55,9 @@ export class SessionManager {
   private leases = new Map<string, SessionLease>();
   private leaseCreatedAtMs = new Map<string, number>();
   private readonly tabLifecycle = new TabLifecycle();
+  private onLeaseCreatedCallbacks: Array<
+    (sessionId: string, lease: SessionLease) => void
+  > = [];
   private onLeaseRevokedCallbacks: Array<
     (sessionId: string, lease: SessionLease, reason: string) => void
   > = [];
@@ -249,6 +252,7 @@ export class SessionManager {
     const lease = await this.createLeaseWindow(url);
     this.leases.set(sessionId, lease);
     this.leaseCreatedAtMs.set(sessionId, Date.now());
+    this.onLeaseCreatedCallbacks.forEach((callback) => callback(sessionId, { ...lease }));
 
     console.log(
       `[PartyBrowser] Workspace lease created: ${sessionId} -> window ${lease.windowId}, tab ${lease.tabId}, url=${url}`,
@@ -289,6 +293,7 @@ export class SessionManager {
 
     this.leases.set(sessionId, lease);
     this.leaseCreatedAtMs.set(sessionId, Date.now());
+    this.onLeaseCreatedCallbacks.forEach((callback) => callback(sessionId, { ...lease }));
 
     console.log(
       `[PartyBrowser] Takeover lease created: ${sessionId} -> window ${lease.windowId}, tab ${lease.tabId}`,
@@ -525,6 +530,12 @@ export class SessionManager {
     callback: (sessionId: string, lease: SessionLease, reason: string) => void,
   ): void {
     this.onLeaseRevokedCallbacks.push(callback);
+  }
+
+  onLeaseCreated(
+    callback: (sessionId: string, lease: SessionLease) => void,
+  ): void {
+    this.onLeaseCreatedCallbacks.push(callback);
   }
 
   /**

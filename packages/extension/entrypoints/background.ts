@@ -46,6 +46,94 @@ export default defineBackground({
       contentBridge
     );
 
+    function summarizeValue(value: unknown): unknown {
+      if (value === null || value === undefined) {
+        return value;
+      }
+
+      if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+        return value;
+      }
+
+      try {
+        return JSON.parse(JSON.stringify(value));
+      } catch {
+        return String(value);
+      }
+    }
+
+    function summarizeTab(tab: BrowserNamespace.Tabs.Tab): Record<string, unknown> {
+      return {
+        status: tab.status,
+        url: tab.url,
+        title: tab.title,
+        pendingUrl: tab.pendingUrl,
+        windowId: tab.windowId,
+        favIconUrl: tab.favIconUrl,
+        audible: tab.audible,
+        discarded: tab.discarded,
+      };
+    }
+
+    function getLeaseContextForTab(tabId: number): { sessionId: string; lease: ReturnType<typeof sessionManager.getLease> } | null {
+      const snapshot = sessionManager.getLeaseSnapshot();
+
+      for (const [sessionId, lease] of Object.entries(snapshot)) {
+        if (lease.tabId === tabId) {
+          return { sessionId, lease };
+        }
+      }
+
+      return null;
+    }
+
+    function logLeasedTabEvent(
+      level: 'log' | 'warn' | 'error',
+      message: string,
+      tabId: number,
+      fields: Record<string, unknown> = {},
+    ): void {
+      const leaseContext = getLeaseContextForTab(tabId);
+      if (!leaseContext) {
+        return;
+      }
+
+      console[level](`[PartyBrowser] ${message}`, {
+        sessionId: leaseContext.sessionId,
+        tabId,
+        windowId: leaseContext.lease?.windowId,
+        leaseKind: leaseContext.lease?.leaseKind,
+        ownership: leaseContext.lease?.ownership,
+        ...fields,
+      });
+    }
+
+    function logWebNavigationEvent(
+      event: string,
+      details: {
+        tabId: number;
+        frameId?: number;
+        parentFrameId?: number;
+        url?: string;
+        timeStamp?: number;
+        transitionType?: string;
+        transitionQualifiers?: string[];
+        error?: string;
+      },
+      level: 'log' | 'warn' | 'error' = 'log',
+    ): void {
+      logLeasedTabEvent(level, 'Background webNavigation event.', details.tabId, {
+        event,
+        frameId: details.frameId,
+        parentFrameId: details.parentFrameId,
+        url: details.url,
+        timeStamp: details.timeStamp,
+        transitionType: details.transitionType,
+        transitionQualifiers: details.transitionQualifiers,
+        error: details.error,
+      });
+    }
+
     // Create MCP bridge
     const mcpBridge = new McpBridge(
       sessionManager,
@@ -59,15 +147,71 @@ export default defineBackground({
     });
 
 
+    sessionManager.onLeaseCreated((sessionId, lease) => {
+      console.log('[PartyBrowser] Lease created callback.', {
+        sessionId,
+        tabId: lease.tabId,
+        windowId: lease.windowId,
+        leaseKind: lease.leaseKind,
+        ownership: lease.ownership,
+        closeOnRevoke: lease.closeOnRevoke,
+        activeLeaseCount: sessionManager.getLeaseCount(),
+        leaseSnapshot: summarizeValue(sessionManager.getLeaseSnapshot()),
+      });
+    });
+
     sessionManager.onLeaseRevoked((sessionId, lease, reason) => {
       if (networkCapture.getCapturingTabId() === lease.tabId) {
         networkCapture.stopCapture();
       }
 
       networkCapture.clearLogs(lease.tabId);
-      console.log(
-        `[PartyBrowser] Lease revoked callback: ${sessionId} (window ${lease.windowId}, tab ${lease.tabId}, reason: ${reason})`
-      );
+      console.log('[PartyBrowser] Lease revoked callback.', {
+        sessionId,
+        tabId: lease.tabId,
+        windowId: lease.windowId,
+        leaseKind: lease.leaseKind,
+        ownership: lease.ownership,
+        closeOnRevoke: lease.closeOnRevoke,
+        reason,
+        activeLeaseCount: sessionManager.getLeaseCount(),
+        leaseSnapshot: summarizeValue(sessionManager.getLeaseSnapshot()),
+      });
+    });
+
+    browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+      logLeasedTabEvent('log', 'Background tabs.onUpdated event.', tabId, {
+        changedFields: summarizeValue(changeInfo),
+        tabState: summarizeTab(tab),
+      });
+    });
+
+    browser.webNavigation.onBeforeNavigate.addListener((details) => {
+      logWebNavigationEvent('onBeforeNavigate', details);
+    });
+
+    browser.webNavigation.onCommitted.addListener((details) => {
+      logWebNavigationEvent('onCommitted', details);
+    });
+
+    browser.webNavigation.onDOMContentLoaded.addListener((details) => {
+      logWebNavigationEvent('onDOMContentLoaded', details);
+    });
+
+    browser.webNavigation.onHistoryStateUpdated.addListener((details) => {
+      logWebNavigationEvent('onHistoryStateUpdated', details);
+    });
+
+    browser.webNavigation.onReferenceFragmentUpdated.addListener((details) => {
+      logWebNavigationEvent('onReferenceFragmentUpdated', details);
+    });
+
+    browser.webNavigation.onCompleted.addListener((details) => {
+      logWebNavigationEvent('onCompleted', details);
+    });
+
+    browser.webNavigation.onErrorOccurred.addListener((details) => {
+      logWebNavigationEvent('onErrorOccurred', details, 'error');
     });
 
     // ============================================================
