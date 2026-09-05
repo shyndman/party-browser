@@ -244,9 +244,9 @@ export type CloseTool = z.infer<typeof CloseTool>;
 // Evaluate tool - execute JavaScript in browser context
 export const EvaluateTool = z.object({
   name: z.literal("evaluate"),
-  description: z.literal("Evaluate JavaScript in the browser context and return the result"),
+  description: z.literal("Execute JavaScript as a function body in the browser context. An explicit return statement is required to return a value."),
   arguments: z.object({
-    script: z.string().describe("JavaScript code to execute in the browser context"),
+    script: z.string().describe("JavaScript function body. Use an explicit return statement, for example: return document.title; Without return, the result is undefined."),
   }),
 });
 
