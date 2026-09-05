@@ -78,7 +78,7 @@ function isHidden(element: Element): boolean {
   return computed?.display === 'none' || computed?.visibility === 'hidden';
 }
 
-function getAccessibleName(element: Element, tagName: string, ariaLabel: string | null, ariaLabelledBy: string | null): string {
+function getAccessibleName(element: Element, tagName: string, ariaLabel: string | null, ariaLabelledBy: string | null, value: string | undefined): string {
   let name = ariaLabel || '';
   if (!name && ariaLabelledBy) name = document.getElementById(ariaLabelledBy)?.textContent || '';
   if (!name && tagName === 'input') name = (element as HTMLInputElement).labels?.[0]?.textContent?.trim() || '';
@@ -86,7 +86,7 @@ function getAccessibleName(element: Element, tagName: string, ariaLabel: string 
     name = (element as HTMLElement).parentElement?.textContent?.trim() || '';
   }
   if (!name && tagName === 'select') name = (element as HTMLSelectElement).selectedOptions?.[0]?.textContent?.trim() || '';
-  return name || element.textContent?.trim() || (element as HTMLInputElement).value || (element as HTMLInputElement).placeholder || '';
+  return name || element.textContent?.trim() || value || element.getAttribute('placeholder') || '';
 }
 
 function getNativeRole(element: Element, tagName: string, inputType: string | null): string | null {
@@ -127,7 +127,11 @@ export function getElementInfo(element: Element): Omit<ElementInfo, 'ref'> | nul
   const isTextContent = !isInteractive && (role === 'heading' || role === 'option'
     || (element.children.length === 0 && Boolean(element.textContent?.trim())));
   if (!isInteractive && !isTextContent) return null;
-  const name = getAccessibleName(element, tagName, ariaLabel, ariaLabelledBy);
+  const value = tagName === 'input' || tagName === 'textarea' || tagName === 'select'
+    || tagName === 'button' || tagName === 'option'
+    ? (element as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | HTMLButtonElement | HTMLOptionElement).value
+    : undefined;
+  const name = getAccessibleName(element, tagName, ariaLabel, ariaLabelledBy, value);
 
 
   return {
@@ -135,7 +139,7 @@ export function getElementInfo(element: Element): Omit<ElementInfo, 'ref'> | nul
     role,
     type: inputType,
     name: name.slice(0, MAX_SNAPSHOT_TEXT_LENGTH),
-    value: (element as HTMLInputElement).value?.slice(0, MAX_SNAPSHOT_TEXT_LENGTH),
+    value: value?.slice(0, MAX_SNAPSHOT_TEXT_LENGTH),
     placeholder: (element as HTMLInputElement).placeholder,
     disabled: (element as HTMLInputElement).disabled,
     checked: (element as HTMLInputElement).checked,

@@ -9,7 +9,7 @@ class FakeElement {
   tagName: string;
   children: FakeElement[] = [];
   textContent = '';
-  value = '';
+  value: string | number = '';
   placeholder = '';
   disabled = false;
   checked = false;
@@ -156,4 +156,24 @@ test('snapshot keeps visible headings and text, omits hidden nodes, and assigns 
   } finally {
     globalThis.document = originalDocument;
   }
+});
+
+test('snapshot ignores numeric list values and keeps string control values', () => {
+  const root = new FakeElement('div');
+  const listItem = new FakeElement('li');
+  listItem.value = 3;
+  listItem.textContent = 'Prices vary by country';
+  const emptyListItem = new FakeElement('li', { role: 'button' });
+  emptyListItem.value = 4;
+  const input = new FakeElement('input');
+  input.value = 'Search extensions';
+  root.append(listItem, emptyListItem, input);
+
+  const { elements } = buildAccessibilityTree(root as unknown as HTMLElement);
+  assert.equal(elements[0]?.name, 'Prices vary by country');
+  assert.equal(elements[0]?.value, undefined);
+  assert.equal(elements[1]?.name, '');
+  assert.equal(elements[1]?.value, undefined);
+  assert.equal(elements[2]?.name, 'Search extensions');
+  assert.equal(elements[2]?.value, 'Search extensions');
 });
