@@ -1,4 +1,4 @@
-import { zodToJsonSchema } from "zod-to-json-schema";
+import { errorLog } from "@/utils/log";
 
 import {
   CloseTool,
@@ -18,6 +18,7 @@ import {
 } from "@/utils/aria-snapshot";
 
 import type { Tool, ToolFactory } from "./tool";
+import zodToJsonSchema from "zod-to-json-schema";
 
 // Hand-written MCP schema. Do not replace this with zodToJsonSchema(JoinSessionTool.shape.arguments).
 // The runtime validator lives in packages/mcp/src/protocol/tool-definitions.ts, but MCP clients in
@@ -57,17 +58,15 @@ export const joinSession: Tool = {
     description: JoinSessionTool.shape.description.value,
     inputSchema: joinSessionInputSchema,
   },
-  handle: async (context, params) => {
+  handle: async (context, params, requestId) => {
     const request = JoinSessionTool.shape.arguments.parse(params);
     const sessionId = await context.joinSession(request);
-    return {
-      content: [
-        {
-          type: "text",
-          text: `Session approved: ${sessionId}`,
-        },
-      ],
-    };
+    try {
+      return await captureAriaSnapshot(context, `Session approved: ${sessionId}`, requestId);
+    } catch (error) {
+      errorLog(`[MCP] Initial snapshot failed after session approval (sessionId=${sessionId}):`, error);
+      throw error;
+    }
   },
 };
 
