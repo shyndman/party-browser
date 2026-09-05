@@ -1,6 +1,6 @@
 import type { ContentBridge } from '../messaging/content-bridge';
 import type { SessionManager } from '../session/session-manager';
-import type { CommandResult, PageState } from '../types/commands';
+import type { CommandResult, PageState, SnapshotData } from '../types/commands';
 
 import { requireSuccessfulCommandResult } from './command-result';
 
@@ -17,14 +17,17 @@ export class PageStateReader {
   }
 
   async read(tabId: number): Promise<PageState> {
-    const tab = await browser.tabs.get(tabId);
     const nextRefStart = this.nextSnapshotRefByTab.get(tabId) ?? 0;
-    const snapshotResult = requireSuccessfulCommandResult<{ nextRefStart?: number; tree?: unknown }>(
+    const snapshotResult = requireSuccessfulCommandResult<SnapshotData>(
       await this.contentBridge.sendCommand(tabId, 'snapshot', { nextRefStart }),
       `Snapshot readback failed for tab ${tabId}.`,
     );
 
-    const updatedNextRefStart = snapshotResult.data?.nextRefStart;
+    const snapshotData = snapshotResult.data;
+    if (!snapshotData || typeof snapshotData.url !== 'string' || typeof snapshotData.title !== 'string') {
+      throw new Error(`Snapshot readback failed for tab ${tabId}: response missing URL/title metadata.`);
+    }
+    const updatedNextRefStart = snapshotData.nextRefStart;
     if (
       typeof updatedNextRefStart === 'number'
       && Number.isInteger(updatedNextRefStart)
@@ -34,17 +37,17 @@ export class PageStateReader {
     }
 
     return {
-      url: tab.url,
-      title: tab.title,
-      tree: snapshotResult.data?.tree ?? {},
+      url: snapshotData.url,
+      title: snapshotData.title,
+      tree: snapshotData.tree ?? {},
     };
   }
 
-  async snapshot(tabId: number): Promise<CommandResult<{ nextRefStart?: number; tree?: unknown }>> {
+  async snapshot(tabId: number): Promise<CommandResult<SnapshotData>> {
     const nextRefStart = this.nextSnapshotRefByTab.get(tabId) ?? 0;
     const result = await this.contentBridge.sendCommand(tabId, 'snapshot', {
       nextRefStart,
-    }) as CommandResult<{ nextRefStart?: number; tree?: unknown }>;
+    }) as CommandResult<SnapshotData>;
     const updatedNextRefStart = result.data?.nextRefStart;
 
     if (

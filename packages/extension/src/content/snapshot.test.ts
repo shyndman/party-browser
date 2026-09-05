@@ -59,12 +59,15 @@ test('buildAccessibilityTree assigns refs once and labels only new interactive n
 
     const first = buildAccessibilityTree(root as unknown as HTMLElement, 0);
     assert.deepEqual(
-      first.elements.map((element) => element.ref),
+      first.elements.filter((element) => element.interactive).map((element) => element.ref),
       ['e0', 'e1'],
     );
+    assert.equal(first.elements.some((element) => element.name === 'ignored' && !element.interactive), true);
     assert.equal(button.getAttribute('data-mcp-ref'), 'e0');
     assert.equal(input.getAttribute('data-mcp-ref'), 'e1');
     assert.equal(first.nextRefStart, 2);
+    assert.equal(first.elements[0]?.role, 'button');
+    assert.equal(first.elements[1]?.role, 'textbox');
 
     const link = new FakeElement('a');
     link.textContent = 'Later';
@@ -72,11 +75,11 @@ test('buildAccessibilityTree assigns refs once and labels only new interactive n
 
     const second = buildAccessibilityTree(root as unknown as HTMLElement, first.nextRefStart);
     assert.deepEqual(
-      second.elements.map((element) => element.ref),
-      ['e0', 'e1', 'e2'],
+      second.elements.filter((element) => element.interactive).map((element) => element.ref),
+      ['e0', 'e1'],
     );
-    assert.equal(link.getAttribute('data-mcp-ref'), 'e2');
-    assert.equal(second.nextRefStart, 3);
+    assert.equal(link.getAttribute('data-mcp-ref'), null);
+    assert.equal(second.nextRefStart, 2);
   } finally {
     globalThis.document = originalDocument;
   }
@@ -95,10 +98,10 @@ test('buildAccessibilityTree never reuses removed refs and preserves surviving n
     const button = new FakeElement('button');
     button.textContent = 'Persistent';
     root.append(button);
-
     const first = buildAccessibilityTree(root as unknown as HTMLElement, 0);
-    assert.equal(button.getAttribute('data-mcp-ref'), 'e0');
-    assert.equal(first.nextRefStart, 1);
+    const buttonRef = button.getAttribute('data-mcp-ref');
+    assert.ok(buttonRef);
+    assert.equal(first.nextRefStart, Number(buttonRef.slice(1)) + 1);
 
     root.remove(button);
     const replacement = new FakeElement('button');
@@ -106,16 +109,50 @@ test('buildAccessibilityTree never reuses removed refs and preserves surviving n
     root.append(replacement);
 
     const second = buildAccessibilityTree(root as unknown as HTMLElement, first.nextRefStart);
-    assert.equal(replacement.getAttribute('data-mcp-ref'), 'e1');
-    assert.equal(second.nextRefStart, 2);
+    const replacementRef = replacement.getAttribute('data-mcp-ref');
+    assert.ok(replacementRef);
+    assert.notEqual(replacementRef, buttonRef);
+    assert.equal(second.nextRefStart, Number(replacementRef.slice(1)) + 1);
 
     root.remove(replacement);
     root.append(button);
 
     const third = buildAccessibilityTree(root as unknown as HTMLElement, second.nextRefStart);
-    assert.equal(button.getAttribute('data-mcp-ref'), 'e0');
-    assert.deepEqual(third.elements.map((element) => element.ref), ['e0']);
-    assert.equal(third.nextRefStart, 2);
+    assert.equal(button.getAttribute('data-mcp-ref'), buttonRef);
+    assert.deepEqual(third.elements.map((element) => element.ref), [buttonRef]);
+    assert.equal(third.nextRefStart, second.nextRefStart);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
+test('snapshot keeps visible headings and text, omits hidden nodes, and assigns native roles accurately', () => {
+  const originalDocument = globalThis.document;
+  globalThis.document = { getElementById() { return null; } } as unknown as Document;
+
+  try {
+    const root = new FakeElement('div');
+    const heading = new FakeElement('h1');
+    heading.textContent = 'Welcome';
+    const hidden = new FakeElement('input', { type: 'hidden' });
+    const submit = new FakeElement('input', { type: 'submit' });
+    const anchor = new FakeElement('a');
+    anchor.textContent = 'Not a link';
+    const select = new FakeElement('select');
+    const option = Object.assign(new FakeElement('option'), { selected: true });
+    option.textContent = 'Second';
+    option.value = 'Second';
+    select.append(option);
+    root.append(select);
+    root.append(heading, hidden, submit, anchor);
+
+    const result = buildAccessibilityTree(root as unknown as HTMLElement);
+    assert.equal(result.elements.some((entry) => entry.name === 'Welcome' && entry.role === 'heading'), true);
+    assert.equal(result.elements.some((entry) => entry.role === 'button' && entry.type === 'submit'), true);
+    assert.equal(result.elements.some((entry) => entry.name === 'Not a link' && entry.role === 'link'), false);
+    assert.equal(result.elements.some((entry) => entry.type === 'hidden'), false);
+    assert.equal(result.elements.some((entry) => entry.role === 'combobox' && entry.ref !== undefined), true);
+    assert.equal(result.elements.some((entry) => entry.role === 'option' && entry.selected === true && entry.ref === undefined), true);
   } finally {
     globalThis.document = originalDocument;
   }

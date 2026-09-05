@@ -27,8 +27,9 @@ function createInteractionHarness(waitRequired: boolean) {
     },
   } as unknown as PageStateReader;
   const lifecycle = {
-    async runCommand({ dispatch, readback }: { dispatch: () => Promise<unknown>; readback: () => Promise<unknown> }) {
+    async runCommand({ dispatch, readback, requireStableBeforeDispatch }: { dispatch: () => Promise<unknown>; readback: () => Promise<unknown>; requireStableBeforeDispatch: boolean }) {
       events.push('lifecycle:start');
+      events.push(`lifecycle:stable:${requireStableBeforeDispatch}`);
       const actionResult = await dispatch();
       events.push(waitRequired ? 'lifecycle:wait' : 'lifecycle:no-wait');
       const readbackResult = await readback();
@@ -56,6 +57,7 @@ test('non-navigating interaction reads back immediately after dispatch', async (
   assert.equal(events.filter((event) => event.startsWith('dispatch:')).length, 1);
   assert.deepEqual(events, [
     'lifecycle:start',
+    'lifecycle:stable:false',
     'dispatch:click:77:{"element":"css:#button"}',
     'lifecycle:no-wait',
     'readback:77',
@@ -72,6 +74,7 @@ test('navigation-triggering interaction delays readback until after the wait pat
   assert.equal(events.filter((event) => event.startsWith('dispatch:')).length, 1);
   assert.deepEqual(events, [
     'lifecycle:start',
+    'lifecycle:stable:false',
     'dispatch:click:77:{"element":"css:a"}',
     'lifecycle:wait',
     'readback:77',

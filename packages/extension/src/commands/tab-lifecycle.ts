@@ -1,10 +1,28 @@
-import type {
-  CommandPhase,
-  CommandWorkflowMeta,
-} from '../types/commands';
+import type BrowserNamespace from 'webextension-polyfill';
+import type { CommandPhase, CommandWorkflowMeta } from '../types/commands';
 import { CodedError, ErrorCodes } from '../utils/errors';
-
 import { logCommandPhase } from './command-logging';
+
+const DOM_CONTENT_LOADED_TIMEOUT_MS = 30_000;
+const NAVIGATION_LOAD_TIMEOUT_MS = 5_000;
+const ACTION_LOAD_TIMEOUT_MS = 10_000;
+const REQUEST_COMPLETION_TIMEOUT_MS = 5_000;
+const ACTION_SETTLE_MS = 500;
+const MAIN_FRAME_ID = 0;
+const BODY_RESOURCE_TYPES: Record<string, true | undefined> = {
+  main_frame: true,
+  sub_frame: true,
+  stylesheet: true,
+  script: true,
+  xmlhttprequest: true,
+};
+
+type NavigationDetails = Pick<BrowserNamespace.WebNavigation.OnBeforeNavigateDetailsType, 'tabId' | 'frameId' | 'url'> & { documentId?: string };
+type RequestDetails = BrowserNamespace.WebRequest.OnBeforeRequestDetailsType;
+type RequestEndDetails = BrowserNamespace.WebRequest.OnCompletedDetailsType;
+type RequestErrorDetails = BrowserNamespace.WebRequest.OnErrorOccurredDetailsType;
+type RequestResponseDetails = BrowserNamespace.WebRequest.OnResponseStartedDetailsType;
+type NavigationErrorDetails = BrowserNamespace.WebNavigation.OnErrorOccurredDetailsType;
 
 export type TabState = {
   status?: 'loading' | 'complete';
@@ -12,18 +30,8 @@ export type TabState = {
   title?: string;
   pendingUrl?: string;
 };
-
-export type LoadWaiter = {
-  wait(): Promise<void>;
-  dispose(): void;
-};
-
-export type WorkflowContext = {
-  command: string;
-  commandId?: string;
-  sessionId?: string;
-  tabId: number;
-};
+export type LoadWaiter = { wait(): Promise<void>; dispose(): void };
+export type WorkflowContext = { command: string; commandId?: string; sessionId?: string; tabId: number };
 
 export class CommandWorkflowError extends CodedError {
   constructor(
@@ -50,130 +58,242 @@ export function isTabLoading(state: TabState): boolean {
 }
 
 function toWorkflowError(phase: CommandPhase, error: unknown): CommandWorkflowError {
-  if (error instanceof CommandWorkflowError) {
-    return error;
-  }
-
-  if (error instanceof CodedError) {
-    return new CommandWorkflowError(phase, error.message, error.errorCode);
-  }
-
-  return new CommandWorkflowError(
-    phase,
-    error instanceof Error ? error.message : String(error),
-    ErrorCodes.COMMAND_FAILED,
-  );
+  if (error instanceof CommandWorkflowError) return error;
+  if (error instanceof CodedError) return new CommandWorkflowError(phase, error.message, error.errorCode);
+  return new CommandWorkflowError(phase, error instanceof Error ? error.message : String(error));
 }
 
-export function createLoadWaiter(context: WorkflowContext, timeoutMs = 10000): LoadWaiter {
-  let cleanup = () => undefined;
-  let disposed = false;
-  let settled = false;
+/** Observes one command's tab. Subscriptions start before the command dispatches. */
+class CompletionObserver {
+  navigation = false;
+  private domLoaded = false;
+  private loaded = false;
+  private navigationUrl: string | undefined;
+  private readonly previousDocuments = new Set<string>();
+  private currentDocumentId: string | undefined;
+  private failure: CodedError | undefined;
+  private collectingRequests = true;
+  private readonly pendingRequests = new Map<string, string>();
+  private requestCount = 0;
+  private readonly changed = new Set<() => void>();
+  private readonly cleanups: Array<() => void> = [];
 
-  const settle = (
-    action: () => void,
-  ) => {
-    if (settled) {
-      return;
-    }
+  constructor(
+    private readonly context: WorkflowContext,
+    watchRequests: boolean,
+    acceptExisting = false,
+    previousDocumentId?: string,
+  ) {
+    this.navigation = acceptExisting;
+    this.currentDocumentId = previousDocumentId;
+    this.subscribeNavigation();
+    if (watchRequests) this.subscribeRequests();
+    this.log('log', 'Command completion observers armed before dispatch.', 'wait_armed');
+  }
 
-    settled = true;
-    action();
+  private log(level: 'log' | 'warn' | 'error', message: string, phase: string): void {
+    logCommandPhase(level, message, { ...this.context, origin: 'system', phase });
+  }
+
+  private notify(): void {
+    for (const callback of this.changed) callback();
+  }
+
+  private matches(details: { tabId: number; frameId: number }): boolean {
+    return details.tabId === this.context.tabId && details.frameId === MAIN_FRAME_ID;
+  }
+
+  private matchesDocument(details: NavigationDetails): boolean {
+    return this.matches(details) && this.navigation
+      && (details.documentId === undefined || !this.previousDocuments.has(details.documentId))
+      && (this.navigationUrl === undefined || details.url === this.navigationUrl);
+  }
+
+  private readonly onBeforeNavigate = (details: NavigationDetails): void => {
+    if (!this.matches(details)) return;
+    if (this.currentDocumentId !== undefined) this.previousDocuments.add(this.currentDocumentId);
+    this.currentDocumentId = undefined;
+    this.navigation = true;
+    this.navigationUrl = details.url;
+    this.domLoaded = false;
+    this.loaded = false;
+    this.notify();
   };
 
-  const promise = new Promise<void>((resolve, reject) => {
-    const onCompleted = (details: { tabId: number; frameId: number; url?: string }) => {
-      if (details.tabId !== context.tabId || details.frameId !== 0) {
-        return;
-      }
+  private readonly onCommitted = (details: NavigationDetails): void => {
+    if (!this.matches(details) || !this.navigation) return;
+    this.navigationUrl = details.url;
+    this.currentDocumentId = details.documentId;
+  };
 
-      settle(() => {
-        logCommandPhase('log', 'Command load completed.', {
-          command: context.command,
-          commandId: context.commandId,
-          parentCommandId: context.commandId,
-          origin: 'system',
-          phase: 'wait_complete',
-          sessionId: context.sessionId,
-          tabId: context.tabId,
-          url: details.url,
-        });
-        resolve();
-      });
-    };
+  private readonly onDomLoaded = (details: NavigationDetails): void => {
+    if (!this.matchesDocument(details)) return;
+    this.domLoaded = true;
+    this.notify();
+  };
 
-    const onErrorOccurred = (details: {
-      tabId: number;
-      frameId: number;
-      url?: string;
-      error?: string;
-    }) => {
-      if (details.tabId !== context.tabId || details.frameId !== 0) {
-        return;
-      }
+  private readonly onCompleted = (details: NavigationDetails): void => {
+    if (!this.matchesDocument(details)) return;
+    this.domLoaded = true;
+    this.loaded = true;
+    this.notify();
+  };
 
-      settle(() => {
-        reject(
-          new CodedError(
-            `Navigation failed for tab ${context.tabId}: ${details.error ?? 'unknown error'}.`,
-            ErrorCodes.COMMAND_FAILED,
-          ),
-        );
-      });
-    };
+  private readonly onSameDocument = (details: NavigationDetails): void => {
+    if (!this.matches(details) || !isNavigationCommand(this.context.command)) return;
+    this.navigation = true;
+    this.navigationUrl = details.url;
+    this.domLoaded = true;
+    this.loaded = true;
+    this.notify();
+  };
 
-    const onRemoved = (removedTabId: number) => {
-      if (removedTabId !== context.tabId) {
-        return;
-      }
+  private readonly onNavigationError = (details: NavigationErrorDetails): void => {
+    const documentId = (details as NavigationDetails).documentId;
+    if (documentId !== undefined && this.previousDocuments.has(documentId)) {
+      this.log('log', `Ignored navigation error from previous document ${documentId}.`, 'wait_previous_document');
+      return;
+    }
+    if (!this.matchesDocument(details)) return;
+    // Firefox supplies error, but the installed polyfill types omit it.
+    const { error } = details as NavigationErrorDetails & { error: string };
+    this.fail(new CodedError(`Navigation failed for tab ${this.context.tabId}: ${error}.`, ErrorCodes.COMMAND_FAILED));
+  };
 
-      settle(() => {
-        reject(
-          new CodedError(
-            `Tab ${context.tabId} closed while waiting for load completion.`,
-            ErrorCodes.SESSION_TAB_CLOSED,
-          ),
-        );
-      });
-    };
+  private readonly onRemoved = (tabId: number): void => {
+    if (tabId !== this.context.tabId) return;
+    this.fail(new CodedError(`Tab ${tabId} closed while waiting for command completion.`, ErrorCodes.SESSION_TAB_CLOSED));
+  };
 
-    const timeoutId = setTimeout(() => {
-      settle(() => {
-        reject(
-          new CodedError(
-            `Timed out waiting for tab ${context.tabId} to finish loading.`,
-            ErrorCodes.COMMAND_FAILED,
-          ),
-        );
-      });
-    }, timeoutMs);
+  private fail(error: CodedError): void {
+    this.failure = error;
+    this.log('error', error.message, 'wait_error');
+    this.notify();
+  }
 
-    browser.webNavigation.onCompleted.addListener(onCompleted);
-    browser.webNavigation.onErrorOccurred.addListener(onErrorOccurred);
-    browser.tabs.onRemoved.addListener(onRemoved);
+  private subscribeNavigation(): void {
+    const events = browser.webNavigation;
+    events.onBeforeNavigate.addListener(this.onBeforeNavigate);
+    events.onCommitted.addListener(this.onCommitted);
+    events.onDOMContentLoaded.addListener(this.onDomLoaded);
+    events.onCompleted.addListener(this.onCompleted);
+    events.onErrorOccurred.addListener(this.onNavigationError);
+    events.onReferenceFragmentUpdated.addListener(this.onSameDocument);
+    events.onHistoryStateUpdated.addListener(this.onSameDocument);
+    browser.tabs.onRemoved.addListener(this.onRemoved);
+    this.cleanups.push(() => {
+      events.onBeforeNavigate.removeListener(this.onBeforeNavigate);
+      events.onCommitted.removeListener(this.onCommitted);
+      events.onDOMContentLoaded.removeListener(this.onDomLoaded);
+      events.onCompleted.removeListener(this.onCompleted);
+      events.onErrorOccurred.removeListener(this.onNavigationError);
+      events.onReferenceFragmentUpdated.removeListener(this.onSameDocument);
+      events.onHistoryStateUpdated.removeListener(this.onSameDocument);
+      browser.tabs.onRemoved.removeListener(this.onRemoved);
+    });
+  }
 
-    cleanup = () => {
-      if (disposed) {
-        return;
-      }
+  private readonly onRequestStart = (details: RequestDetails): void => {
+    if (details.tabId !== this.context.tabId || !this.collectingRequests) return;
+    this.requestCount++;
+    this.pendingRequests.set(details.requestId, details.type);
+  };
 
-      disposed = true;
-      clearTimeout(timeoutId);
-      browser.webNavigation.onCompleted.removeListener(onCompleted);
-      browser.webNavigation.onErrorOccurred.removeListener(onErrorOccurred);
-      browser.tabs.onRemoved.removeListener(onRemoved);
-    };
-  });
+  private readonly onRequestEnd = (details: RequestEndDetails | RequestErrorDetails): void => {
+    if (details.tabId !== this.context.tabId) return;
+    if (!this.pendingRequests.delete(details.requestId)) return;
+    if ('error' in details) this.log('warn', `Observed request failed: ${details.url}: ${details.error}.`, 'request_error');
+    this.notify();
+  };
 
+  private readonly onResponse = (details: RequestResponseDetails): void => {
+    if (details.tabId !== this.context.tabId) return;
+    const type = this.pendingRequests.get(details.requestId);
+    if (type === undefined || BODY_RESOURCE_TYPES[type] === true) return;
+    this.pendingRequests.delete(details.requestId);
+    this.notify();
+  };
+
+  private subscribeRequests(): void {
+    const events = browser.webRequest;
+    const filter = { urls: ['<all_urls>'], tabId: this.context.tabId };
+    events.onBeforeRequest.addListener(this.onRequestStart, filter);
+    events.onCompleted.addListener(this.onRequestEnd, filter);
+    events.onErrorOccurred.addListener(this.onRequestEnd, filter);
+    events.onResponseStarted.addListener(this.onResponse, filter);
+    this.cleanups.push(() => {
+      events.onBeforeRequest.removeListener(this.onRequestStart);
+      events.onCompleted.removeListener(this.onRequestEnd);
+      events.onErrorOccurred.removeListener(this.onRequestEnd);
+      events.onResponseStarted.removeListener(this.onResponse);
+    });
+  }
+
+  private waitFor(predicate: () => boolean, timeoutMs: number, phase: string, required: boolean): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const cleanup = (): void => {
+        clearTimeout(timer);
+        this.changed.delete(check);
+      };
+      const check = (): void => {
+        if (this.failure) { cleanup(); reject(this.failure); }
+        else if (predicate()) { cleanup(); resolve(); }
+      };
+      const timer = setTimeout(() => {
+        cleanup();
+        if (phase === 'settle') { resolve(); return; }
+        const message = `Timed out after ${timeoutMs}ms waiting for ${phase} in tab ${this.context.tabId}.`;
+        this.log(required ? 'error' : 'warn', message, 'wait_timeout');
+        if (required) reject(new CodedError(message, ErrorCodes.COMMAND_FAILED));
+        else resolve();
+      }, timeoutMs);
+      this.changed.add(check);
+      check();
+    });
+  }
+
+  async waitForLoad(timeoutMs: number, required: boolean): Promise<void> {
+    await this.waitFor(() => this.loaded, timeoutMs, 'load', required);
+  }
+
+  async waitForNavigation(): Promise<void> {
+    await this.waitFor(() => this.domLoaded, DOM_CONTENT_LOADED_TIMEOUT_MS, 'DOMContentLoaded', true);
+    await this.waitForLoad(NAVIGATION_LOAD_TIMEOUT_MS, false);
+  }
+
+  async waitForAction(): Promise<void> {
+    await this.waitFor(() => false, ACTION_SETTLE_MS, 'settle', false);
+    this.collectingRequests = false;
+    if (this.navigation) {
+      await this.waitForLoad(ACTION_LOAD_TIMEOUT_MS, false);
+      return;
+    }
+    await this.waitFor(() => this.pendingRequests.size === 0, REQUEST_COMPLETION_TIMEOUT_MS, 'requests', false);
+    if (this.requestCount) await this.waitFor(() => false, ACTION_SETTLE_MS, 'settle', false);
+  }
+
+  get workflow(): CommandWorkflowMeta {
+    return { waitRequired: this.navigation || this.requestCount > 0, postActionLoading: this.navigation };
+  }
+
+  dispose(): void {
+    for (const cleanup of this.cleanups) cleanup();
+    this.cleanups.length = 0;
+  }
+}
+
+function isNavigationCommand(command: string): boolean {
+  return command === 'navigate' || command === 'go_back' || command === 'go_forward';
+}
+
+export function createLoadWaiter(context: WorkflowContext, timeoutMs = ACTION_LOAD_TIMEOUT_MS): LoadWaiter {
+  const observer = new CompletionObserver(context, false, true);
   return {
     wait: async () => {
-      try {
-        await promise;
-      } finally {
-        cleanup();
-      }
+      try { await observer.waitForLoad(timeoutMs, true); }
+      finally { observer.dispose(); }
     },
-    dispose: cleanup,
+    dispose: () => observer.dispose(),
   };
 }
 
@@ -182,7 +302,6 @@ export type RunCommandLifecycleParams<TAction, TReadback> = WorkflowContext & {
   dispatch(): Promise<TAction>;
   readback(): Promise<TReadback>;
 };
-
 export type RunCommandLifecycleResult<TAction, TReadback> = {
   actionResult: TAction;
   readbackResult: TReadback;
@@ -190,31 +309,12 @@ export type RunCommandLifecycleResult<TAction, TReadback> = {
 };
 
 export class TabLifecycle {
-  constructor(
-    private readonly loadWaiterFactory: (context: WorkflowContext) => LoadWaiter = createLoadWaiter,
-  ) {}
+  constructor(private readonly loadWaiterFactory: (context: WorkflowContext) => LoadWaiter = createLoadWaiter) {}
 
   async waitForTabToSettle(context: WorkflowContext): Promise<void> {
     const waiter = this.loadWaiterFactory(context);
-
     try {
-      const state = await readTabState(context.tabId);
-      if (!isTabLoading(state)) {
-        return;
-      }
-
-      logCommandPhase('log', 'Command waiting for existing load to settle.', {
-        command: context.command,
-        commandId: context.commandId,
-        parentCommandId: context.commandId,
-        origin: 'system',
-        phase: 'wait_begin',
-        sessionId: context.sessionId,
-        tabId: context.tabId,
-        status: state.status,
-        pendingUrl: state.pendingUrl,
-      });
-      await waiter.wait();
+      if (isTabLoading(await readTabState(context.tabId))) await waiter.wait();
     } catch (error) {
       throw toWorkflowError('wait', error);
     } finally {
@@ -222,106 +322,29 @@ export class TabLifecycle {
     }
   }
 
-  async runCommand<TAction, TReadback>(
-    params: RunCommandLifecycleParams<TAction, TReadback>,
-  ): Promise<RunCommandLifecycleResult<TAction, TReadback>> {
-    let waiter: LoadWaiter | undefined;
-
+  async runCommand<TAction, TReadback>(params: RunCommandLifecycleParams<TAction, TReadback>): Promise<RunCommandLifecycleResult<TAction, TReadback>> {
+    const before = await readTabState(params.tabId);
+    if (params.requireStableBeforeDispatch && isTabLoading(before)) {
+      throw new CommandWorkflowError('precondition', `Tab ${params.tabId} is already loading before ${params.command}.`);
+    }
+    const frame = await browser.webNavigation.getFrame({ tabId: params.tabId, frameId: MAIN_FRAME_ID }) as { documentId?: string } | null;
+    const observer = new CompletionObserver(params, !isNavigationCommand(params.command), false, frame?.documentId);
+    let phase: CommandPhase = 'dispatch';
     try {
-      const before = await readTabState(params.tabId);
-      logCommandPhase('log', 'Command precondition inspected.', {
-        command: params.command,
-        commandId: params.commandId,
-        origin: 'user',
-        phase: 'precondition',
-        sessionId: params.sessionId,
-        tabId: params.tabId,
-        status: before.status,
-        pendingUrl: before.pendingUrl,
+      const actionResult = await params.dispatch();
+      phase = 'wait';
+      if (isNavigationCommand(params.command)) await observer.waitForNavigation();
+      else await observer.waitForAction();
+      phase = 'readback';
+      const readbackResult = await params.readback();
+      return { actionResult, readbackResult, workflow: observer.workflow };
+    } catch (error) {
+      logCommandPhase('error', `Command failed during ${phase}: ${error instanceof Error ? error.message : String(error)}`, {
+        ...params, origin: 'system', phase,
       });
-
-      if (params.requireStableBeforeDispatch && isTabLoading(before)) {
-        throw new CommandWorkflowError(
-          'precondition',
-          `Tab ${params.tabId} is already loading before ${params.command}.`,
-        );
-      }
-
-      let actionResult: TAction;
-      try {
-        actionResult = await params.dispatch();
-      } catch (error) {
-        throw toWorkflowError('dispatch', error);
-      }
-
-      logCommandPhase('log', 'Command action dispatched.', {
-        command: params.command,
-        commandId: params.commandId,
-        origin: 'user',
-        phase: 'dispatch',
-        sessionId: params.sessionId,
-        tabId: params.tabId,
-      });
-
-      waiter = this.loadWaiterFactory(params);
-      const after = await readTabState(params.tabId);
-      const waitRequired = isTabLoading(after);
-      if (waitRequired) {
-        logCommandPhase('log', 'Command detected post-action loading.', {
-          command: params.command,
-          commandId: params.commandId,
-          parentCommandId: params.commandId,
-          origin: 'system',
-          phase: 'wait_begin',
-          sessionId: params.sessionId,
-          tabId: params.tabId,
-          status: after.status,
-          pendingUrl: after.pendingUrl,
-        });
-
-        try {
-          await waiter.wait();
-        } catch (error) {
-          throw toWorkflowError('wait', error);
-        }
-      }
-
-      let readbackResult: TReadback;
-      try {
-        logCommandPhase('log', 'Command readback starting.', {
-          command: params.command,
-          commandId: params.commandId,
-          parentCommandId: params.commandId,
-          origin: 'system',
-          phase: 'readback_begin',
-          sessionId: params.sessionId,
-          tabId: params.tabId,
-        });
-        readbackResult = await params.readback();
-      } catch (error) {
-        throw toWorkflowError('readback', error);
-      }
-
-      logCommandPhase('log', 'Command readback completed.', {
-        command: params.command,
-        commandId: params.commandId,
-        parentCommandId: params.commandId,
-        origin: 'system',
-        phase: 'readback_complete',
-        sessionId: params.sessionId,
-        tabId: params.tabId,
-      });
-
-      return {
-        actionResult,
-        readbackResult,
-        workflow: {
-          waitRequired,
-          postActionLoading: waitRequired,
-        },
-      };
+      throw toWorkflowError(phase, error);
     } finally {
-      waiter?.dispose();
+      observer.dispose();
     }
   }
 }

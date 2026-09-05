@@ -38,14 +38,32 @@ export function createCommandHandlers() {
     const element = findElement(ref);
 
     if (!element) {
-      throw new Error(`Element not found: ${ref}`);
+      throw new Error(`Element not found or stale: ${ref}; capture a new snapshot and retry`);
+    }
+
+    if (isDisabledControlOrDescendant(element)) {
+      const error = `Cannot click disabled element: ${ref}`;
+      console.error(`[PartyBrowser] Click failed: ${error}`);
+      throw new Error(error);
     }
 
     console.log(`[PartyBrowser] Clicking ${describeElement(element, ref)}`);
     element.scrollIntoView({ behavior: 'smooth', block: 'center' });
     await delay(100);
 
-    const rect = element.getBoundingClientRect();
+    const currentElement = findElement(ref);
+    if (!currentElement || currentElement !== element) {
+      const error = `Element not found or stale: ${ref}; capture a new snapshot and retry`;
+      console.error(`[PartyBrowser] Click failed: ${error}`);
+      throw new Error(error);
+    }
+    if (isDisabledControlOrDescendant(currentElement)) {
+      const error = `Cannot click disabled element: ${ref}`;
+      console.error(`[PartyBrowser] Click failed: ${error}`);
+      throw new Error(error);
+    }
+
+    const rect = currentElement.getBoundingClientRect();
     const eventInit = {
       clientX: rect.left + rect.width / 2,
       clientY: rect.top + rect.height / 2,
@@ -53,9 +71,9 @@ export function createCommandHandlers() {
 
     for (const plannedEvent of createClickEventPlan()) {
       if (plannedEvent.family === 'pointer') {
-        dispatchPointerLikeEvent(element, plannedEvent.type, eventInit);
+        dispatchPointerLikeEvent(currentElement, plannedEvent.type, eventInit);
       } else {
-        dispatchMouseLikeEvent(element, plannedEvent.type, eventInit);
+        dispatchMouseLikeEvent(currentElement, plannedEvent.type, eventInit);
       }
     }
 
@@ -63,8 +81,8 @@ export function createCommandHandlers() {
       success: true,
       data: {
         element: ref,
-        tagName: element.tagName,
-        text: element.textContent?.trim().slice(0, 50),
+        tagName: currentElement.tagName,
+        text: currentElement.textContent?.trim().slice(0, 50),
       },
     };
   }
@@ -74,7 +92,7 @@ export function createCommandHandlers() {
     const element = findElement(ref) as HTMLInputElement | HTMLTextAreaElement;
 
     if (!element) {
-      throw new Error(`Element not found: ${ref}`);
+      throw new Error(`Element not found or stale: ${ref}; capture a new snapshot and retry`);
     }
 
     console.log(`[PartyBrowser] Typing into ${describeElement(element, ref)}`);
@@ -116,7 +134,7 @@ export function createCommandHandlers() {
     const element = findElement(ref) as HTMLSelectElement;
 
     if (!element) {
-      throw new Error(`Element not found: ${ref}`);
+      throw new Error(`Element not found or stale: ${ref}; capture a new snapshot and retry`);
     }
 
     if (element.tagName !== 'SELECT') {
@@ -277,10 +295,10 @@ export function createCommandHandlers() {
     const endEl = findElement(endElement);
 
     if (!startEl) {
-      throw new Error(`Start element not found: ${startElement}`);
+      throw new Error(`Start element not found or stale: ${startElement}; capture a new snapshot and retry`);
     }
     if (!endEl) {
-      throw new Error(`End element not found: ${endElement}`);
+      throw new Error(`End element not found or stale: ${endElement}; capture a new snapshot and retry`);
     }
 
     console.log(`[PartyBrowser] Dragging ${describeElement(startEl, startElement)} to ${describeElement(endEl, endElement)}`);
@@ -315,7 +333,7 @@ export function createCommandHandlers() {
   async function hover(params: { element: string }): Promise<CommandResult> {
     const element = findElement(params.element);
     if (!element) {
-      throw new Error(`Element not found: ${params.element}`);
+      throw new Error(`Element not found or stale: ${params.element}; capture a new snapshot and retry`);
     }
 
     console.log(`[PartyBrowser] Hovering over ${describeElement(element, params.element)}`);
@@ -361,6 +379,7 @@ type WaitForTextConditionArgs = {
 function waitForTextCondition(args: WaitForTextConditionArgs): Promise<CommandResult> {
   return new Promise((resolve, reject) => {
     const checkInterval = setInterval(() => {
+
       const bodyText = document.body.innerText || '';
       const elapsed = Date.now() - args.startTime;
 
@@ -379,6 +398,9 @@ function waitForTextCondition(args: WaitForTextConditionArgs): Promise<CommandRe
 
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+function isDisabledControlOrDescendant(element: Element): boolean {
+  return element.matches(':disabled') || element.closest('button:disabled') !== null;
 }
 
 function serializeResult(result: unknown): unknown {

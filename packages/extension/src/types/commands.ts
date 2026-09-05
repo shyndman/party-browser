@@ -13,6 +13,13 @@ export interface PageState {
   tree: unknown;
 }
 
+export interface SnapshotData {
+  url: string;
+  title: string;
+  tree: unknown;
+  nextRefStart: number;
+}
+
 export interface CommandWorkflowMeta {
   failedPhase?: CommandPhase;
   waitRequired?: boolean;

@@ -28,50 +28,60 @@ test("formatAriaSnapshot preserves response text shape from lifecycle-managed pa
   assert.match(output.text, /e1 button: Submit/);
 });
 
-test("captureAriaSnapshot reads URL/title/tree from data envelope shape", async () => {
-  const responses = {
-    getUrl: { success: true, data: { url: "https://news.ycombinator.com" } },
-    getTitle: { success: true, data: { title: "Hacker News" } },
-    snapshot: {
-      success: true,
-      data: {
-        url: "https://news.ycombinator.com",
-        title: "Hacker News",
-        tree: [{ ref: "e1", tagName: "a", name: "First Link" }],
-      },
-    },
-  } as const;
-  const capturedOptions: unknown[] = [];
-
+test("captureAriaSnapshot reads URL/title/tree from atomic snapshot response", async () => {
   const context = {
-    sendSocketMessage: async (type: keyof typeof responses, _payload: unknown, options: unknown) => {
-      capturedOptions.push(options);
-      return responses[type];
+    sendSocketMessage: async (type: string, _payload: unknown, options: unknown) => {
+      assert.equal(type, "snapshot");
+      assert.deepEqual(options, { requestId: "call-123" });
+      return {
+        success: true,
+        data: {
+          url: "https://news.ycombinator.com",
+          title: "Hacker News",
+          tree: [{ ref: "e1", tagName: "a", name: "First Link" }],
+        },
+      };
     },
   } as unknown as Context;
 
   const result = await captureAriaSnapshot(context, "", "call-123");
   const output = result.content[0]?.type === "text" ? result.content[0].text : "";
-
-  assert.deepEqual(capturedOptions, [
-    { requestId: "call-123" },
-    { requestId: "call-123" },
-    { requestId: "call-123" },
-  ]);
   assert.match(output, /- Page URL: https:\/\/news\.ycombinator\.com/);
   assert.match(output, /- Page Title: Hacker News/);
   assert.match(output, /e1 a: First Link/);
 });
 
-test("captureAriaSnapshot preserves legacy payload shape", async () => {
-  const responses = {
-    getUrl: { url: "https://example.com" },
-    getTitle: { title: "Example" },
-    snapshot: { tree: { foo: "bar" } },
-  } as const;
-
+test("captureAriaSnapshot reports failed snapshot commands instead of formatting an empty tree", async () => {
   const context = {
-    sendSocketMessage: async (type: keyof typeof responses) => responses[type],
+    sendSocketMessage: async () => ({ success: false, error: "Content script unavailable." }),
+  } as unknown as Context;
+
+  await assert.rejects(
+    () => captureAriaSnapshot(context),
+    (error: unknown) => error instanceof Error && error.message === "Content script unavailable.",
+  );
+});
+
+test("captureAriaSnapshot reports missing metadata clearly", async () => {
+  const context = {
+    sendSocketMessage: async () => ({ success: true, data: { tree: [] } }),
+  } as unknown as Context;
+
+  await assert.rejects(
+    () => captureAriaSnapshot(context),
+    (error: unknown) => error instanceof Error
+      && error.message === "Page URL readback failed: snapshot response did not contain a URL.",
+  );
+});
+
+
+test("captureAriaSnapshot preserves legacy atomic snapshot payload shape", async () => {
+  const context = {
+    sendSocketMessage: async () => ({
+      url: "https://example.com",
+      title: "Example",
+      tree: { foo: "bar" },
+    }),
   } as unknown as Context;
 
   const result = await captureAriaSnapshot(context);

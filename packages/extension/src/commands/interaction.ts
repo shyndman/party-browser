@@ -25,6 +25,7 @@ import { requireSuccessfulCommandResult } from './command-result';
 import { PageStateReader } from './page-state-reader';
 import { TabLifecycle } from './tab-lifecycle';
 
+
 type CommandOptions = {
   commandId?: string;
 };
@@ -160,7 +161,7 @@ export class InteractionCommands {
       commandId: options.commandId,
       sessionId: params.sessionId,
       tabId: targetTabId,
-      requireStableBeforeDispatch: true,
+      requireStableBeforeDispatch: command !== 'click',
       dispatch: () => dispatch(targetTabId),
       readback: () => this.pageStateReader.read(targetTabId),
     });
@@ -177,3 +178,4 @@ export class InteractionCommands {
     };
   }
 }
+

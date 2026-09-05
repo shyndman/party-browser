@@ -283,6 +283,9 @@ export class SessionManager {
       sessionId,
       tabId: lease.tabId,
     });
+    // Settling yields to concurrent takeover requests; recheck immediately before
+    // publishing the lease so only one approval can claim this tab.
+    this.assertTabNotAlreadyLeased(lease.tabId, sessionId);
 
     this.leases.set(sessionId, lease);
     this.leaseCreatedAtMs.set(sessionId, Date.now());

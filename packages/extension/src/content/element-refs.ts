@@ -1,9 +1,45 @@
+const MCP_REF_ATTRIBUTE = 'data-mcp-ref';
+
+export interface ElementRefAllocation {
+  ref: string;
+  nextRefStart: number;
+}
 export interface ParsedRef {
   type: 'mcpRef' | 'css' | 'xpath' | 'text';
   ref?: string;
   selector?: string;
   path?: string;
   text?: string;
+}
+
+const refByElement = new WeakMap<Element, string>();
+const elementByRef = new Map<string, WeakRef<Element>>();
+
+export function pruneElementRefRegistry(): void {
+  for (const [ref, elementRef] of elementByRef) {
+    if (!elementRef.deref()) {
+      elementByRef.delete(ref);
+    }
+  }
+}
+
+export function getOrAssignElementRef(element: Element, nextRefStart: number): ElementRefAllocation {
+  const existingRef = refByElement.get(element);
+  if (existingRef) {
+    const number = Number.parseInt(existingRef.slice(1), 10);
+    return { ref: existingRef, nextRefStart: Math.max(nextRefStart, number + 1) };
+  }
+
+  let ref: string;
+  do {
+    ref = `e${nextRefStart}`;
+    nextRefStart += 1;
+  } while (elementByRef.get(ref)?.deref());
+
+  refByElement.set(element, ref);
+  elementByRef.set(ref, new WeakRef(element));
+  element.setAttribute(MCP_REF_ATTRIBUTE, ref);
+  return { ref, nextRefStart };
 }
 
 export function parseElementRef(ref: string): ParsedRef | null {
@@ -27,7 +63,11 @@ export function parseElementRef(ref: string): ParsedRef | null {
 }
 
 function findByMcpRef(ref: string): Element | null {
-  return document.querySelector(`[data-mcp-ref="${ref}"]`);
+  const element = document.querySelector(`[data-mcp-ref="${ref}"]`);
+  if (!element || elementByRef.get(ref)?.deref() !== element) {
+    return null;
+  }
+  return element;
 }
 
 export function findByXPath(path: string): Element | null {
@@ -83,9 +123,13 @@ export function findElement(ref: string): Element | null {
     }
   })();
 
+  if (element && 'isConnected' in element && element.isConnected === false) {
+    console.error(`[PartyBrowser] Element is detached for ref: ${ref}`);
+    return null;
+  }
+
   if (!element) {
     console.error(`[PartyBrowser] Element not found: ${ref}`);
   }
-
   return element;
 }

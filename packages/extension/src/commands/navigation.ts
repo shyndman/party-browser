@@ -52,24 +52,10 @@ export class NavigationCommands {
 
   private async readPageStateAfterNavigation(tabId: number): Promise<NavigationReadback> {
     try {
-      return {
-        pageState: await this.pageStateReader.read(tabId),
-        workflow: {},
-      };
+      return { pageState: await this.pageStateReader.read(tabId), workflow: {} };
     } catch (error) {
-      const tab = await browser.tabs.get(tabId);
-      const readbackErrorCode = getErrorCode(error);
-      return {
-        pageState: {
-          url: tab.url,
-          title: tab.title,
-          tree: {},
-        },
-        workflow: {
-          readbackError: getErrorMessage(error),
-          ...(readbackErrorCode ? { readbackErrorCode } : {}),
-        },
-      };
+      console.error('[PartyBrowser] Navigation readback failed.', { tabId, error: getErrorMessage(error), errorCode: getErrorCode(error) });
+      throw error;
     }
   }
 

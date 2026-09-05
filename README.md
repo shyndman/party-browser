@@ -48,11 +48,11 @@ Key tools for selector discovery and browser automation:
 
 | Tool | Purpose |
 |------|---------|
-| `navigate` | Navigate to URLs |
-| `snapshot` | Get accessibility tree of current page |
+| `navigate` | Navigate to a URL, wait for `DOMContentLoaded` and up to five more seconds for `load`, then return a snapshot |
+| `snapshot` | Get a best-effort DOM snapshot with the page URL, title, text, control states, and interactive refs |
 | `screenshot` | Capture visual screenshot |
 | `evaluate` | Execute JavaScript for inspection |
-| `click` | Click elements |
+| `click` | Send a synthetic click, wait for observed navigation or requests, then return a snapshot. Stale refs require a new snapshot |
 | `type` | Type text into inputs |
 | `select_option` | Select dropdown options |
 | `wait_for` | Wait for conditions (time, text appear/disappear) |

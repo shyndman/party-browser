@@ -461,6 +461,42 @@ test('takeover prevents two sessions from leasing the same focused tab', async (
     },
   );
 });
+test('concurrent takeovers recheck tab ownership after settling', async () => {
+  installBrowserMock();
+  const manager = new SessionManager();
+  let entered = 0;
+  let releaseSettling!: () => void;
+  let resolveBothEntered!: () => void;
+  const bothEntered = new Promise<void>((resolve) => {
+    resolveBothEntered = resolve;
+  });
+  const settlingReleased = new Promise<void>((resolve) => {
+    releaseSettling = resolve;
+  });
+
+  const managerInternals = manager as unknown as { tabLifecycle: { waitForTabToSettle: () => Promise<void> } };
+  managerInternals.tabLifecycle.waitForTabToSettle = async () => {
+    entered += 1;
+    if (entered === 2) {
+      resolveBothEntered();
+    }
+    await settlingReleased;
+  };
+
+  const first = manager.createTakeoverLease('session-one');
+  const second = manager.createTakeoverLease('session-two');
+  await bothEntered;
+  releaseSettling();
+
+  const results = await Promise.allSettled([first, second]);
+  assert.equal(results.filter((result) => result.status === 'fulfilled').length, 1);
+  const rejected = results.find((result) => result.status === 'rejected');
+  assert.ok(rejected && rejected.reason instanceof CodedError);
+  assert.equal((rejected as PromiseRejectedResult).reason.errorCode, ErrorCodes.COMMAND_FAILED);
+  const firstLease = manager.getLease('session-one');
+  const secondLease = manager.getLease('session-two');
+  assert.equal((firstLease !== null) !== (secondLease !== null), true);
+});
 
 test('takeover tab close revokes lease and preserves browser window', async () => {
   const browserState = installBrowserMock();

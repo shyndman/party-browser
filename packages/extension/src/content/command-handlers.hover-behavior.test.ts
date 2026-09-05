@@ -2,6 +2,7 @@ import { strict as assert } from 'node:assert';
 import test from 'node:test';
 
 import { createCommandHandlers } from './command-handlers';
+import { getOrAssignElementRef } from './element-refs';
 
 type EventInitLike = {
   bubbles?: boolean;
@@ -149,6 +150,7 @@ test('hover triggers JS hover handlers without bubbling enter events', async () 
       return selector === '[data-mcp-ref="e1"]' ? (target as unknown as Element) : null;
     },
   } as Document;
+  getOrAssignElementRef(target as unknown as Element, 1);
 
   try {
     const handlers = createCommandHandlers();

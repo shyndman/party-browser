@@ -11,6 +11,17 @@ function unwrapCommandData<T>(result: unknown): T {
   if (
     result &&
     typeof result === "object" &&
+    "success" in result &&
+    (result as { success?: unknown }).success === false
+  ) {
+    const failed = result as { error?: unknown };
+    const message = typeof failed.error === "string" ? failed.error : "Command failed without an error message.";
+    throw new Error(message);
+  }
+
+  if (
+    result &&
+    typeof result === "object" &&
     "data" in result &&
     (result as { data?: unknown }).data !== undefined
   ) {
@@ -18,6 +29,24 @@ function unwrapCommandData<T>(result: unknown): T {
   }
 
   return result as T;
+}
+
+function formatSnapshotElement(element: Record<string, unknown>): string {
+  const ref = typeof element.ref === "string" ? `${element.ref} ` : "";
+  const role = typeof element.role === "string" && element.role
+    ? element.role
+    : typeof element.tagName === "string" && element.tagName ? element.tagName : "element";
+  const name = typeof element.name === "string" ? element.name : "";
+  const details: string[] = [];
+
+  if (typeof element.type === "string" && element.type) details.push(`type=${element.type}`);
+  if (typeof element.value === "string" && element.value) details.push(`value=${JSON.stringify(element.value)}`);
+  if (typeof element.placeholder === "string" && element.placeholder) details.push(`placeholder=${JSON.stringify(element.placeholder)}`);
+  if (element.disabled === true) details.push("disabled");
+  if (element.checked === true) details.push("checked");
+  if (element.selected === true) details.push("selected");
+
+  return `  - ${ref}${role}: ${name}${details.length ? ` [${details.join(", ")}]` : ""}`;
 }
 
 export function extractPageState(result: unknown): PageState {
@@ -51,7 +80,11 @@ export function formatAriaSnapshot(pageState: PageState, status: string = ""): T
   const snapshot = pageState.tree ?? {};
 
   const snapshotYaml = Array.isArray(snapshot)
-    ? snapshot.map((el: any) => `  - ${el.ref} ${el.role || el.tagName}: ${el.name}`).join("\n")
+    ? snapshot.map((element) => (
+      element && typeof element === "object"
+        ? formatSnapshotElement(element as Record<string, unknown>)
+        : `  - ${String(element)}`
+    )).join("\n")
     : JSON.stringify(snapshot, null, 2);
 
   return {
@@ -72,29 +105,20 @@ ${snapshotYaml}
 }
 
 export async function readPageState(context: Context, requestId?: string): Promise<PageState> {
-  const urlResult = unwrapCommandData<{
-    url?: string;
-  }>(await context.sendSocketMessage("getUrl", {}, { requestId }));
-  const titleResult = unwrapCommandData<{
-    title?: string;
-  }>(await context.sendSocketMessage("getTitle", {}, { requestId }));
   const snapshotResult = unwrapCommandData<unknown>(
     await context.sendSocketMessage("snapshot", {}, { requestId }),
   );
+  const payload = snapshotResult && typeof snapshotResult === "object" && !Array.isArray(snapshotResult)
+    ? snapshotResult as Record<string, unknown>
+    : null;
+  const tree = payload && "tree" in payload ? payload.tree : snapshotResult;
+  const url = payload && typeof payload.url === "string" ? payload.url : undefined;
+  const title = payload && typeof payload.title === "string" ? payload.title : undefined;
 
-  const snapshot =
-    snapshotResult &&
-    typeof snapshotResult === "object" &&
-    !Array.isArray(snapshotResult) &&
-    "tree" in snapshotResult
-      ? (snapshotResult as { tree?: unknown }).tree ?? {}
-      : snapshotResult ?? {};
+  if (!url) throw new Error("Page URL readback failed: snapshot response did not contain a URL.");
+  if (!title) throw new Error("Page title readback failed: snapshot response did not contain a title.");
 
-  return {
-    url: urlResult?.url,
-    title: titleResult?.title,
-    tree: snapshot,
-  };
+  return { url, title, tree: tree ?? {} };
 }
 
 export async function captureAriaSnapshot(

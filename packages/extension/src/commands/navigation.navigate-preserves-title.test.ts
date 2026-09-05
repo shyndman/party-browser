@@ -77,7 +77,7 @@ test('navigate command does not mutate document title', async () => {
   }
 });
 
-test('navigate succeeds with URL and title fallback when snapshot readback fails', async () => {
+test('navigate propagates snapshot readback failures', async () => {
   const originalBrowser = (globalThis as any).browser;
 
   try {
@@ -135,17 +135,14 @@ test('navigate succeeds with URL and title fallback when snapshot readback fails
       lifecycle,
     );
 
-    const result = await commands.navigate({ sessionId: 'session-2', url: navigateUrl });
-
-    assert.equal(result.success, true);
-    assert.deepEqual(result.data, {
-      url: navigateUrl,
-      tabId: targetTabId,
-      pageState: { url: navigateUrl, title: 'Fallback title', tree: {} },
-    });
-    assert.equal(result.meta?.workflow?.readbackError, 'Content script unavailable.');
-    assert.equal(result.meta?.workflow?.readbackErrorCode, ErrorCodes.COMMAND_FAILED);
-    assert.equal(result.meta?.workflow?.waitRequired, false);
+    await assert.rejects(
+      () => commands.navigate({ sessionId: 'session-2', url: navigateUrl }),
+      (error: unknown) => {
+        assert.equal((error as { errorCode?: string }).errorCode, ErrorCodes.COMMAND_FAILED);
+        assert.equal((error as Error).message, 'Content script unavailable.');
+        return true;
+      },
+    );
   } finally {
     (globalThis as any).browser = originalBrowser;
   }
