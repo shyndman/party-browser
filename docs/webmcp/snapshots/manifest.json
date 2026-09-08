@@ -1,0 +1,78 @@
+{
+  "collected_at": "2026-09-05T16:33:09.449862+00:00",
+  "repository": "https://github.com/webmachinelearning/webmcp",
+  "revision": "50c4b7fd6c4402731271649bc544b662b061ed44",
+  "draft_date": "2026-09-04",
+  "files": [
+    {
+      "path": "snapshots/index.bs",
+      "source": "https://raw.githubusercontent.com/webmachinelearning/webmcp/50c4b7fd6c4402731271649bc544b662b061ed44/index.bs",
+      "sha256": "f5421348772cb38b854ddad7a2114db3a6ed8c7827f3a1d267c01c45a7868e56",
+      "bytes": 80922
+    },
+    {
+      "path": "snapshots/README.md",
+      "source": "https://raw.githubusercontent.com/webmachinelearning/webmcp/50c4b7fd6c4402731271649bc544b662b061ed44/README.md",
+      "sha256": "8578a7032b3f0b792d71d904b8347b6f50f20f5e6d8d63b2719b5d844b67da8c",
+      "bytes": 36415
+    },
+    {
+      "path": "snapshots/declarative-api-explainer.md",
+      "source": "https://raw.githubusercontent.com/webmachinelearning/webmcp/50c4b7fd6c4402731271649bc544b662b061ed44/declarative-api-explainer.md",
+      "sha256": "ece80645d71b1a1e2ec9564067662ce56a7c2f2052ea8bab20449b5009893fc9",
+      "bytes": 10413
+    },
+    {
+      "path": "snapshots/implementation-status.md",
+      "source": "https://raw.githubusercontent.com/webmachinelearning/webmcp/50c4b7fd6c4402731271649bc544b662b061ed44/implementation-status.md",
+      "sha256": "fea441e56055009fcb20332c24f47a9a730e4c8083bb80fe15bd9b134176c4a8",
+      "bytes": 2395
+    },
+    {
+      "path": "snapshots/security-privacy-questionnaire.md",
+      "source": "https://raw.githubusercontent.com/webmachinelearning/webmcp/50c4b7fd6c4402731271649bc544b662b061ed44/security-privacy-questionnaire.md",
+      "sha256": "33907b97fc85fe2277f47eca8f72f5c0522b0444ebfd2be9b65b0110c475a247",
+      "bytes": 9237
+    },
+    {
+      "path": "snapshots/docs/service-workers.md",
+      "source": "https://raw.githubusercontent.com/webmachinelearning/webmcp/50c4b7fd6c4402731271649bc544b662b061ed44/docs/service-workers.md",
+      "sha256": "4d84c70fdb3e6bdfef49a3c9dee4655948372fc2117f49ffd93a3e47f77ac8e9",
+      "bytes": 21808
+    },
+    {
+      "path": "snapshots/LICENSE.md",
+      "source": "https://raw.githubusercontent.com/webmachinelearning/webmcp/50c4b7fd6c4402731271649bc544b662b061ed44/LICENSE.md",
+      "sha256": "ad6c4259239fc10a64f07fec660da5017dcd606ac7c42b5756270fe580e5e18d",
+      "bytes": 159
+    },
+    {
+      "path": "snapshots/assets/openai.svg",
+      "source": "https://raw.githubusercontent.com/webmachinelearning/webmcp/50c4b7fd6c4402731271649bc544b662b061ed44/assets/openai.svg",
+      "sha256": "9ed772c6d3c96004617c43dd44ba75087aa07b110ee8f84d4d6bdc77274b7d26",
+      "bytes": 2419
+    },
+    {
+      "path": "snapshots/assets/openai-white.svg",
+      "source": "https://raw.githubusercontent.com/webmachinelearning/webmcp/50c4b7fd6c4402731271649bc544b662b061ed44/assets/openai-white.svg",
+      "sha256": "3fbafd5acb0affd6c4d2394d708ac31c453c170cf571a51fcaf5b619e2accb61",
+      "bytes": 2419
+    }
+  ],
+  "history": {
+    "path": "snapshots/commit-history.tsv",
+    "revision": "50c4b7fd6c4402731271649bc544b662b061ed44",
+    "command": "git log --reverse --format=%H%x09%cI%x09%s 50c4b7fd6c4402731271649bc544b662b061ed44",
+    "date_kind": "committer date with original UTC offset",
+    "commits": 144,
+    "sha256": "3c2d1d7c1fdf2e5a85863f20d84dedd8d03f19a01fba9004c2b09ae992404775"
+  },
+  "rendered_specification": {
+    "path": "snapshots/specification.html",
+    "source": "https://webmachinelearning.github.io/webmcp/",
+    "revision": "50c4b7fd6c4402731271649bc544b662b061ed44",
+    "sha256": "1d7d65d0c714a9db7726c957ad67de516cb3c399ed6d197d0db2072aec380446",
+    "bytes": 460448,
+    "external_assets": "Original external styles, scripts, images, and references are not mirrored."
+  }
+}

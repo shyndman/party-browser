@@ -1,0 +1,145 @@
+commit	committer_date	subject
+e9a54770b01ecbbffc4053ae003e7b55c4bb52b0	2025-08-05T16:21:54+03:00	Add boilerplate files
+71b3025fd89d0323073d8f2af6ba4a2d11c3b6c1	2025-08-05T13:31:26-07:00	Add initial explainer.
+9268c05ebd090494ce4f5c3c07e2f333fce4a402	2025-08-06T17:05:13+04:00	Adding baseline w3c.json
+4ab8c6524f9b7e92db979aa065340bde07c0bc43	2025-08-06T15:24:57-07:00	Add initial explainer.
+9de1d71c0f22697c42897152a62b1c8bc87370d2	2025-08-07T15:07:50-07:00	Merge Script Tools API and WebMC explainers.
+6748764c34ac54f7e790696b12114dfde74f12c5	2025-08-07T15:09:24-07:00	Rename
+d6433c72ab3f012e9d9194708f812741d4311194	2025-08-08T10:34:41+03:00	Update README to reflect the new name
+c64a42f25f0c98eb9472770243af57c4bf28fedb	2025-08-08T11:02:15-07:00	Merge pull request #4 from webmachinelearning/readme-rename
+1e018e7028ce8badaad2c4fdb285bcca4502746c	2025-08-08T11:42:04-07:00	Update docs/proposal.md
+446069b6b666a60affb6cf1dfa498d3f2191cdce	2025-08-13T14:15:30-07:00	Address feedback.
+58b2d5e4e20be9627c55ec61d1bbb5d9760e132e	2025-08-13T14:17:33-07:00	Merge pull request #3 from webmachinelearning/brwalder/merge-explainer-1
+762df5799048274618e0fde9693e05f7d2b598da	2025-08-19T13:29:02-07:00	Add authors and date to explainer and proposal
+7617586b81467411ef7a55d0a11b72954265b9d5	2025-08-19T14:06:26-07:00	Merge pull request #12 from webmachinelearning/credits
+719715e4532d004746ef57ea4c420ad908fe713f	2025-08-19T16:00:58-07:00	fix typos and update authors
+771ce6f9d62ced57a3cc3d8faa45fa43f6e72d93	2025-08-19T16:27:15-07:00	Merge pull request #13 from webmachinelearning/explainer-update
+be28b362e498aa25e9aa4f47c3342df4a7dc62cd	2025-08-22T12:29:12-07:00	Move explainer content to repo landing page
+24bcd855a267ef9171ebbc5a498f65734df07501	2025-08-25T10:21:56-07:00	Address PR feedback.
+7edc0e1818636182e352b3b15d9203a29b18319b	2025-08-25T10:23:07-07:00	Merge pull request #14 from webmachinelearning/explainer-readme
+dcc46536fd850fb57747845265ada1493f0e2189	2025-08-27T10:43:30-07:00	Convert SVG to PNG for easier reading in light/dark modes
+5f8f79204360c3eac061a90e9d906862b686fda1	2025-08-27T10:48:29-07:00	Merge pull request #18 from webmachinelearning/images
+2ea03e8d1756471c3274609eabb1c7b5ee3481c2	2025-08-28T15:42:41-07:00	Add explainer for service workers
+437ab214d5fce9406c0272d3292f3bb32bd0df67	2025-09-04T12:44:27-07:00	Update docs/service-workers.md
+019c901647a6acc672f8e658aa9fb909e2256750	2025-09-04T12:50:49-07:00	Merge pull request #19 from webmachinelearning/service-workers
+082be8b77ca0c69c98e2b5f6e7bc4acd127a8002	2025-10-09T12:01:59-07:00	Add explaination for intersection with MCP
+9aee5ae15dd06098d4692a2f6b4b249062a24828	2025-10-09T13:10:35-07:00	Merge pull request #36 from webmachinelearning/mcp-intersection
+2aee7d010d88da1ecfbd4c0d717ee46d6a05d850	2025-10-09T13:29:38-07:00	Update API syntax to match resolutions
+2365cd85275f93d504e8cee9a77a32bab20644ce	2025-10-09T15:50:18-07:00	Merge pull request #37 from webmachinelearning/api-update
+9064cae5ee5b044d109c8933f17c1d9799170573	2025-10-24T17:33:50+03:00	Improve formatting of the explainer (#33)
+fac8e9618ae9b7eef538fd9e5864c418cd061b33	2025-10-24T18:05:42+03:00	Minor formatting corrections (#42)
+b21bc5089ca4c73a00e6d5eaf4a3f6830be29642	2025-11-02T13:43:26-08:00	Update proposal.md based on resolved API
+8a1626d0186ece42d4d6f272f8836cb475da7a18	2025-11-02T14:33:50-08:00	Merge pull request #46 from webmachinelearning/explainer-update-1
+38bdb673547ce3d7688f7da6981a49bca13f7363	2025-11-02T14:44:29-08:00	Add API for elicitation
+7946eb454ee494f992bf970ea039aa7875e2d2e7	2025-11-14T15:57:11-08:00	initial commit
+6c0b509e38d72e1c5fc4a1389746ac9d65a48450	2025-11-14T16:02:44-08:00	add toc
+adbc2c5374ec898d54bc312a871f9de62e582671	2025-11-17T14:32:33+09:00	Fix provideContext API example
+11b6422503fc42863dd55bb0733fbc99c4ed265a	2025-11-21T16:17:10-08:00	soften some language used
+c389e904f9cad2d5e4fdcf94746d9b5a1d72ba19	2025-11-21T16:30:07-08:00	Update security considerations: rename "Input Injection Attacks" to "Attacks on Tool Implementations" and clarify associated risks and examples
+ae8854557ef70087d91d1fcff3f8211d00cab3e1	2025-11-21T17:09:37-08:00	Refine misalignment types and clarify ambiguous tool semantics in security considerations
+883a585d7e38116db3247ea66287ce036476e0ad	2025-11-21T17:15:47-08:00	standardize assets at risk
+912e874d0be550e107b04a4267e30fff78958722	2025-11-21T17:34:06-08:00	address comments around open questions
+d0ef216be8239e0f6147771ec300a21a0f279ea1	2025-11-24T16:06:06-08:00	Clarify implications of agent behavior on user profiling and cross-site tracking in security considerations
+8004c0f1a3d18238dc70c62e0ba1cf20312f1eb9	2025-11-24T16:30:56-08:00	add acknowledgement
+1bd3f648dff2648a93f7951b2735be071bf4638c	2025-11-24T16:42:12-08:00	add acknowledgements
+aece7f6e84af2cb81bbe2122136325724e346b3d	2025-11-24T16:44:16-08:00	Revise contribution guidelines and update references in security considerations document
+6f986e54213e595b51769d8169562926c101b048	2025-11-25T11:56:56-08:00	improve wording
+b707fd46203e6082e18d84dfcdc54c74334b3197	2025-11-25T14:02:10-08:00	update title
+fa01d10b5cbb08e4265345ea848ed9a473851b93	2025-11-25T14:02:28-08:00	fix title
+051842ebd819e9f49b61cff790add3be3d5eef96	2025-11-26T14:26:31-08:00	Update examples based on resolutions.
+7c80e862667f88d756f2397e21a220c5fe8c77ce	2025-12-04T15:54:35-08:00	remove attacks on tool implementation for a separate PR in the future
+95b9f0f62177215e7deb4539211f9d0cf01993e6	2025-12-04T15:57:32-08:00	remove toc that doesn't exist
+b6acc1a110667cfcaa2437caa44eb03375a466d7	2025-12-04T15:59:50-08:00	fix some boldings
+69369360cd08fbe8352f9213c7e89cd771c83ecb	2025-12-04T16:00:23-08:00	add new line
+0620a0b5ef2afbc64bd50e4b545552a3b33d05d7	2025-12-04T17:29:49-08:00	Merge pull request #55 from victorhuangwq/main
+b55e5ba55bea7560591cd5d91af0a2d771e17a10	2025-12-08T14:41:53-08:00	add section on tool implementation as attack targets
+c4af04c3e89867900e45d19c4cee7f144d2ed12d	2025-12-08T14:47:14-08:00	enhance clarity on attack vectors and surface in WebMCP documentation
+e8b1417b21ea7640aeaaf1b76fa044e83cd9fb9f	2025-12-09T15:38:34-08:00	refine threat actor description in security considerations
+4df7b5d1ecd61b2d51fdb2d09f4b6ec49e0839be	2025-12-11T17:45:10-08:00	Merge pull request #59 from victorhuangwq/main
+4dab63fe6906b7a67a52c9562d0c11c24f0cc572	2026-01-06T09:19:15Z	Fix Javascript examples in proposal
+f76a1101e49577356a65670759c5e73eca170654	2026-01-20T09:43:12-08:00	Merge pull request #61 from beaufortfrancois/patch-2
+92080f3386dc4fd58410601ea7a244d7b84b806c	2026-01-26T15:57:16+02:00	Add initial spec draft and set up CI/CD
+dd5f39729fdb52f05f2c8c8d19ac5f9ff9c84594	2026-01-26T15:57:16+02:00	Add initial editors
+2d9e30792c14a3edd220834b7fd2ca5ef25f3609	2026-01-30T15:23:46+02:00	Add acknowledgements
+ee1a39b22965b727a39d003244605a47e6070987	2026-02-02T13:05:30-08:00	Merge pull request #72 from webmachinelearning/ack
+66f71da0811ec1fffc7696d9c48375812c027231	2026-02-05T09:46:48-05:00	Add some standard styles in preparation for spec text
+7267967a9ec19b852bc2d87326e1a0dc5eedb215	2026-02-05T08:29:44-08:00	Adds a Makefile to improve Bikeshed quality of life
+cd5554b9f96dbafd84a3a8b6419b13bde5d51f0a	2026-02-10T08:54:46-08:00	Update Makefile
+a7191cb0e5273b2e9d3a38f4f9c15896ad779018	2026-02-10T09:48:08-08:00	Merge pull request #77 from webmachinelearning/add-makefile
+40b77e2a95b69f04a528bedd91786875e2b1f2af	2026-02-10T15:35:22-08:00	Revert "Update Makefile"
+bb006122b70baeb9903d4294eb0af23136416591	2026-02-10T15:36:20-08:00	Merge pull request #78 from webmachinelearning/revert-makefile
+2f5026cd775c3bf82c16d1a47e9fb288be7aa236	2026-02-10T15:40:52-08:00	Update Makefile
+464b3dd186d98371fcb9aeb9495509ffd5c2cd8f	2026-02-10T15:41:28-08:00	Merge pull request #79 from webmachinelearning/update-makefile-2
+a9344914bcd2296f6071e0ff3f80df3de5fc461d	2026-02-10T15:43:31-08:00	Add acknowledgements
+e1439bbdc74ac681e5b024c41ff40d74f55c4957	2026-02-10T15:43:38-08:00	Add some standard styles in preparation for spec text
+78ae4d756a16855559cc05f252e85a8d7420eb48	2026-02-10T15:44:30-08:00	Merge pull request #80 from webmachinelearning/cherry-picks
+2b11f27963ad398944f44d998448116b0c858942	2026-02-11T14:53:18-05:00	Add initial WebIDL to spec.
+ba7a8853aa10fab8360e21c2ca9f7ef583c9e901	2026-02-11T14:53:18-05:00	Add tool annotations.
+349ababffac5c0975516b5a1e1a6f7b0b006611b	2026-02-11T14:53:18-05:00	Add definitions.
+1680392d6be6b88d9c2581a63c486918d000c066	2026-02-11T14:53:18-05:00	Fix WebIDL error.
+987678113c1fc77e199b628f4ca0529546ccdd62	2026-02-11T14:53:18-05:00	Respond to PR feedback.
+98b1ba3fe974e1aa43455b9b3404b5392a7210c5	2026-02-11T16:28:34-05:00	Remove unnecessary dict dfns, and add correct method dfns
+971aa24aea2afd865ca8607ba79a486fc7429360	2026-02-12T08:28:24-05:00	Add WebIDL and descriptions to spec draft
+41dd8292ac19db6a43ea58aefc8fcb4662742411	2026-02-19T11:17:30-05:00	Initialize a Navigator's modelContext member
+3e1d68bf3dbbc408d7d484a2a50fd373b3fe3e17	2026-02-23T09:49:20-05:00	Initialize a Navigator's `modelContext` member
+93b31abc21d928440e7c7e1692246ad07d650f9a	2026-02-24T11:46:37-05:00	Add a mitigations section to S&P considerations
+f56be1d59b1d8a4060239176e1a965c41c459329	2026-02-24T11:49:53-05:00	Remove accidental change
+dc2f99d805723e81462d6e2ffecdcf8aa9f7d897	2026-02-26T20:09:30-05:00	Remove section
+1ffeb6a601ac885a0063d937b0fa00e147deabff	2026-02-26T20:10:01-05:00	Also remove ToC entry
+ab7630d2b1790689aac6d37cfd31891acad347ec	2026-02-26T20:28:08-05:00	Add a mitigations section to S&P considerations
+643b92c3e5fb5be34621ae4fa2d32f874071e697	2026-03-02T15:59:55-05:00	Add basic tool infra: complete `registerTool()` and `unregisterTool()`
+c6c24d40eb370b5a7f90c26f454c7cfa9b8acf68	2026-03-03T11:22:16-05:00	Remove Chromium note in serialization algorithm (#124)
+3da78adc967f19469a0e49bf53a625a4aacd935b	2026-03-04T10:21:57-05:00	Set default value for ToolAnnotations readOnlyHint (#123)
+fe84c677c381f1f526af6e015f25d34684b0b45c	2026-03-05T14:47:52-05:00	Remove `provideContext()` and `clearContext()` (#132)
+ebfccbec9fb48feb68d3d037730012e8b51fe079	2026-03-09T14:16:04-04:00	Declarative API Explainer (#76)
+529ac93b63745eb81b45a48aad8793a1102913bb	2026-03-23T07:50:55-04:00	Add missing word ("WebMCP") to explainer (#149)
+6708e3399871458c07ed4cddc04057dec2549955	2026-03-26T11:06:16-04:00	`registerTool()` takes an optional `AbortSignal` (#147)
+90daeee7b123f0fc421d76bbba5d5b1353f328a2	2026-03-27T08:19:25-04:00	Remove `unregisterTool()` from proposal explainer (#156)
+138091043124a5662333b5863b482fe969de1718	2026-04-09T14:11:05-04:00	Codify MCP tool name requirements and add tool title (#152)
+a383af10effa5b635a1ecd99c859f60820a622cf	2026-04-17T11:50:12-04:00	Add untrusted annotation to proposed mitigations (#137)
+e1ddba113cd3fdb946d80541d183c9c358ba6b15	2026-04-23T17:49:20-04:00	Add basic page observation infrastructure (#164)
+a99ffd258c8eff351d219433911ce4f09ee128e0	2026-04-23T18:03:55-04:00	Spec untrustedContentHint (#169)
+986f4611d6696843c4ba86c96b7623a5cf2e5413	2026-05-18T22:19:02-04:00	Scope `ModelContext` to `Document`, and handle detached documents (#177)
+a816d2e91d762adb9f3a07e1d5ce81f462ccd45a	2026-05-20T07:50:31-04:00	Spec `toolchange` event processing and permission policy integration (#179)
+c7b5c7023f6e6a1c7a2495946136eb19b3109ae6	2026-05-27T11:04:31-04:00	Move the `modelContext` getter to `Document` (#184)
+1a0cb9387da43dc3551a7f999bcd6dd55d35b646	2026-05-27T11:48:59-04:00	Explainer updates/rewrite (#183)
+7ff82c1899349d254f521b62ab85544499fa072b	2026-05-27T23:56:26-04:00	Port security & privacy considerations from the explainer to the spec (#181)
+aed6af838286bcbea3193f2561665da515e43baf	2026-05-29T11:26:31-07:00	Update security and privacy considerations reference link in README and remove md file since that has been moved over (#194)
+825f4063b8938439490abdf5484d88ab59cf9072	2026-05-30T10:52:05-04:00	Clarify why imperative and declarative must exist
+bc9c77ab2544718b048d72e5d0f6881010a7d5ac	2026-06-02T12:18:59-07:00	Convert MCP flow diagram to mermaid (#189)
+4733c275a8c288b36eedef9fb4bbe7838e7e1a38	2026-06-05T12:58:47-04:00	Gate `registerTool()` on document.domain being disabled (#197)
+fb1cc2c46a363e871dbf492b6cf0aa548f69b711	2026-06-08T13:25:25-04:00	Add a section for private browsing to S&P considerations (#201)
+ec37ec4878e08a166f1460ac40b1ca4ab8096d14	2026-06-08T16:27:49-04:00	Make `registerTool()` return a promise (#200)
+b8617aa45bd40e8267668fdbddaf19553429e98d	2026-06-09T13:22:51-04:00	Fix typos in two explainer files (#203)
+067a1c90b5364b02742ef6ce40e5cf5a6497b445	2026-06-11T11:30:31-04:00	Remove `ModelContextClient` for now (#205)
+eb88672bce6329868e3867a5414273264de2ebeb	2026-06-15T14:41:04-04:00	Fix dictionary links and normalize dl/dt blocks
+7addecfd30d6128b2e93ae193b37c9478a3951ee	2026-06-16T12:39:33-04:00	Add security and privacy questionnaire (#195)
+bc93f030aa24d14eb24d5cb6dfc373c0b4aae0d8	2026-06-17T09:50:26-04:00	Reject registerTool() promise when signal is aborted (#202)
+0b676d27a08aafd3b4f8a709756eeeab342fd9bd	2026-06-24T11:46:50-04:00	Bump actions/checkout from 6 to 7 in the actions-org group (#209)
+5b1520eb21f6f011d292678d601d6c7f059cb2fe	2026-07-08T12:00:36-04:00	Mention webmcp-types npm package in README (#220)
+8aecdb862eec32b065a462b5a5e39937dcbc3dc1	2026-07-10T08:03:46-04:00	Add test suite link (#221)
+1aece7c5258dbd17d4e50a7753132790c8d7925b	2026-07-20T14:24:29Z	Clarify tool visibility algorithm
+d29b8d7d8d134749aca49bfd18222fe5d8671553	2026-07-21T13:44:45-04:00	Move `annotations` into a separate object, in preparation for `getTools()` (#225)
+58016782fa379c25bc9584433f29127a9855647b	2026-07-21T15:22:55-04:00	Spec the `getTools()` API (#223)
+3678f646fc0605ef37a76007c5567d31b6989e2c	2026-07-28T13:28:12-04:00	Normalize `this` access and signal access (#228)
+c3a63b22341b439ed66cd7d3d71367abccdb0554	2026-08-12T14:22:05-04:00	Add implementation-status.md to track browser implementation status (#235)
+7aa8235b23be553f5ce40904883201a267297007	2026-08-14T10:47:37-04:00	Validate `exposedTo` before registering `AbortSignal` algorithm (#240)
+f303c458754a5dbdacf47c72dab7f177bef884db	2026-08-14T11:06:12-04:00	Spec the `executeTool()` API (#226)
+384e11010a690c3605e9556f63732e5ea19165b7	2026-08-14T11:17:50-04:00	Change `RegisteredTool#inputSchema` type from `DOMString` to `object` (#241)
+7abca24665c438a47e6770a3d1b470ca5e965764	2026-08-17T11:27:18-04:00	Clarify origin scope in example
+3aafb9cdde39ecdc7e5b7b9cbdcfe7722a6afcde	2026-08-17T13:15:02-04:00	Fix small bugs in tool registration, notification, and observation (#244)
+a724ab1ddb7ea770f425934de4d9424e85599940	2026-08-17T13:23:56-04:00	Accept an object in executeTool() instead of a JSON string (#246)
+9c7ce3e35e9124e46c4f21fc12dce38b9a5753b9	2026-08-18T15:06:37-04:00	Fix mismatching execution parameters (#250)
+83e893ac3eaa8d72610062933c33a79494bf4fb5	2026-08-19T14:05:47-04:00	Spec `AbortSignal` integration with tool execution (#247)
+fca7462d703c628f4cf110ddadd51e8e5b52a579	2026-08-19T14:05:47-04:00	Preserve in-flight executions after unregistration (#248)
+bd99438557264b00c496fbff3ef67da248322d23	2026-08-25T20:48:50-04:00	Drop closed executeTool issue links from explainers. (#259)
+2ac94f537214c4b84f55eb03b644198be44289f0	2026-08-26T13:09:20-04:00	Add ChatGPT Desktop to implementation status (#258)
+41d12f057167ccf5954dbcf49d99502cb6c84491	2026-08-26T16:22:29-04:00	Clarify sentence regarding origins and `exposedTo` (#260)
+55fb7ee2289679fbbbf3b1f8fc2f92daf96e6ba9	2026-09-02T10:06:42-04:00	Update implementation status to include agent support (#283)
+7b3f50f31848b529e69bedbbdf8da0edccba055f	2026-09-03T14:22:05-04:00	Add `consequentialHint` to `ToolAnnotations` (#217)
+5f0c7379fbbb81372ab5b674ccc455c32281315f	2026-09-04T08:48:06-04:00	Refactor sequence diagrams (#295)
+f389d31121d3f1d4c2e2945fe9958aabd05ea6c3	2026-09-04T09:03:55-04:00	Add "Best Practices" section and guidance on tool registration to README (#294)
+3204721c91b8a3e6aaac48bae7dce488e6eb91d7	2026-09-04T09:16:45-04:00	Fix the JSON-LD media type in the declarative explainer (#285)
+16861c67947e1c675eed65e05950ae80bacb11fe	2026-09-04T09:25:52-04:00	Update stale examples and references to the current modelContext API (#284)
+2092f258e3e46aa5d6ebf370ba4f9c8a498ebc4d	2026-09-04T11:16:32-04:00	Add flag for local development in Chromium browsers (#280)
+50c4b7fd6c4402731271649bc544b662b061ed44	2026-09-04T16:29:17-04:00	Explicitly document that headless use cases are in scope (#296)
