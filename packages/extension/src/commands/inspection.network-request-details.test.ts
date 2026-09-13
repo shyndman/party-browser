@@ -15,12 +15,17 @@ interface NetworkRequestDetailsData {
   encoding: string;
 }
 
+interface NetworkRequestsData {
+  requests: Array<{ id: string }>;
+}
+
 function createCommands(request: NetworkRequest): InspectionCommands {
   const sessionManager = {
     resolveTargetTab: async () => 7,
   };
   const networkCapture = {
     getRequest: (tabId: number, id: string) => tabId === 7 && id === request.id ? request : undefined,
+    getRequests: (tabId: number) => tabId === 7 ? [request] : [],
   };
   return new InspectionCommands(sessionManager as never, networkCapture as never, {} as never, {} as never);
 }
@@ -42,12 +47,30 @@ function makeRequest(responseBytes: number[]): NetworkRequest {
   };
 }
 
+test('network request list exposes only the PartyBrowser capture identifier', async () => {
+  const commands = createCommands(makeRequest([226, 130, 172]));
+  const result = await commands.getNetworkRequests({ sessionId: 'session-1' });
+  const data = result.data as NetworkRequestsData;
+
+  assert.deepEqual(data.requests, [{
+    id: 'request-7',
+    url: 'https://example.test/data',
+    method: 'POST',
+    type: 'xmlhttprequest',
+    status: 200,
+    timestamp: 1,
+    error: null,
+  }]);
+  assert.equal('requestId' in data.requests[0], false);
+});
+
 test('network request details defaults body decoding to UTF-8', async () => {
   const commands = createCommands(makeRequest([226, 130, 172]));
   const result = await commands.getNetworkRequestDetails({ sessionId: 'session-1', id: 'request-7' });
   const details = result.data as NetworkRequestDetailsData;
 
   assert.equal(details.encoding, 'utf-8');
+  assert.equal('requestId' in details, false);
   assert.equal(details.responseBody, '€');
   assert.equal(details.requestBody?.raw?.[0].body, 'hi');
   assert.deepEqual(details.requestHeaders, [{ name: 'content-type', value: 'text/plain' }]);

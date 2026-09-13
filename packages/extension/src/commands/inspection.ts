@@ -112,7 +112,7 @@ export class InspectionCommands {
     const logs = this.networkCapture.getRequests(tabId, filter);
 
     const formatted = logs.map((r) => ({
-      id: r.requestId,
+      id: r.id,
       url: r.url,
       method: r.method,
       type: r.type,
@@ -148,7 +148,6 @@ export class InspectionCommands {
       success: true,
       data: {
         id: request.id,
-        requestId: request.requestId,
         url: request.url,
         method: request.method,
         type: request.type,
