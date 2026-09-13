@@ -138,10 +138,13 @@ node dist/index.js
 2. Ensure the extension shows "Connected" status
 3. Have at least one browser tab open
 
-Session targeting note:
-- PartyBrowser binds to a single session tab when the extension connects to the MCP transport.
-- Focus the tab you want to automate before enabling/connecting the extension.
-- Per-call `tabId` overrides are not supported in this mode.
+Session targeting:
+- Each approved session controls its own tab. Takeover uses the active tab when you approve the request.
+- Takeover moves the tab into a gray group named `✨`. Release restores its original group and position.
+- If takeover removed a single-tab group, release recreates its saved name, color, and collapsed state.
+- If an original group disappears later, release leaves the tab ungrouped instead of recreating that group.
+- Tab groups require Firefox 139 or later.
+- Per-call `tabId` overrides are not supported.
 
 ### Keep Hub Running with systemd (user service)
 

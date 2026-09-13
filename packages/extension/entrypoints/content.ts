@@ -22,7 +22,10 @@ export default defineContentScript({
 
     logPageTelemetry('content_script_attached');
     const commandHandlers = createCommandHandlers();
-    const messageListener = createRuntimeMessageListener(commandHandlers, consoleCapture);
+    const messageListener = createRuntimeMessageListener(
+      commandHandlers,
+      consoleCapture,
+    );
 
     browser.runtime.onMessage.addListener(messageListener);
 

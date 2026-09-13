@@ -61,7 +61,7 @@ export default defineConfig({
     browser_specific_settings: {
       gecko: {
         id: 'partybrowser@partybrowser.io',
-        strict_min_version: '109.0'
+        strict_min_version: '139.0'
       }
     }
   },

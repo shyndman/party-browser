@@ -4,6 +4,7 @@ import test from 'node:test';
 import { SessionManager } from './session-manager';
 import { SessionLeaseKinds, SessionLeaseOwnerships } from '@/types/session';
 import { ErrorCodes, CodedError } from '@/utils/errors';
+import type { TabGroups } from 'webextension-polyfill';
 
 type Listener = (...args: any[]) => void;
 
@@ -26,6 +27,15 @@ function createEventEmitter() {
     },
   };
 }
+
+type MockTab = {
+  id: number;
+  url?: string;
+  windowId: number;
+  index: number;
+  groupId: number;
+  pinned: boolean;
+};
 
 type BrowserMockState = {
   navigationOnCompleted: ReturnType<typeof createEventEmitter>;
@@ -50,6 +60,10 @@ type BrowserMockState = {
   focusedWindowId: number;
   focusedTabId: number;
   focusedTabUrl: string;
+  tabs: Map<number, MockTab>;
+  groups: Map<number, TabGroups.TabGroup>;
+  beforeGroupUpdate?: () => Promise<void>;
+  beforeUngroup?: () => Promise<void>;
 };
 
 function installBrowserMock(): BrowserMockState {
@@ -61,7 +75,9 @@ function installBrowserMock(): BrowserMockState {
   let nextTabId = 100;
   let nextWindowId = 500;
 
-  const existingTabs = new Map<number, { id: number; url?: string; windowId: number }>();
+  const existingTabs = new Map<number, MockTab>();
+  const groups = new Map<number, TabGroups.TabGroup>();
+  let nextGroupId = 1000;
   const existingWindows = new Map<number, { id: number; tabIds: number[] }>();
 
   const createdWindowArgs: BrowserMockState['createdWindowArgs'] = [];
@@ -79,24 +95,49 @@ function installBrowserMock(): BrowserMockState {
     focusedWindowId: 1,
     focusedTabId: 42,
     focusedTabUrl: 'https://focused.example',
+    tabs: existingTabs,
+    groups,
   };
 
   existingTabs.set(browserState.focusedTabId, {
     id: browserState.focusedTabId,
     url: browserState.focusedTabUrl,
     windowId: browserState.focusedWindowId,
+    index: 0,
+    groupId: -1,
+    pinned: false,
   });
   existingWindows.set(browserState.focusedWindowId, {
     id: browserState.focusedWindowId,
     tabIds: [browserState.focusedTabId],
   });
 
+  function moveTab(tabId: number, windowId: number, index: number): MockTab {
+    const tab = existingTabs.get(tabId);
+    if (!tab) throw new Error('tab not found');
+    const destination = [...existingTabs.values()]
+      .filter((candidate) => candidate.id !== tabId && candidate.windowId === windowId)
+      .sort((a, b) => a.index - b.index);
+    destination.splice(index < 0 ? destination.length : index, 0, tab);
+    tab.windowId = windowId;
+    destination.forEach((member, position) => { member.index = position; });
+    return tab;
+  }
+
+  function setGroup(tab: MockTab, groupId: number): void {
+    const oldGroupId = tab.groupId;
+    tab.groupId = groupId;
+    if (![...existingTabs.values()].some((member) => member.groupId === oldGroupId)) {
+      groups.delete(oldGroupId);
+    }
+  }
+
   (globalThis as any).browser = {
     tabs: {
       onRemoved: tabOnRemoved,
       async create({ url }: { url: string }) {
         nextTabId += 1;
-        const tab = { id: nextTabId, url, windowId: nextWindowId + 1 };
+        const tab = { id: nextTabId, url, windowId: nextWindowId + 1, index: 0, groupId: -1, pinned: false };
         existingTabs.set(tab.id, tab);
         return tab;
       },
@@ -108,7 +149,7 @@ function installBrowserMock(): BrowserMockState {
         if (!tab) {
           throw new Error('tab not found');
         }
-        return tab;
+        return { ...tab };
       },
       async remove(tabId: number) {
         const tab = existingTabs.get(tabId);
@@ -124,7 +165,10 @@ function installBrowserMock(): BrowserMockState {
 
         win.tabIds = win.tabIds.filter((id) => id !== tabId);
       },
-      async query(query: { windowId?: number; active?: boolean }) {
+      async query(query: { windowId?: number; active?: boolean; groupId?: number }) {
+        if (query.groupId !== undefined) {
+          return [...existingTabs.values()].filter((tab) => tab.groupId === query.groupId).map((tab) => ({ ...tab }));
+        }
         const focusedTab = existingTabs.get(browserState.focusedTabId);
         if (
           query.active &&
@@ -140,6 +184,57 @@ function installBrowserMock(): BrowserMockState {
         }
 
         return Array.from(existingTabs.values()).filter((tab) => tab.windowId === query.windowId);
+      },
+      async group(options: { tabIds: number; groupId?: number; createProperties?: { windowId?: number } }) {
+        const tab = existingTabs.get(options.tabIds);
+        if (!tab) throw new Error('tab not found');
+        const groupId = options.groupId ?? ++nextGroupId;
+        if (options.groupId !== undefined && !groups.has(groupId)) throw new Error('group not found');
+        if (options.groupId === undefined) {
+          groups.set(groupId, { id: groupId, windowId: tab.windowId, color: 'grey', collapsed: false });
+        }
+        const members = [...existingTabs.values()].filter((member) => member.groupId === groupId);
+        setGroup(tab, groupId);
+        tab.pinned = false;
+        if (members.length) {
+          moveTab(tab.id, groups.get(groupId)!.windowId, Math.max(...members.map((member) => member.index)) + 1);
+        }
+        return groupId;
+      },
+      async ungroup(tabId: number) {
+        await browserState.beforeUngroup?.();
+        const tab = existingTabs.get(tabId);
+        if (!tab) throw new Error('tab not found');
+        setGroup(tab, -1);
+      },
+      async move(tabId: number, options: { windowId?: number; index: number }) {
+        const tab = existingTabs.get(tabId);
+        if (!tab) throw new Error('tab not found');
+        return { ...moveTab(tabId, options.windowId ?? tab.windowId, options.index) };
+      },
+      async update(tabId: number, options: { pinned?: boolean }) {
+        const tab = existingTabs.get(tabId);
+        if (!tab) throw new Error('tab not found');
+        Object.assign(tab, options);
+        return { ...tab };
+      },
+    },
+    tabGroups: {
+      TAB_GROUP_ID_NONE: -1,
+      async get(groupId: number) {
+        const group = groups.get(groupId);
+        if (!group) throw new Error('group not found');
+        return { ...group };
+      },
+      async query() {
+        return [...groups.values()].map((group) => ({ ...group }));
+      },
+      async update(groupId: number, properties: TabGroups.UpdateUpdatePropertiesType) {
+        await browserState.beforeGroupUpdate?.();
+        const group = groups.get(groupId);
+        if (!group) throw new Error('group not found');
+        Object.assign(group, properties);
+        return { ...group };
       },
     },
     webNavigation: {
@@ -167,7 +262,7 @@ function installBrowserMock(): BrowserMockState {
         nextWindowId += 1;
         nextTabId += 1;
 
-        const tab = { id: nextTabId, url: options.url, windowId: nextWindowId };
+        const tab = { id: nextTabId, url: options.url, windowId: nextWindowId, index: 0, groupId: -1, pinned: false };
         if (browserState.createWindowWithoutTab) {
           existingWindows.set(nextWindowId, { id: nextWindowId, tabIds: [] });
         } else {
@@ -461,41 +556,25 @@ test('takeover prevents two sessions from leasing the same focused tab', async (
     },
   );
 });
-test('concurrent takeovers recheck tab ownership after settling', async () => {
+test('concurrent takeover cannot claim a tab during another setup', async () => {
   installBrowserMock();
   const manager = new SessionManager();
-  let entered = 0;
   let releaseSettling!: () => void;
-  let resolveBothEntered!: () => void;
-  const bothEntered = new Promise<void>((resolve) => {
-    resolveBothEntered = resolve;
-  });
-  const settlingReleased = new Promise<void>((resolve) => {
-    releaseSettling = resolve;
-  });
-
+  let entered!: () => void;
+  const settlingEntered = new Promise<void>((resolve) => { entered = resolve; });
+  const settlingReleased = new Promise<void>((resolve) => { releaseSettling = resolve; });
   const managerInternals = manager as unknown as { tabLifecycle: { waitForTabToSettle: () => Promise<void> } };
   managerInternals.tabLifecycle.waitForTabToSettle = async () => {
-    entered += 1;
-    if (entered === 2) {
-      resolveBothEntered();
-    }
+    entered();
     await settlingReleased;
   };
-
   const first = manager.createTakeoverLease('session-one');
-  const second = manager.createTakeoverLease('session-two');
-  await bothEntered;
+  await settlingEntered;
+  await assert.rejects(manager.createTakeoverLease('session-two'), { errorCode: ErrorCodes.COMMAND_FAILED });
   releaseSettling();
-
-  const results = await Promise.allSettled([first, second]);
-  assert.equal(results.filter((result) => result.status === 'fulfilled').length, 1);
-  const rejected = results.find((result) => result.status === 'rejected');
-  assert.ok(rejected && rejected.reason instanceof CodedError);
-  assert.equal((rejected as PromiseRejectedResult).reason.errorCode, ErrorCodes.COMMAND_FAILED);
-  const firstLease = manager.getLease('session-one');
-  const secondLease = manager.getLease('session-two');
-  assert.equal((firstLease !== null) !== (secondLease !== null), true);
+  await first;
+  assert.equal(manager.hasLease('session-one'), true);
+  assert.equal(manager.hasLease('session-two'), false);
 });
 
 test('takeover tab close revokes lease and preserves browser window', async () => {
@@ -547,4 +626,143 @@ test('revokeLease is idempotent under repeated calls', async () => {
 
   assert.equal(first, true);
   assert.equal(second, false);
+});
+
+function installGroupedTakeover(singleton: boolean) {
+  const state = installBrowserMock();
+  const originalGroup: TabGroups.TabGroup = {
+    id: 7, windowId: 1, title: 'Research', color: 'cyan', collapsed: true,
+  };
+  state.groups.set(originalGroup.id, { ...originalGroup });
+  Object.assign(state.tabs.get(42)!, { index: 1, groupId: 7 });
+  state.tabs.set(41, { id: 41, windowId: 1, index: 0, groupId: -1, pinned: false });
+  state.tabs.set(43, { id: 43, windowId: 1, index: 2, groupId: singleton ? -1 : 7, pinned: false });
+  const manager = new SessionManager();
+  const internals = manager as unknown as { tabLifecycle: { waitForTabToSettle: () => Promise<void> } };
+  internals.tabLifecycle.waitForTabToSettle = async () => undefined;
+  return { state, manager, originalGroup };
+}
+
+test('takeover recreates only its removed singleton with saved appearance and position', async () => {
+  const { state, manager, originalGroup } = installGroupedTakeover(true);
+  await manager.createTakeoverLease('singleton');
+  const controlledGroup = state.tabs.get(42)!.groupId;
+  assert.notEqual(controlledGroup, originalGroup.id);
+  assert.equal(state.groups.has(originalGroup.id), false);
+  await browser.tabs.move(42, { index: 2 });
+  await manager.revokeLease('singleton', 'test');
+  const restoredTab = state.tabs.get(42)!;
+  assert.equal(restoredTab.index, 1);
+  assert.deepEqual(state.groups.get(restoredTab.groupId), {
+    ...originalGroup, id: restoredTab.groupId,
+  });
+  assert.equal(state.groups.has(controlledGroup), false);
+});
+
+test('takeover rejoins surviving group without overwriting user appearance changes', async () => {
+  const { state, manager } = installGroupedTakeover(false);
+  await manager.createTakeoverLease('surviving');
+  state.groups.get(7)!.title = 'Renamed by user';
+  state.groups.get(7)!.collapsed = false;
+  await manager.revokeLease('surviving', 'test');
+  assert.equal(state.tabs.get(42)!.groupId, 7);
+  assert.equal(state.tabs.get(42)!.index, 1);
+  assert.equal(state.groups.get(7)!.title, 'Renamed by user');
+  assert.equal(state.groups.get(7)!.collapsed, false);
+});
+
+test('takeover does not recreate a multi-tab group deleted later', async () => {
+  const { state, manager } = installGroupedTakeover(false);
+  await manager.createTakeoverLease('deleted-later');
+  await browser.tabs.ungroup(43);
+  await manager.revokeLease('deleted-later', 'test');
+  assert.equal(state.tabs.get(42)!.groupId, -1);
+  assert.equal(state.tabs.get(42)!.index, 1);
+  assert.equal(state.groups.size, 0);
+});
+
+test('initially ungrouped pinned target regains pinning and position', async () => {
+  const { state, manager } = installGroupedTakeover(true);
+  state.tabs.get(42)!.groupId = -1;
+  state.tabs.get(42)!.pinned = true;
+  state.groups.clear();
+  await manager.createTakeoverLease('pinned');
+  assert.equal(state.tabs.get(42)!.pinned, false);
+  await browser.tabs.move(42, { index: 2 });
+  await manager.revokeLease('pinned', 'test');
+  assert.equal(state.tabs.get(42)!.groupId, -1);
+  assert.equal(state.tabs.get(42)!.pinned, true);
+  assert.equal(state.tabs.get(42)!.index, 1);
+});
+
+test('failed group setup rolls back placement and frees the tab claim', async () => {
+  const { state, manager } = installGroupedTakeover(true);
+  const failure = new Error('group update failed');
+  state.beforeGroupUpdate = async () => {
+    state.beforeGroupUpdate = undefined;
+    throw failure;
+  };
+  await assert.rejects(manager.createTakeoverLease('failed'), (error) => error === failure);
+  assert.equal(manager.hasLease('failed'), false);
+  assert.equal(state.groups.get(state.tabs.get(42)!.groupId)!.title, 'Research');
+  await manager.createTakeoverLease('retry');
+  assert.equal(manager.hasLease('retry'), true);
+});
+
+test('release during group setup rolls back before freeing the target', async () => {
+  const { state, manager } = installGroupedTakeover(true);
+  let enter!: () => void;
+  let resume!: () => void;
+  const entered = new Promise<void>((resolve) => { enter = resolve; });
+  const resumed = new Promise<void>((resolve) => { resume = resolve; });
+  state.beforeGroupUpdate = async () => {
+    state.beforeGroupUpdate = undefined;
+    enter();
+    await resumed;
+  };
+  const creating = manager.createTakeoverLease('cancelled');
+  const rejected = assert.rejects(creating, { errorCode: ErrorCodes.COMMAND_FAILED });
+  await entered;
+  const releasing = manager.revokeLease('cancelled', 'cancel');
+  await assert.rejects(manager.createTakeoverLease('racer'), { errorCode: ErrorCodes.COMMAND_FAILED });
+  resume();
+  await rejected;
+  assert.equal(await releasing, true);
+  assert.equal(manager.hasLease('cancelled'), false);
+  assert.equal(state.groups.get(state.tabs.get(42)!.groupId)!.title, 'Research');
+  await manager.createTakeoverLease('after-cancel');
+});
+
+test('tab remains exclusive until asynchronous restoration completes', async () => {
+  const { state, manager } = installGroupedTakeover(false);
+  await manager.createTakeoverLease('releasing');
+  let enter!: () => void;
+  let resume!: () => void;
+  const entered = new Promise<void>((resolve) => { enter = resolve; });
+  const resumed = new Promise<void>((resolve) => { resume = resolve; });
+  state.beforeUngroup = async () => {
+    state.beforeUngroup = undefined;
+    enter();
+    await resumed;
+  };
+  const releasing = manager.revokeLease('releasing', 'test');
+  await entered;
+  await assert.rejects(manager.createTakeoverLease('too-early'), { errorCode: ErrorCodes.COMMAND_FAILED });
+  resume();
+  await releasing;
+  await manager.createTakeoverLease('after-release');
+});
+
+test('closed target during group setup cannot publish or leak a lease', async () => {
+  const { state, manager } = installGroupedTakeover(true);
+  state.beforeGroupUpdate = async () => {
+    state.beforeGroupUpdate = undefined;
+    state.tabs.delete(42);
+    state.tabOnRemoved.emit(42, { windowId: 1, isWindowClosing: false });
+  };
+  await assert.rejects(manager.createTakeoverLease('closed'));
+  assert.equal(manager.hasLease('closed'), false);
+  state.tabs.set(42, { id: 42, windowId: 1, index: 1, groupId: -1, pinned: false });
+  await manager.createTakeoverLease('new-target');
+  assert.equal(manager.hasLease('new-target'), true);
 });
