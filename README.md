@@ -27,6 +27,7 @@ PartyBrowser is an MCP server + browser extension that allows you to automate yo
 - 👤 Logged In: Uses your existing browser profile, keeping you logged into all your services.
 - 🥷🏼 Stealth: Avoids basic bot detection and CAPTCHAs by using your real browser fingerprint.
 - 🦊 Firefox Support: Build and install the extension in Firefox Developer Edition for cross-browser automation.
+- The toolbar badge shows the number of agents waiting for approval. No badge appears when the count is zero.
 
 ## Usage
 

@@ -147,6 +147,11 @@ export default defineBackground({
       iconManager.updateFromStatus(isConnected, isKillSwitchEnabled);
     });
 
+    mcpBridge.onWaitingRoomChanged((entries) => {
+      iconManager.setWaitingCount(entries.length);
+    });
+    iconManager.setWaitingCount(mcpBridge.getWaitingRoomEntries().length);
+
 
     sessionManager.onLeaseCreated((sessionId, lease) => {
       networkCapture.startCapture(lease.tabId);

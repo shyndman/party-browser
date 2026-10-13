@@ -49,6 +49,13 @@ export class IconManager {
     });
   }
 
+  setWaitingCount(count: number): void {
+    const text = count === 0 ? '' : String(count);
+    void browser.browserAction.setBadgeText({ text }).catch((error: Error) => {
+      console.error('[PartyBrowser] Failed to update waiting-agent badge:', error);
+    });
+  }
+
   /**
    * Get the current icon state
    */
