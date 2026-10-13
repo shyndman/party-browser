@@ -97,13 +97,13 @@ async function executeCommand(
           return commandHandlers.evaluate(params as { script: string });
         case 'snapshot':
           return commandHandlers.snapshot(params as { nextRefStart?: number });
-        case 'select_option':
+        case 'selectOption':
           return commandHandlers.selectOption(params as { element: string; value: string });
-        case 'press_key':
+        case 'pressKey':
           return commandHandlers.pressKey(params as { key: string });
         case 'wait':
           return commandHandlers.wait(params as { time: number });
-        case 'wait_for':
+        case 'waitFor':
           return commandHandlers.waitFor(params as WaitForPayload);
         case 'drag':
           return commandHandlers.drag(params as { startElement: string; endElement: string });

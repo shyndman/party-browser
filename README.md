@@ -60,6 +60,14 @@ Key tools for selector discovery and browser automation:
 
 ## Local Development
 
+### Command Naming
+
+MCP tool names and browser command names on the wire use snake_case.
+Extension command names use camelCase, including messages between the background script and content scripts.
+The extension bridge maps wire commands through `MCP_COMMANDS` in `packages/extension/src/types/messages.ts`.
+For example, `get_console_messages` maps to `getConsoleMessages`, and `wait_for` maps to `waitFor`.
+TypeScript function and method names do not change.
+
 ### Prerequisites
 
 - Node.js 18+ and npm

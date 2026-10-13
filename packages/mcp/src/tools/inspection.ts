@@ -76,7 +76,7 @@ export const networkRequests: Tool = {
   handle: async (context, params = {}, requestId) => {
     try {
       const response = await context.sendSocketMessage(
-        "getNetworkRequests",
+        "get_network_requests",
         { filter: params?.filter },
         { requestId },
       );
@@ -171,7 +171,7 @@ export const networkRequestDetails: Tool = {
     try {
       const { id, encoding } = NetworkRequestDetailsTool.shape.arguments.parse(params);
       const response = await context.sendSocketMessage(
-        "getNetworkRequestDetails",
+        "get_network_request_details",
         { id, encoding },
         { requestId },
       );

@@ -99,10 +99,10 @@ export class CommandHandler {
         case 'navigate':
           result = await this.navigation.navigate(sessionScopedParams as unknown as NavigateParams, { commandId });
           break;
-        case 'go_back':
+        case 'goBack':
           result = await this.navigation.goBack(sessionScopedParams as unknown as GoBackParams, { commandId });
           break;
-        case 'go_forward':
+        case 'goForward':
           result = await this.navigation.goForward(sessionScopedParams as unknown as GoForwardParams, { commandId });
           break;
 
@@ -113,10 +113,10 @@ export class CommandHandler {
         case 'type':
           result = await this.interaction.type(sessionScopedParams as unknown as TypeParams, { commandId });
           break;
-        case 'select_option':
+        case 'selectOption':
           result = await this.interaction.selectOption(sessionScopedParams as unknown as SelectOptionParams, { commandId });
           break;
-        case 'press_key':
+        case 'pressKey':
           result = await this.interaction.pressKey(sessionScopedParams as unknown as PressKeyParams, { commandId });
           break;
         case 'drag':
@@ -128,7 +128,7 @@ export class CommandHandler {
         case 'wait':
           result = await this.interaction.wait(sessionScopedParams as unknown as WaitParams);
           break;
-        case 'wait_for':
+        case 'waitFor':
           result = await this.interaction.waitFor(sessionScopedParams as unknown as WaitForParams);
           break;
 

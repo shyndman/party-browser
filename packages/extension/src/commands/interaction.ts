@@ -75,9 +75,9 @@ export class InteractionCommands {
     options: CommandOptions = {},
   ): Promise<CommandResult> {
     const { element, value } = params;
-    return await this.runActionLifecycle('select_option', params, options, async (targetTabId) => {
+    return await this.runActionLifecycle('selectOption', params, options, async (targetTabId) => {
       return requireSuccessfulCommandResult<{ element?: string; value?: string }>(
-        await this.contentBridge.sendCommand(targetTabId, 'select_option', { element, value }),
+        await this.contentBridge.sendCommand(targetTabId, 'selectOption', { element, value }),
         `Select option failed for ${element}.`,
       ).data ?? { element, value };
     });
@@ -88,9 +88,9 @@ export class InteractionCommands {
    */
   async pressKey(params: PressKeyParams, options: CommandOptions = {}): Promise<CommandResult> {
     const { key } = params;
-    return await this.runActionLifecycle('press_key', params, options, async (targetTabId) => {
+    return await this.runActionLifecycle('pressKey', params, options, async (targetTabId) => {
       return requireSuccessfulCommandResult<{ key?: string }>(
-        await this.contentBridge.sendCommand(targetTabId, 'press_key', { key }),
+        await this.contentBridge.sendCommand(targetTabId, 'pressKey', { key }),
         `Press key failed for ${key}.`,
       ).data ?? { key };
     });
@@ -146,11 +146,11 @@ export class InteractionCommands {
       payload = { mode: 'text_gone', value: params.value, timeout: params.timeout };
     }
 
-    return await this.contentBridge.sendCommand(targetTabId, 'wait_for', payload) as CommandResult;
+    return await this.contentBridge.sendCommand(targetTabId, 'waitFor', payload) as CommandResult;
   }
 
   private async runActionLifecycle<TActionData>(
-    command: 'click' | 'type' | 'select_option' | 'press_key' | 'drag' | 'hover',
+    command: 'click' | 'type' | 'selectOption' | 'pressKey' | 'drag' | 'hover',
     params: { sessionId: string },
     options: CommandOptions,
     dispatch: (targetTabId: number) => Promise<TActionData>,

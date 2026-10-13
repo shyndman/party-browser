@@ -7,7 +7,7 @@ import { networkRequests } from './inspection';
 
 test('networkRequests unwraps wrapped payload', async () => {
   const responses = {
-    getNetworkRequests: {
+    get_network_requests: {
       success: true,
       data: {
         count: 1,
@@ -24,13 +24,9 @@ test('networkRequests unwraps wrapped payload', async () => {
       },
     },
   } as const;
-  let capturedType: string | undefined;
-  let capturedOptions: unknown;
 
   const context = {
-    sendSocketMessage: async (type: keyof typeof responses, _payload: unknown, options: unknown) => {
-      capturedType = type;
-      capturedOptions = options;
+    sendSocketMessage: async (type: keyof typeof responses) => {
       return responses[type];
     },
   } as unknown as Context;
@@ -38,7 +34,6 @@ test('networkRequests unwraps wrapped payload', async () => {
   const result = await networkRequests.handle(context, {}, 'call-123');
   const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
 
-  assert.equal(capturedType, 'getNetworkRequests');
   assert.match(text, /Network Requests \(1 total\)/);
   assert.match(text, /GET/);
   assert.match(text, /ID: req-1/);

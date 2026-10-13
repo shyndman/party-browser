@@ -5,8 +5,8 @@
 
 /// <reference path="../types/global.d.ts" />
 
-import type { CommandName, CommandResult } from '../types/commands';
 import {
+  MCP_COMMANDS,
   ControlCommands,
   ControlEvents,
   type ControlResponseMessage,
@@ -290,7 +290,7 @@ export class McpBridge {
   }): Promise<void> {
     const requestId = this.requireString(message.requestId, 'requestId');
     const sessionId = this.requireString(message.sessionId, 'sessionId');
-    const command = this.requireString(message.command, 'command') as CommandName;
+    const wireCommand = this.requireString(message.command, 'command');
     const payload =
       typeof message.payload === 'object' && message.payload !== null
         ? (message.payload as Record<string, unknown>)
@@ -308,6 +308,22 @@ export class McpBridge {
       });
       return;
     }
+
+    if (!Object.hasOwn(MCP_COMMANDS, wireCommand)) {
+      const error = `Unknown command: ${wireCommand}`;
+      console.error('[PartyBrowser] MCP command rejected.', { requestId, sessionId, command: wireCommand, error });
+      this.send({
+        type: WsMessageKinds.SESSION_RESULT,
+        requestId,
+        sessionId,
+        success: false,
+        error,
+        errorCode: ErrorCodes.COMMAND_FAILED,
+      });
+      return;
+    }
+
+    const command = MCP_COMMANDS[wireCommand as keyof typeof MCP_COMMANDS];
 
     const result = await this.commandHandler.execute(command, payload, sessionId, requestId);
     this.send({

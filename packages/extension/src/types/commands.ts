@@ -59,16 +59,16 @@ export type CommandName =
   | 'evaluate'
   | 'screenshot'
   | 'snapshot'
-  | 'select_option'
+  | 'selectOption'
   | 'wait'
   | 'getTabs'
   | 'getNetworkRequests'
   | 'getNetworkRequestDetails'
   | 'getConsoleMessages'
-  | 'go_back'
-  | 'go_forward'
-  | 'press_key'
-  | 'wait_for'
+  | 'goBack'
+  | 'goForward'
+  | 'pressKey'
+  | 'waitFor'
   | 'drag'
   | 'hover'
   | 'close'
@@ -129,7 +129,7 @@ export type ScreenshotParams = SessionScopedParams;
 export type SnapshotParams = SessionScopedParams;
 
 /**
- * Parameters for select_option command
+ * Parameters for selectOption command
  */
 export interface SelectOptionParams extends SessionScopedParams {
   element: ElementRef;
@@ -176,24 +176,24 @@ export interface GetConsoleMessagesParams extends SessionScopedParams {
 }
 
 /**
- * Parameters for go_back command
+ * Parameters for goBack command
  */
 export type GoBackParams = SessionScopedParams;
 
 /**
- * Parameters for go_forward command
+ * Parameters for goForward command
  */
 export type GoForwardParams = SessionScopedParams;
 
 /**
- * Parameters for press_key command
+ * Parameters for pressKey command
  */
 export interface PressKeyParams extends SessionScopedParams {
   key: string;
 }
 
 /**
- * Payload for wait_for command (no session metadata)
+ * Payload for waitFor command (no session metadata)
  */
 export type WaitForPayload =
   | { mode: 'time'; value: number; timeout?: number }
@@ -201,7 +201,7 @@ export type WaitForPayload =
   | { mode: 'text_gone'; value: string; timeout: number };
 
 /**
- * Parameters for wait_for command
+ * Parameters for waitFor command
  */
 export type WaitForParams = SessionScopedParams & WaitForPayload;
 

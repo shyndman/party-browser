@@ -6,6 +6,7 @@
 /// <reference path="../types/global.d.ts" />
 
 import type { ConsoleLogEntry } from '../types/session';
+import type { CommandName } from '../types/commands';
 
 type LogFields = Record<string, unknown>;
 
@@ -20,7 +21,7 @@ export class ContentBridge {
    * @param params Command parameters
    * @returns Promise resolving to command result
    */
-  async sendCommand(tabId: number, command: string, params: unknown): Promise<unknown> {
+  async sendCommand(tabId: number, command: CommandName, params: unknown): Promise<unknown> {
     const startedAt = Date.now();
     logContentBridge('log', 'Background content command sending.', {
       tabId,

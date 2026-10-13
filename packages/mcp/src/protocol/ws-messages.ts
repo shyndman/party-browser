@@ -41,10 +41,10 @@ export interface SocketMessageMap {
   close: Record<string, never>;
 
   // Network and console inspection messages (Phase 03.1)
-  getNetworkRequests: {
+  get_network_requests: {
     filter?: { types?: string[]; urlPattern?: string };
   };
-  getNetworkRequestDetails: {
+  get_network_request_details: {
     id: string;
     encoding?: string;
   };
@@ -54,8 +54,8 @@ export interface SocketMessageMap {
   };
 
   // Page state messages
-  getUrl: Record<string, never>;
-  getTitle: Record<string, never>;
+  get_url: Record<string, never>;
+  get_title: Record<string, never>;
 }
 
 export type MessageType<T> = keyof T;

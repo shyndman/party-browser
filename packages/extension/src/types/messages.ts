@@ -7,6 +7,32 @@ import type { CommandName, CommandParams, CommandResult } from './commands';
 import type { SessionLeaseKind } from './session';
 import type { ErrorCode } from '@/utils/errors';
 
+export const MCP_COMMANDS = {
+  navigate: 'navigate',
+  go_back: 'goBack',
+  go_forward: 'goForward',
+  click: 'click',
+  drag: 'drag',
+  hover: 'hover',
+  type: 'type',
+  press_key: 'pressKey',
+  select_option: 'selectOption',
+  wait: 'wait',
+  wait_for: 'waitFor',
+  snapshot: 'snapshot',
+  screenshot: 'screenshot',
+  evaluate: 'evaluate',
+  close: 'close',
+  get_tabs: 'getTabs',
+  get_network_requests: 'getNetworkRequests',
+  get_network_request_details: 'getNetworkRequestDetails',
+  get_console_messages: 'getConsoleMessages',
+  get_url: 'getUrl',
+  get_title: 'getTitle',
+} as const satisfies Record<string, CommandName>;
+
+export type McpCommandName = keyof typeof MCP_COMMANDS;
+
 export const WsMessageKinds = {
   SESSION_COMMAND: 'session_command',
   SESSION_RESULT: 'session_result',
@@ -63,7 +89,7 @@ export interface SessionCommandMessage {
   type: typeof WsMessageKinds.SESSION_COMMAND;
   requestId: string;
   sessionId: string;
-  command: CommandName;
+  command: McpCommandName;
   payload: CommandParams;
 }
 

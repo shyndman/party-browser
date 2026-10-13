@@ -110,7 +110,7 @@ export class NavigationCommands {
   ): Promise<CommandResult<{ pageState: PageState }>> {
     const targetTabId = await this.sessionManager.resolveTargetTab(params);
     const result = await this.lifecycle.runCommand({
-      command: 'go_back',
+      command: 'goBack',
       commandId: options.commandId,
       sessionId: params.sessionId,
       tabId: targetTabId,
@@ -145,7 +145,7 @@ export class NavigationCommands {
   ): Promise<CommandResult<{ pageState: PageState }>> {
     const targetTabId = await this.sessionManager.resolveTargetTab(params);
     const result = await this.lifecycle.runCommand({
-      command: 'go_forward',
+      command: 'goForward',
       commandId: options.commandId,
       sessionId: params.sessionId,
       tabId: targetTabId,

@@ -283,7 +283,7 @@ class CompletionObserver {
 }
 
 function isNavigationCommand(command: string): boolean {
-  return command === 'navigate' || command === 'go_back' || command === 'go_forward';
+  return command === 'navigate' || command === 'goBack' || command === 'goForward';
 }
 
 export function createLoadWaiter(context: WorkflowContext, timeoutMs = ACTION_LOAD_TIMEOUT_MS): LoadWaiter {
