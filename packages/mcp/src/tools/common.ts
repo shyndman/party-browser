@@ -18,9 +18,9 @@ import {
 } from "@/utils/aria-snapshot";
 
 import type { Tool, ToolFactory } from "./tool";
-import zodToJsonSchema from "zod-to-json-schema";
+import { createToolInputSchema } from "./tool";
 
-// Hand-written MCP schema. Do not replace this with zodToJsonSchema(JoinSessionTool.shape.arguments).
+// Keep the hand-written MCP schema instead of converting JoinSessionTool.shape.arguments.
 // The runtime validator lives in packages/mcp/src/protocol/tool-definitions.ts, but MCP clients in
 // our stack need this flatter shape for join_session.
 const joinSessionInputSchema = {
@@ -50,7 +50,7 @@ const joinSessionInputSchema = {
   },
   required: ["name", "reason", "leaseKind"],
   additionalProperties: false,
-} as const;
+} satisfies Tool["schema"]["inputSchema"];
 
 export const joinSession: Tool = {
   schema: {
@@ -74,7 +74,7 @@ export const navigate: ToolFactory = (snapshot) => ({
   schema: {
     name: NavigateTool.shape.name.value,
     description: NavigateTool.shape.description.value,
-    inputSchema: zodToJsonSchema(NavigateTool.shape.arguments),
+    inputSchema: createToolInputSchema(NavigateTool.shape.arguments),
   },
   handle: async (context, params, requestId) => {
     const { url } = NavigateTool.shape.arguments.parse(params);
@@ -97,7 +97,7 @@ export const goBack: ToolFactory = (snapshot) => ({
   schema: {
     name: GoBackTool.shape.name.value,
     description: GoBackTool.shape.description.value,
-    inputSchema: zodToJsonSchema(GoBackTool.shape.arguments),
+    inputSchema: createToolInputSchema(GoBackTool.shape.arguments),
   },
   handle: async (context, _params, requestId) => {
     const result = await context.sendSocketMessage("go_back", {}, { requestId });
@@ -119,7 +119,7 @@ export const goForward: ToolFactory = (snapshot) => ({
   schema: {
     name: GoForwardTool.shape.name.value,
     description: GoForwardTool.shape.description.value,
-    inputSchema: zodToJsonSchema(GoForwardTool.shape.arguments),
+    inputSchema: createToolInputSchema(GoForwardTool.shape.arguments),
   },
   handle: async (context, _params, requestId) => {
     const result = await context.sendSocketMessage("go_forward", {}, { requestId });
@@ -141,7 +141,7 @@ export const wait: Tool = {
   schema: {
     name: WaitTool.shape.name.value,
     description: WaitTool.shape.description.value,
-    inputSchema: zodToJsonSchema(WaitTool.shape.arguments),
+    inputSchema: createToolInputSchema(WaitTool.shape.arguments),
   },
   handle: async (context, params, requestId) => {
     const { time } = WaitTool.shape.arguments.parse(params);
@@ -161,7 +161,7 @@ export const pressKey: Tool = {
   schema: {
     name: PressKeyTool.shape.name.value,
     description: PressKeyTool.shape.description.value,
-    inputSchema: zodToJsonSchema(PressKeyTool.shape.arguments),
+    inputSchema: createToolInputSchema(PressKeyTool.shape.arguments),
   },
   handle: async (context, params, requestId) => {
     const { key } = PressKeyTool.shape.arguments.parse(params);
@@ -179,7 +179,7 @@ export const pressKey: Tool = {
 
 // Unified schema for wait_for - compatible with strict MCP validators
 // Uses consistent field structure across all modes with runtime validation
-// Do not replace this with zodToJsonSchema(WaitForTool.shape.arguments); keep the runtime validator
+// Do not convert WaitForTool.shape.arguments. Keep the runtime validator
 // in packages/mcp/src/protocol/tool-definitions.ts and this flatter MCP-facing schema here.
 const waitForInputSchema = {
   type: "object",
@@ -202,7 +202,7 @@ const waitForInputSchema = {
   },
   required: ["mode", "value"],
   additionalProperties: false,
-} as const;
+} satisfies Tool["schema"]["inputSchema"];
 
 export const waitFor: Tool = {
   schema: {
@@ -268,7 +268,7 @@ export const close: Tool = {
   schema: {
     name: CloseTool.shape.name.value,
     description: CloseTool.shape.description.value,
-    inputSchema: zodToJsonSchema(CloseTool.shape.arguments),
+    inputSchema: createToolInputSchema(CloseTool.shape.arguments),
   },
   handle: async (context, _params, requestId) => {
     await context.sendSocketMessage("close", {}, { requestId });

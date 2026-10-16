@@ -68,6 +68,18 @@ The extension bridge maps wire commands through `MCP_COMMANDS` in `packages/exte
 For example, `get_console_messages` maps to `getConsoleMessages`, and `wait_for` maps to `waitFor`.
 TypeScript function and method names do not change.
 
+### Extension Runtime Messages
+
+`packages/extension/src/messaging/runtime-messages.ts` dispatches runtime messages through a switch and one named handler for each message type.
+Each switch case parses its payload with Zod before it calls a handler. Handlers receive validated message types.
+Commands require a nonempty session ID and a supported extension command name.
+The optional `params` field defaults to an empty object. The optional `refresh` field defaults to `false`.
+The dispatcher rejects invalid payloads without starting the requested operation.
+
+The MCP package also uses Zod 4. It converts tool arguments to draft-07 JSON Schema with `createToolInputSchema`.
+The converter keeps defaulted fields optional and rejects extra object properties in the published schema.
+The `join_session` and `wait_for` tools keep their hand-written schemas for client compatibility.
+
 ### Prerequisites
 
 - Node.js 18+ and npm

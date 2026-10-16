@@ -7,14 +7,9 @@
 
 import { defineBackground } from 'wxt/utils/define-background';
 import type BrowserNamespace from 'webextension-polyfill';
-import { ErrorCodes, type ErrorCode } from '../src/utils/errors';
-import type { CommandName } from '../src/types/commands';
 import {
-  PopupMessageKinds,
-  type StatusResponse,
   type KillSwitchResponse,
   type WaitingRoomDecision,
-  WaitingRoomDecisions,
   type WaitingRoomDecisionResponse,
   type WaitingRoomListResponse,
 } from '../src/types/messages';
@@ -23,6 +18,7 @@ import { SessionManager, DEFAULT_SESSION_CONFIG } from '../src/session/session-m
 import { NetworkCapture } from '../src/session/network-capture';
 import { McpBridge, DEFAULT_BRIDGE_CONFIG } from '../src/messaging/mcp-bridge';
 import { ContentBridge } from '../src/messaging/content-bridge';
+import { handleRuntimeMessage } from '../src/messaging/runtime-messages';
 import { CommandHandler } from '../src/commands/command-handler';
 import { IconManager } from '../src/utils/icons';
 
@@ -313,133 +309,14 @@ export default defineBackground({
     // Event Listeners
     // ============================================================
 
-    browser.runtime.onMessage.addListener(((
-      message: unknown,
-      _sender: BrowserNamespace.Runtime.MessageSender,
-      sendResponse: (response?: unknown) => void
-    ): boolean => {
-      console.log('[PartyBrowser] Message received:', message);
-
-      const msg = message as { type?: string; command?: CommandName; params?: Record<string, unknown> };
-
-      if (msg.type === 'mcpCommand') {
-        if (!isKillSwitchEnabled) {
-          sendResponse({
-            success: false,
-            error: 'Kill switch is disabled. Click the extension icon to resume MCP communications.',
-            errorCode: ErrorCodes.KILL_SWITCH_DISABLED
-          });
-          return false;
-        }
-
-        const sessionId = (msg as { sessionId?: unknown }).sessionId;
-        const command = msg.command;
-        if (typeof sessionId !== 'string' || sessionId.length === 0) {
-          sendResponse({
-            success: false,
-            error: 'Missing required sessionId for command execution.',
-            errorCode: ErrorCodes.SESSION_ID_REQUIRED
-          });
-          return false;
-        }
-
-        if (typeof command !== 'string' || command.length === 0) {
-          sendResponse({
-            success: false,
-            error: 'Missing required command name.',
-            errorCode: ErrorCodes.COMMAND_FAILED
-          });
-          return false;
-        }
-
-        commandHandler.execute(command as CommandName, msg.params || {}, sessionId)
-          .then((result) => sendResponse({ success: true, result }))
-          .catch((error) => sendResponse({
-            success: false,
-            error: (error as Error).message,
-            errorCode: (error as { errorCode?: ErrorCode }).errorCode || ErrorCodes.COMMAND_FAILED
-          }));
-        return true;
-      }
-
-      if (msg.type === PopupMessageKinds.GET_STATUS) {
-        const status: StatusResponse = {
-          isServerRunning: mcpBridge.isConnected(),
-          reconnectAttempts: mcpBridge.getReconnectAttempts(),
-          isKillSwitchEnabled,
-          activeLeaseCount: sessionManager.getLeaseCount(),
-          waitingRoomCount: mcpBridge.getWaitingRoomEntries().length
-        };
-        sendResponse(status);
-        return false;
-      }
-
-      if (msg.type === PopupMessageKinds.TOGGLE_KILL_SWITCH) {
-        toggleKillSwitch()
-          .then((response) => sendResponse(response))
-          .catch((error) => sendResponse({
-            isEnabled: isKillSwitchEnabled,
-            error: (error as Error).message
-          }));
-        return true;
-      }
-
-      if (msg.type === PopupMessageKinds.GET_KILL_SWITCH_STATE) {
-        sendResponse({ isEnabled: isKillSwitchEnabled });
-        return false;
-      }
-
-      if (msg.type === PopupMessageKinds.GET_WAITING_ROOM_LIST) {
-        const refresh = Boolean((msg as { refresh?: boolean }).refresh);
-        getWaitingRoomList(refresh)
-          .then((response) => sendResponse(response))
-          .catch((error) => sendResponse({
-            entries: [],
-            refreshedAt: Date.now(),
-            error: (error as Error).message
-          }));
-        return true;
-      }
-
-      if (msg.type === PopupMessageKinds.WAITING_ROOM_DECISION) {
-        const sessionId = (msg as { sessionId?: unknown }).sessionId;
-        const decision = (msg as { decision?: unknown }).decision;
-
-        if (typeof sessionId !== 'string' || sessionId.length === 0) {
-          sendResponse({
-            success: false,
-            sessionId: '',
-            decision: WaitingRoomDecisions.REJECT,
-            error: 'Missing required sessionId.',
-            errorCode: ErrorCodes.CONTROL_EVENT_INVALID
-          });
-          return false;
-        }
-
-        if (decision !== WaitingRoomDecisions.JOIN && decision !== WaitingRoomDecisions.REJECT) {
-          sendResponse({
-            success: false,
-            sessionId,
-            decision: WaitingRoomDecisions.REJECT,
-            error: 'Invalid waiting-room decision.',
-            errorCode: ErrorCodes.CONTROL_EVENT_INVALID
-          });
-          return false;
-        }
-
-        submitWaitingRoomDecision(sessionId, decision)
-          .then((response) => sendResponse(response))
-          .catch((error) => sendResponse({
-            success: false,
-            sessionId,
-            decision,
-            error: (error as Error).message,
-            errorCode: ErrorCodes.COMMAND_FAILED
-          }));
-        return true;
-      }
-
-      return false;
+    browser.runtime.onMessage.addListener(handleRuntimeMessage.bind(null, {
+      get isKillSwitchEnabled() { return isKillSwitchEnabled; },
+      commandHandler,
+      sessionManager,
+      mcpBridge,
+      toggleKillSwitch,
+      getWaitingRoomList,
+      submitWaitingRoomDecision,
     }) as BrowserNamespace.Runtime.OnMessageListener);
 
     browser.runtime.onInstalled.addListener((details) => {

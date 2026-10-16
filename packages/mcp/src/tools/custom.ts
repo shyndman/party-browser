@@ -1,4 +1,4 @@
-import { zodToJsonSchema } from "zod-to-json-schema";
+import { createToolInputSchema } from "./tool";
 
 import { ScreenshotTool } from "@/protocol/tool-definitions";
 
@@ -33,7 +33,7 @@ export const screenshot: Tool = {
   schema: {
     name: ScreenshotTool.shape.name.value,
     description: ScreenshotTool.shape.description.value,
-    inputSchema: zodToJsonSchema(ScreenshotTool.shape.arguments),
+    inputSchema: createToolInputSchema(ScreenshotTool.shape.arguments),
   },
   handle: async (context, _params, requestId) => {
     try {

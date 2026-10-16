@@ -25,7 +25,7 @@ const SessionLeaseKind = z.enum(["workspace", "takeover"]);
  *
  * These Zod tool definitions are the runtime validation layer, not the final MCP
  * input schema contract. Some MCP clients in our stack mis-handle richer JSON
- * Schema features produced by zod-to-json-schema for conditional or union-shaped
+ * Schema features from automatic conversion for conditional or union-shaped
  * inputs.
  *
  * When that happens, keep the Zod schema here for parsing/validation and point the

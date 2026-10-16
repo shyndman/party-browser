@@ -58,6 +58,10 @@ export const ControlCommands = {
   KILL_SWITCH_SET: 'kill_switch.set',
 } as const;
 
+export const RuntimeMessageKinds = {
+  MCP_COMMAND: 'mcpCommand',
+} as const;
+
 export const PopupMessageKinds = {
   GET_STATUS: 'getStatus',
   TOGGLE_KILL_SWITCH: 'toggleKillSwitch',

@@ -1,4 +1,4 @@
-import { zodToJsonSchema } from "zod-to-json-schema";
+import { createToolInputSchema } from "./tool";
 
 import { MCP_ERROR_CODES } from "@/protocol/constants";
 import { CodedError } from "@/protocol/ws-sender";
@@ -10,7 +10,7 @@ export const evaluate: Tool = {
   schema: {
     name: EvaluateTool.shape.name.value,
     description: EvaluateTool.shape.description.value,
-    inputSchema: zodToJsonSchema(EvaluateTool.shape.arguments),
+    inputSchema: createToolInputSchema(EvaluateTool.shape.arguments),
   },
   handle: async (context, params, requestId) => {
     const { script } = EvaluateTool.shape.arguments.parse(params);

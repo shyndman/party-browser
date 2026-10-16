@@ -1,4 +1,4 @@
-import { zodToJsonSchema } from "zod-to-json-schema";
+import { createToolInputSchema } from "./tool";
 
 import {
   ConsoleMessagesTool,
@@ -71,7 +71,7 @@ export const networkRequests: Tool = {
   schema: {
     name: NetworkRequestsTool.shape.name.value,
     description: NetworkRequestsTool.shape.description.value,
-    inputSchema: zodToJsonSchema(NetworkRequestsTool.shape.arguments),
+    inputSchema: createToolInputSchema(NetworkRequestsTool.shape.arguments),
   },
   handle: async (context, params = {}, requestId) => {
     try {
@@ -165,7 +165,7 @@ export const networkRequestDetails: Tool = {
   schema: {
     name: NetworkRequestDetailsTool.shape.name.value,
     description: NetworkRequestDetailsTool.shape.description.value,
-    inputSchema: zodToJsonSchema(NetworkRequestDetailsTool.shape.arguments),
+    inputSchema: createToolInputSchema(NetworkRequestDetailsTool.shape.arguments),
   },
   handle: async (context, params = {}, requestId) => {
     try {
@@ -213,7 +213,7 @@ export const consoleMessages: Tool = {
   schema: {
     name: ConsoleMessagesTool.shape.name.value,
     description: ConsoleMessagesTool.shape.description.value,
-    inputSchema: zodToJsonSchema(ConsoleMessagesTool.shape.arguments),
+    inputSchema: createToolInputSchema(ConsoleMessagesTool.shape.arguments),
   },
   handle: async (context, params = {}, requestId) => {
     try {
