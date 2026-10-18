@@ -321,7 +321,6 @@ export class WebSocketHubConnection implements HubConnection {
       return;
     }
 
-
     pending.reject(
       new CodedError(
         message.rejectReason ?? "Join request rejected by operator.",

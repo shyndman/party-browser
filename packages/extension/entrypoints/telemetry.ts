@@ -19,7 +19,6 @@ type TelemetryControlMessage = { type?: string };
 export default defineUnlistedScript({
   main() {
     const state = globalThis as typeof globalThis & { __partyBrowserTelemetryCleanup?: () => void };
-
     if (state.__partyBrowserTelemetryCleanup) {
       return;
     }
@@ -32,18 +31,15 @@ export default defineUnlistedScript({
 
     const stopListener = (message: unknown) => {
       const controlMessage = message as TelemetryControlMessage;
-
       if (controlMessage.type !== 'stopTelemetry') {
         return undefined;
       }
 
       cleanup();
-
       return Promise.resolve({ success: true });
     };
 
     const onReady = () => logPageTelemetry('content_script_ready');
-
     const cleanup = () => {
       if (state.__partyBrowserTelemetryCleanup !== cleanup) {
         return;
@@ -51,11 +47,9 @@ export default defineUnlistedScript({
 
       delete state.__partyBrowserTelemetryCleanup;
       logPageTelemetry('content_script_invalidated');
-
       if (messageListener) {
         browser.runtime.onMessage.removeListener(messageListener);
       }
-
       browser.runtime.onMessage.removeListener(stopListener);
       document.removeEventListener('DOMContentLoaded', onReady);
       stopPageTelemetry?.();
@@ -81,7 +75,6 @@ export default defineUnlistedScript({
       }
     } catch (error) {
       cleanup();
-
       throw error;
     }
   },

@@ -61,7 +61,6 @@ export const joinSession: Tool = {
   handle: async (context, params, requestId) => {
     const request = JoinSessionTool.shape.arguments.parse(params);
     const sessionId = await context.joinSession(request);
-
     try {
       return await captureAriaSnapshot(
         context,

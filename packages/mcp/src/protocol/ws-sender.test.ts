@@ -316,7 +316,6 @@ test("join setup failure preserves actual error and code rather than operator re
   const port = await getAvailablePort();
   const server = new WebSocketServer({ host: "127.0.0.1", port });
   const connection = new WebSocketHubConnection(`ws://127.0.0.1:${port}`);
-
   server.once("connection", (socket) => {
     socket.once("message", () => {
       socket.send(JSON.stringify({
@@ -333,7 +332,6 @@ test("join setup failure preserves actual error and code rather than operator re
     );
   } finally {
     await connection.close();
-
     await new Promise<void>((resolve, reject) => {
       server.close((error) => {
         if (error) {

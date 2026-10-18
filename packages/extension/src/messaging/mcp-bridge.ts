@@ -232,7 +232,6 @@ export class McpBridge {
 
       const message = error instanceof Error ? error.message : String(error);
       const errorCode = error instanceof CodedError ? error.errorCode : ErrorCodes.COMMAND_FAILED;
-
       console.error('[PartyBrowser] Session approval setup failed.', {
         operation: 'approval_setup',
         sessionId,
@@ -243,14 +242,12 @@ export class McpBridge {
       if (!leaseCreated) {
         this.waitingRoom.delete(sessionId);
         this.notifyWaitingRoomChanged();
-
         try {
           const response = await this.sendControlCommand(
             ControlCommands.WAITING_ROOM_DECIDE,
             { sessionId, decision: 'setup_failed', error: message, errorCode },
             true,
           );
-
           if (!response.success) {
             console.error('[PartyBrowser] Failed to report approval setup failure to hub.', {
               sessionId, error: response.error, errorCode: response.errorCode,
@@ -262,7 +259,6 @@ export class McpBridge {
           });
         }
       }
-
       return this.createLocalControlFailure(message, errorCode);
     }
   }
