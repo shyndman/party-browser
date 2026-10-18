@@ -879,7 +879,6 @@ export class HubRuntime {
         decision,
         errorCode: HUB_ERROR_CODES.PROTOCOL_INVALID_MESSAGE,
       });
-
       this.sendControlResponse(connectionId, {
         type: HUB_EXTENSION_MESSAGE_TYPES.CONTROL_RESPONSE,
         requestId: message.requestId,
@@ -887,7 +886,6 @@ export class HubRuntime {
         error: "Waiting-room decision must be join, reject, or setup_failed.",
         errorCode: HUB_ERROR_CODES.PROTOCOL_INVALID_MESSAGE,
       });
-
       return;
     }
 
@@ -901,7 +899,6 @@ export class HubRuntime {
         error: "Setup failure requires an error and errorCode.",
         errorCode: HUB_ERROR_CODES.PROTOCOL_INVALID_MESSAGE,
       });
-
       return;
     }
 
@@ -958,16 +955,13 @@ export class HubRuntime {
     } else if (decision === HUB_JOIN_DECISIONS.SETUP_FAILED) {
       const error = message.payload.error as string;
       const errorCode = message.payload.errorCode as string;
-
       this.sessionStore.discardPendingSession(sessionId);
-
       this.logger.error("Session approval setup failed.", {
         operation: "approval_setup",
         sessionId,
         error,
         errorCode,
       });
-
       this.sendJoinDecision(waitingEntry.connectionId, {
         type: HUB_CONTROL_MESSAGE_TYPES.JOIN_DECISION,
         decision: HUB_JOIN_DECISIONS.SETUP_FAILED,

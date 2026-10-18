@@ -28,7 +28,6 @@ interface PopupElements {
   waitingRoomCount: HTMLElement;
   waitingRoomEmpty: HTMLElement;
   waitingRoomList: HTMLElement;
-
   actionError: HTMLElement;
 }
 
@@ -44,7 +43,6 @@ function getElements(): PopupElements {
     waitingRoomCount: document.getElementById('waiting-room-count') as HTMLElement,
     waitingRoomEmpty: document.getElementById('waiting-room-empty') as HTMLElement,
     waitingRoomList: document.getElementById('waiting-room-list') as HTMLElement,
-
     actionError: document.getElementById('action-error') as HTMLElement,
   };
 }
@@ -237,12 +235,10 @@ async function handleWaitingRoomDecision(
       sessionId,
       decision,
     })) as WaitingRoomDecisionResponse;
-
     if (!response.success) {
       console.warn(
         `[PartyBrowser] Waiting-room ${decision} failed for ${sessionId}: ${response.error}`,
       );
-
       showActionError(
         decision === WaitingRoomDecisions.JOIN ? 'Approval setup failed' : 'Rejection failed',
         response.error ?? 'No error details were returned.',
@@ -250,7 +246,6 @@ async function handleWaitingRoomDecision(
     }
   } catch (error) {
     console.error('[PartyBrowser] Waiting-room action failed:', error);
-
     showActionError('Waiting-room action failed', error);
   } finally {
     await refreshWaitingRoomList(true);
@@ -263,9 +258,7 @@ async function handleWaitingRoomDecision(
  */
 function showActionError(context: string, error: unknown): void {
   const { actionError } = getElements();
-
   const message = error instanceof Error ? error.message : String(error);
-
   actionError.textContent = `${context}: ${message}`;
   actionError.hidden = false;
 }

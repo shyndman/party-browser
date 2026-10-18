@@ -229,7 +229,6 @@ export class SessionManager {
 
       pending.resolvedTabId = tabId;
       this.assertTabNotAlreadyLeased(tabId, sessionId);
-
       this.tabClaims.set(tabId, sessionId);
       const lease: SessionLease = {
         windowId,
@@ -239,11 +238,9 @@ export class SessionManager {
         closeOnRevoke: true,
       };
       pending.lease = lease;
-
       return lease;
     } catch (error) {
       const claimant = tabId === undefined ? undefined : this.tabClaims.get(tabId);
-
       if (windowId !== undefined && (claimant === undefined || claimant === sessionId)) {
         try {
           await browser.windows.remove(windowId);
@@ -254,7 +251,6 @@ export class SessionManager {
           );
         }
       }
-
       throw error;
     }
   }
@@ -268,7 +264,6 @@ export class SessionManager {
     };
 
     this.pendingSetups.set(sessionId, pending);
-
     return pending;
   }
 
@@ -298,7 +293,6 @@ export class SessionManager {
     }
 
     const pending = this.beginLeaseSetup(sessionId);
-
     try {
       const lease = await this.createLeaseWindow(sessionId, url, pending);
       this.assertLeaseSetupActive(pending);
@@ -321,7 +315,6 @@ export class SessionManager {
       console.log(
         `[PartyBrowser] Workspace lease created: ${sessionId} -> window ${lease.windowId}, tab ${lease.tabId}, url=${url}`,
       );
-
       return lease;
     } catch (error) {
       console.warn('[PartyBrowser] Workspace setup failed.', {
@@ -333,10 +326,8 @@ export class SessionManager {
       });
 
       const lease = pending.lease;
-
       if (lease) {
         await this.stopTelemetry(sessionId, lease.tabId, 'workspace_setup_cleanup');
-
         try {
           await browser.windows.remove(lease.windowId);
         } catch (cleanupError) {
@@ -351,7 +342,6 @@ export class SessionManager {
           this.tabClaims.delete(lease.tabId);
         }
       }
-
       throw error;
     } finally {
       this.pendingSetups.delete(sessionId);
@@ -378,7 +368,6 @@ export class SessionManager {
     }
 
     const pending = this.beginLeaseSetup(sessionId);
-
     let group: TakeoverGroup | undefined;
     let claimedTabId: number | undefined;
 
@@ -395,7 +384,6 @@ export class SessionManager {
         sessionId,
         tabId: lease.tabId,
       });
-
       this.assertLeaseSetupActive(pending);
 
       group = new TakeoverGroup(lease.tabId);
@@ -415,7 +403,6 @@ export class SessionManager {
       console.log(
         `[PartyBrowser] Takeover lease created: ${sessionId} -> window ${lease.windowId}, tab ${lease.tabId}`,
       );
-
       return lease;
     } catch (error) {
       console.warn('[PartyBrowser] Takeover setup failed.', {
@@ -438,7 +425,6 @@ export class SessionManager {
       if (claimedTabId !== undefined) {
         this.tabClaims.delete(claimedTabId);
       }
-
       throw error;
     } finally {
       this.pendingSetups.delete(sessionId);
@@ -562,13 +548,11 @@ export class SessionManager {
         });
       } finally {
         const claimant = this.tabClaims.get(details.tabId);
-
         if (this.leases.get(sessionId) !== lease &&
             (claimant === undefined || claimant === sessionId)) {
           await this.stopTelemetry(sessionId, details.tabId, 'navigation_release_cleanup');
         }
       }
-
       return;
     }
   }
@@ -694,13 +678,10 @@ export class SessionManager {
     closeOwnedBrowserTarget: boolean,
   ): Promise<boolean> {
     const pending = this.pendingSetups.get(sessionId);
-
     if (pending) {
       const alreadyCancelled = pending.cancelled;
       pending.cancelled = true;
-
       await pending.finished;
-
       return !alreadyCancelled;
     }
 
@@ -738,7 +719,6 @@ export class SessionManager {
       this.tabClaims.delete(lease.tabId);
       this.releasingSessions.delete(sessionId);
     }
-
     return true;
   }
 
@@ -760,7 +740,6 @@ export class SessionManager {
    */
   async revokeAllLeases(reason: string): Promise<void> {
     const sessionIds = new Set([...this.leases.keys(), ...this.pendingSetups.keys()]);
-
     for (const pending of this.pendingSetups.values()) {
       pending.cancelled = true;
     }

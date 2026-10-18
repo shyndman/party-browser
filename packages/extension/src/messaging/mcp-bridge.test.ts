@@ -33,7 +33,6 @@ function createBridgeHarness(setupError?: Error) {
     },
     async createTakeoverLease(sessionId: string) {
       createTakeoverLeaseCalls.push(sessionId);
-
       if (setupError) {
         throw setupError;
       }
@@ -252,7 +251,6 @@ test('setup failure terminates waiting request and preserves actual error for op
 
   // Exercise the established inbound-message seam without opening a transport.
   const inbound = bridge as unknown as { handleInboundMessage(message: unknown): Promise<void> };
-
   await inbound.handleInboundMessage({
     type: WsMessageKinds.CONTROL_EVENT,
     event: ControlEvents.WAITING_ROOM_SYNC,
@@ -264,11 +262,8 @@ test('setup failure terminates waiting request and preserves actual error for op
 
   const responsePromise = bridge.submitWaitingRoomDecision('failed-takeover', WaitingRoomDecisions.JOIN);
   await flushBridgeApproval();
-
   assert.deepEqual(bridge.getWaitingRoomEntries(), []);
-
   const command = sentMessages[0] as { requestId: string; payload: unknown };
-
   assert.deepEqual(command.payload, {
     sessionId: 'failed-takeover', decision: 'setup_failed',
     error: setupError.message, errorCode: setupError.errorCode,
@@ -277,9 +272,7 @@ test('setup failure terminates waiting request and preserves actual error for op
   await inbound.handleInboundMessage({
     type: WsMessageKinds.CONTROL_RESPONSE, requestId: command.requestId, success: true,
   });
-
   const response = await responsePromise;
-
   assert.equal(response.success, false);
   assert.equal(response.error, setupError.message);
   assert.equal(response.errorCode, setupError.errorCode);
