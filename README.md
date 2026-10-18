@@ -172,6 +172,7 @@ Session targeting:
 Telemetry and console capture:
 - Ordinary tabs receive no PartyBrowser content script. The background activates telemetry only in the top-level document of a session's target tab.
 - Workspace and takeover approval wait for telemetry initialization on the initial page. If initialization fails, setup rolls back rather than reporting a usable session.
+- Workspace tabs are reserved before waiting for navigation. Release and kill-switch revocation cancel pending workspace and takeover setup and wait for cleanup before completing.
 - Top-level navigation commits activate replacement documents only when the tab already has a lease. Workspace setup explicitly initializes its initial document before publishing the lease.
 - Capture starts at injection time. Earlier page logs are unavailable; reload the target page to maximize collection, without a guarantee of capturing every early-load event.
 - Release invokes the same cleanup as extension invalidation, stopping console capture and page observers even when the hijacked tab stays open. Other sessions are unaffected.

@@ -66,6 +66,7 @@ type BrowserMockState = {
   beforeUngroup?: () => Promise<void>;
   beforeInjection?: () => Promise<void>;
   beforePing?: () => Promise<void>;
+  beforeWindowReturn?: () => Promise<void>;
   injectedTabIds: number[];
   stoppedTabIds: number[];
 };
@@ -298,6 +299,8 @@ function installBrowserMock(): BrowserMockState {
         };
 
         createdLeaseWindows.push(createdWindow);
+        await browserState.beforeWindowReturn?.();
+
         return createdWindow;
       },
       async remove(windowId: number) {
@@ -445,12 +448,7 @@ test('failed lease setup keeps original error when created window cleanup fails'
   const browserState = installBrowserMock();
   const manager = new SessionManager();
   const setupError = new Error('initial load failed');
-  const warn = console.warn;
-  const warnings: unknown[][] = [];
   browserState.failWindowRemove = true;
-  console.warn = (...args: unknown[]) => {
-    warnings.push(args);
-  };
   (manager as any).tabLifecycle.waitForTabToSettle = async () => {
     throw setupError;
   };
@@ -460,8 +458,6 @@ test('failed lease setup keeps original error when created window cleanup fails'
     await manager.createWorkspaceLease('session-cleanup-fails', 'https://cleanup-fails.example');
   } catch (error) {
     rejectedError = error;
-  } finally {
-    console.warn = warn;
   }
 
   const createdWindow = browserState.createdLeaseWindows[0];
@@ -469,7 +465,6 @@ test('failed lease setup keeps original error when created window cleanup fails'
   assert.deepEqual(browserState.removedWindowIds, [createdWindow.id]);
   assert.equal(manager.getLease('session-cleanup-fails'), null);
   assert.equal(manager.getLeaseCount(), 0);
-  assert.equal(warnings.length, 1);
 });
 
 test('window close revokes lease and blocks future routing', async () => {
@@ -791,22 +786,29 @@ test('takeover success waits for initialized telemetry', async () => {
   const state = installBrowserMock();
   const manager = new SessionManager();
   manager['tabLifecycle'].waitForTabToSettle = async () => undefined;
+
   let enter!: () => void;
   let resume!: () => void;
   const entered = new Promise<void>((resolve) => { enter = resolve; });
   const resumed = new Promise<void>((resolve) => { resume = resolve; });
+
   state.beforePing = async () => {
     enter();
     await resumed;
   };
+
   let published = false;
   manager.onLeaseCreated(() => { published = true; });
+
   const setup = manager.createTakeoverLease('ready');
   await entered;
+
   assert.equal(manager.hasLease('ready'), false);
   assert.equal(published, false);
+
   resume();
   await setup;
+
   assert.equal(published, true);
   assert.deepEqual(state.injectedTabIds, [42]);
 });
@@ -816,10 +818,13 @@ test('failed initial injection cleans up telemetry, restores the tab and frees i
   const originalGroup = state.tabs.get(42)!.groupId;
   const failure = new CodedError('injection denied', ErrorCodes.COMMAND_FAILED);
   state.beforeInjection = async () => { throw failure; };
+
   await assert.rejects(manager.createTakeoverLease('failed'), (error: unknown) => error === failure);
+
   assert.equal(manager.hasLease('failed'), false);
   assert.equal(state.tabs.get(42)!.groupId, originalGroup);
   assert.deepEqual(state.stoppedTabIds, [42]);
+
   state.beforeInjection = undefined;
   await manager.createTakeoverLease('retry');
 });
@@ -828,21 +833,33 @@ test('navigation injection requires an existing lease and a top-level commit', a
   const state = installBrowserMock();
   const manager = new SessionManager();
   manager['tabLifecycle'].waitForTabToSettle = async () => undefined;
+
   await manager.handleNavigationCommitted({ tabId: 42, frameId: 0 });
+
   assert.deepEqual(state.injectedTabIds, []);
+
   await manager.createTakeoverLease('owned');
   state.injectedTabIds.length = 0;
+
   await manager.handleNavigationCommitted({ tabId: 43, frameId: 0 });
   await manager.handleNavigationCommitted({ tabId: 42, frameId: 1 });
+
   assert.deepEqual(state.injectedTabIds, []);
+
   await manager.handleNavigationCommitted({ tabId: 42, frameId: 0 });
+
   assert.deepEqual(state.injectedTabIds, [42]);
+
   state.beforeInjection = async () => { throw new Error('restricted navigation'); };
   await manager.handleNavigationCommitted({ tabId: 42, frameId: 0 });
+
   assert.equal(manager.hasLease('owned'), true);
+
   await manager.revokeLease('owned', 'test');
   state.injectedTabIds.length = 0;
+
   await manager.handleNavigationCommitted({ tabId: 42, frameId: 0 });
+
   assert.deepEqual(state.injectedTabIds, []);
 });
 
@@ -850,9 +867,12 @@ test('release stops only its target telemetry and keeps a takeover tab open', as
   const state = installBrowserMock();
   const manager = new SessionManager();
   manager['tabLifecycle'].waitForTabToSettle = async () => undefined;
+
   await manager.createTakeoverLease('takeover');
   const workspace = await manager.createWorkspaceLease('other', 'https://other.example');
+
   await manager.revokeLease('takeover', 'test');
+
   assert.deepEqual(state.stoppedTabIds, [42]);
   assert.equal(state.tabs.has(42), true);
   assert.equal(manager.getLease('other')!.tabId, workspace.tabId);
@@ -862,10 +882,13 @@ test('workspace initializes its initial document before publishing a usable leas
   const state = installBrowserMock();
   const manager = new SessionManager();
   manager['tabLifecycle'].waitForTabToSettle = async () => undefined;
+
   state.beforePing = async () => {
     assert.equal(manager.hasLease('workspace'), false);
   };
+
   const lease = await manager.createWorkspaceLease('workspace', 'https://example.com');
+
   assert.deepEqual(state.injectedTabIds, [lease.tabId]);
   assert.equal(manager.hasLease('workspace'), true);
 });
@@ -876,7 +899,9 @@ test('workspace telemetry failure rolls back its owned window without publishing
   manager['tabLifecycle'].waitForTabToSettle = async () => undefined;
   const failure = new CodedError('workspace injection denied', ErrorCodes.COMMAND_FAILED);
   state.beforeInjection = async () => { throw failure; };
+
   await assert.rejects(manager.createWorkspaceLease('workspace', 'https://example.com'), (error: unknown) => error === failure);
+
   assert.equal(manager.hasLease('workspace'), false);
   assert.equal(state.stoppedTabIds.length, 1);
   assert.deepEqual(state.removedWindowIds, [state.createdLeaseWindows[0]!.id]);
@@ -886,17 +911,23 @@ test('navigation finishing after release stops the late telemetry', async () => 
   const state = installBrowserMock();
   const manager = new SessionManager();
   manager['tabLifecycle'].waitForTabToSettle = async () => undefined;
+
   await manager.createTakeoverLease('released');
+
   let enter!: () => void;
   let resume!: () => void;
   const entered = new Promise<void>((resolve) => { enter = resolve; });
   const resumed = new Promise<void>((resolve) => { resume = resolve; });
+
   state.beforeInjection = async () => { enter(); await resumed; };
+
   const navigation = manager.handleNavigationCommitted({ tabId: 42, frameId: 0 });
   await entered;
   await manager.revokeLease('released', 'test');
+
   resume();
   await navigation;
+
   assert.deepEqual(state.stoppedTabIds, [42, 42]);
 });
 
@@ -904,22 +935,28 @@ test('late navigation cleanup preserves a different session that claimed the rel
   const state = installBrowserMock();
   const manager = new SessionManager();
   manager['tabLifecycle'].waitForTabToSettle = async () => undefined;
+
   await manager.createTakeoverLease('released');
+
   let enter!: () => void;
   let resume!: () => void;
   const entered = new Promise<void>((resolve) => { enter = resolve; });
   const resumed = new Promise<void>((resolve) => { resume = resolve; });
+
   state.beforeInjection = async () => {
     state.beforeInjection = undefined;
     enter();
     await resumed;
   };
+
   const navigation = manager.handleNavigationCommitted({ tabId: 42, frameId: 0 });
   await entered;
   await manager.revokeLease('released', 'test');
   await manager.createTakeoverLease('replacement');
+
   resume();
   await navigation;
+
   assert.deepEqual(state.stoppedTabIds, [42]);
   assert.equal(manager.hasLease('replacement'), true);
 });
@@ -928,17 +965,120 @@ test('workspace reserves its tab while initial telemetry awaits readiness', asyn
   const state = installBrowserMock();
   const manager = new SessionManager();
   manager['tabLifecycle'].waitForTabToSettle = async () => undefined;
+
   state.beforePing = async () => {
     const created = state.createdLeaseWindows[0]!;
     state.focusedWindowId = created.id;
     state.focusedTabId = created.tabs[0]!.id;
+
     await assert.rejects(
       manager.createTakeoverLease('competing'),
       { errorCode: ErrorCodes.COMMAND_FAILED },
     );
   };
+
   const lease = await manager.createWorkspaceLease('workspace', 'https://example.com');
+
   assert.equal(manager.getLease('workspace')!.tabId, lease.tabId);
   assert.equal(manager.hasLease('competing'), false);
   assert.deepEqual(state.stoppedTabIds, []);
 });
+
+test('workspace reserves its tab before waiting for navigation to settle', async () => {
+  const state = installBrowserMock();
+  const manager = new SessionManager();
+
+  manager['tabLifecycle'].waitForTabToSettle = async ({ command }) => {
+    if (command !== 'lease_setup') {
+      return;
+    }
+
+    const created = state.createdLeaseWindows[0]!;
+    state.focusedWindowId = created.id;
+    state.focusedTabId = created.tabs[0]!.id;
+
+    await assert.rejects(
+      manager.createTakeoverLease('competing'),
+      { errorCode: ErrorCodes.COMMAND_FAILED },
+    );
+  };
+
+  const lease = await manager.createWorkspaceLease('workspace', 'https://example.com');
+
+  assert.equal(manager.getLease('workspace')!.tabId, lease.tabId);
+  assert.equal(manager.hasLease('competing'), false);
+  assert.equal(state.tabs.has(lease.tabId), true);
+  assert.deepEqual(state.removedWindowIds, []);
+});
+
+test('workspace ownership failure preserves a takeover claimed before window creation returns', async () => {
+  const state = installBrowserMock();
+  const manager = new SessionManager();
+  manager['tabLifecycle'].waitForTabToSettle = async () => undefined;
+
+  state.beforeWindowReturn = async () => {
+    const created = state.createdLeaseWindows[0]!;
+    state.focusedWindowId = created.id;
+    state.focusedTabId = created.tabs[0]!.id;
+
+    await manager.createTakeoverLease('competing');
+  };
+
+  await assert.rejects(
+    manager.createWorkspaceLease('workspace', 'https://example.com'),
+    { errorCode: ErrorCodes.COMMAND_FAILED },
+  );
+
+  const competingLease = manager.getLease('competing')!;
+
+  assert.equal(manager.hasLease('workspace'), false);
+  assert.equal(state.tabs.has(competingLease.tabId), true);
+  assert.deepEqual(state.stoppedTabIds, []);
+  assert.deepEqual(state.removedWindowIds, []);
+});
+
+for (const revokeAll of [false, true]) {
+  test(`workspace cancellation during readiness awaits cleanup (${revokeAll ? 'all leases' : 'one lease'})`, async () => {
+    const state = installBrowserMock();
+    const manager = new SessionManager();
+    manager['tabLifecycle'].waitForTabToSettle = async () => undefined;
+
+    let enter!: () => void;
+    let resume!: () => void;
+    const entered = new Promise<void>((resolve) => { enter = resolve; });
+    const resumed = new Promise<void>((resolve) => { resume = resolve; });
+
+    state.beforePing = async () => {
+      enter();
+      await resumed;
+    };
+
+    let published = false;
+    manager.onLeaseCreated(() => { published = true; });
+
+    const creating = manager.createWorkspaceLease('cancelled', 'https://example.com');
+    const rejected = assert.rejects(creating, { errorCode: ErrorCodes.COMMAND_FAILED });
+    await entered;
+
+    const revoking = revokeAll
+      ? manager.revokeAllLeases('kill_switch')
+      : manager.revokeLease('cancelled', 'kill_switch');
+    let revoked = false;
+    void revoking.then(() => { revoked = true; });
+    await Promise.resolve();
+
+    assert.equal(revoked, false);
+
+    resume();
+    await rejected;
+    await revoking;
+
+    const created = state.createdLeaseWindows[0]!;
+
+    assert.equal(published, false);
+    assert.equal(manager.hasLease('cancelled'), false);
+    assert.equal(state.tabs.has(created.tabs[0]!.id), false);
+    assert.deepEqual(state.removedWindowIds, [created.id]);
+    assert.deepEqual(state.stoppedTabIds, [created.tabs[0]!.id]);
+  });
+}

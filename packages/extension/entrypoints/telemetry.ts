@@ -19,46 +19,61 @@ type TelemetryControlMessage = { type?: string };
 export default defineUnlistedScript({
   main() {
     const state = globalThis as typeof globalThis & { __partyBrowserTelemetryCleanup?: () => void };
+
     if (state.__partyBrowserTelemetryCleanup) {
       return;
     }
+
     // Check before constructing WXT's context: construction invalidates older contexts.
     const ctx = new ContentScriptContext('telemetry');
     let consoleCapture: ConsoleCapture | undefined;
     let stopPageTelemetry: (() => void) | undefined;
     let messageListener: BrowserNamespace.Runtime.OnMessageListener | undefined;
+
     const stopListener = (message: unknown) => {
       const controlMessage = message as TelemetryControlMessage;
+
       if (controlMessage.type !== 'stopTelemetry') {
         return undefined;
       }
+
       cleanup();
+
       return Promise.resolve({ success: true });
     };
+
     const onReady = () => logPageTelemetry('content_script_ready');
+
     const cleanup = () => {
       if (state.__partyBrowserTelemetryCleanup !== cleanup) {
         return;
       }
+
       delete state.__partyBrowserTelemetryCleanup;
       logPageTelemetry('content_script_invalidated');
+
       if (messageListener) {
         browser.runtime.onMessage.removeListener(messageListener);
       }
+
       browser.runtime.onMessage.removeListener(stopListener);
       document.removeEventListener('DOMContentLoaded', onReady);
       stopPageTelemetry?.();
       consoleCapture?.dispose();
     };
+
     state.__partyBrowserTelemetryCleanup = cleanup;
     ctx.onInvalidated(cleanup);
+
     try {
       consoleCapture = new ConsoleCapture();
       stopPageTelemetry = installPageTelemetry();
       logPageTelemetry('content_script_attached');
+
       messageListener = createRuntimeMessageListener(createCommandHandlers(), consoleCapture);
       browser.runtime.onMessage.addListener(stopListener);
       browser.runtime.onMessage.addListener(messageListener);
+
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', onReady, { once: true });
       } else {
@@ -66,6 +81,7 @@ export default defineUnlistedScript({
       }
     } catch (error) {
       cleanup();
+
       throw error;
     }
   },
