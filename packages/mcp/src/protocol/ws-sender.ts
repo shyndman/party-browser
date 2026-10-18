@@ -315,6 +315,11 @@ export class WebSocketHubConnection implements HubConnection {
       pending.resolve(message.sessionId);
       return;
     }
+    if (message.decision === HUB_JOIN_DECISIONS.SETUP_FAILED) {
+      pending.reject(new CodedError(message.error, message.errorCode));
+      return;
+    }
+
 
     pending.reject(
       new CodedError(
@@ -386,6 +391,10 @@ function isJoinDecisionMessage(value: unknown): value is JoinDecisionMessage {
 
   if (message.decision === HUB_JOIN_DECISIONS.JOIN) {
     return typeof (message as { sessionId?: unknown }).sessionId === "string";
+  }
+
+  if (message.decision === HUB_JOIN_DECISIONS.SETUP_FAILED) {
+    return typeof message.error === "string" && typeof message.errorCode === "string";
   }
 
   return message.decision === HUB_JOIN_DECISIONS.REJECT;

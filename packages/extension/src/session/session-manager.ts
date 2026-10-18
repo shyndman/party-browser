@@ -7,6 +7,7 @@
 
 import { CodedError, ErrorCodes } from '../utils/errors';
 import { TabLifecycle } from '../commands/tab-lifecycle';
+import { requireSuccessfulCommandResult } from '../commands/command-result';
 import { TakeoverGroup } from './takeover-group';
 import {
   SessionLeaseKinds,
@@ -51,6 +52,7 @@ export interface SessionLease {
 
 interface PendingTakeover {
   lease?: SessionLease;
+  resolvedTabId?: number;
   cancelled: boolean;
   finished: Promise<void>;
   finish: () => void;
@@ -271,6 +273,25 @@ export class SessionManager {
     }
 
     const lease = await this.createLeaseWindow(url);
+    this.assertTabNotAlreadyLeased(lease.tabId, sessionId);
+    this.tabClaims.set(lease.tabId, sessionId);
+    try {
+      await this.initializeTelemetry(lease.tabId);
+    } catch (error) {
+      await this.stopTelemetry(sessionId, lease.tabId, 'workspace_setup_cleanup');
+      try {
+        await browser.windows.remove(lease.windowId);
+      } catch (cleanupError) {
+        console.warn('[PartyBrowser] Workspace setup cleanup failed.', {
+          operation: 'workspace_setup_cleanup', sessionId, tabId: lease.tabId,
+          error: cleanupError,
+          errorCode: cleanupError instanceof CodedError ? cleanupError.errorCode : undefined,
+        });
+      } finally {
+        this.tabClaims.delete(lease.tabId);
+      }
+      throw error;
+    }
     this.leases.set(sessionId, lease);
     this.leaseCreatedAtMs.set(sessionId, Date.now());
     this.onLeaseCreatedCallbacks.forEach((callback) => callback(sessionId, { ...lease }));
@@ -310,7 +331,7 @@ export class SessionManager {
     let group: TakeoverGroup | undefined;
     let claimedTabId: number | undefined;
     try {
-      const lease = await this.resolveFocusedNormalTabLease();
+      const lease = await this.resolveFocusedNormalTabLease(pending);
       this.assertTakeoverSetupActive(pending);
       this.assertTabNotAlreadyLeased(lease.tabId, sessionId);
       this.tabClaims.set(lease.tabId, sessionId);
@@ -327,6 +348,8 @@ export class SessionManager {
       await group.setup();
       await browser.tabs.get(lease.tabId);
       this.assertTakeoverSetupActive(pending);
+      await this.initializeTelemetry(lease.tabId);
+      this.assertTakeoverSetupActive(pending);
 
       this.takeoverGroups.set(sessionId, group);
       this.leases.set(sessionId, lease);
@@ -338,7 +361,16 @@ export class SessionManager {
       );
       return lease;
     } catch (error) {
-      console.warn(`[PartyBrowser] Failed to set up takeover lease ${sessionId}:`, error);
+      console.warn('[PartyBrowser] Takeover setup failed.', {
+        operation: 'takeover_setup',
+        sessionId,
+        tabId: pending.resolvedTabId,
+        error: error instanceof Error ? error.message : String(error),
+        errorCode: error instanceof CodedError ? error.errorCode : undefined,
+      });
+      if (claimedTabId !== undefined) {
+        await this.stopTelemetry(sessionId, claimedTabId, 'takeover_setup_cleanup');
+      }
       this.leases.delete(sessionId);
       this.leaseCreatedAtMs.delete(sessionId);
       this.takeoverGroups.delete(sessionId);
@@ -359,7 +391,7 @@ export class SessionManager {
     }
   }
 
-  private async resolveFocusedNormalTabLease(): Promise<SessionLease> {
+  private async resolveFocusedNormalTabLease(pending: PendingTakeover): Promise<SessionLease> {
     const focusedWindow = await browser.windows.getLastFocused();
     const normalWindow =
       focusedWindow.type === 'normal'
@@ -389,6 +421,7 @@ export class SessionManager {
         ErrorCodes.TAKEOVER_TAB_UNAVAILABLE,
       );
     }
+    pending.resolvedTabId = tabId;
 
     this.assertTakeoverUrlSupported(tab.url);
 
@@ -442,6 +475,60 @@ export class SessionManager {
           ErrorCodes.COMMAND_FAILED,
         );
       }
+    }
+  }
+
+  /** A commit without an existing lease never activates telemetry. */
+  async handleNavigationCommitted(details: { tabId: number; frameId: number }): Promise<void> {
+    if (details.frameId !== 0) {
+      return;
+    }
+    for (const [sessionId, lease] of this.leases) {
+      if (lease.tabId !== details.tabId) {
+        continue;
+      }
+      try {
+        await this.initializeTelemetry(details.tabId);
+      } catch (error) {
+        console.warn('[PartyBrowser] Navigation telemetry failed.', {
+          operation: 'navigation_injection',
+          sessionId,
+          tabId: details.tabId,
+          error: error instanceof Error ? error.message : String(error),
+          errorCode: error instanceof CodedError ? error.errorCode : undefined,
+        });
+      } finally {
+        const claimant = this.tabClaims.get(details.tabId);
+        if (this.leases.get(sessionId) !== lease &&
+            (claimant === undefined || claimant === sessionId)) {
+          await this.stopTelemetry(sessionId, details.tabId, 'navigation_release_cleanup');
+        }
+      }
+      return;
+    }
+  }
+
+  /** Inject only the top-level document and require its initialized message router. */
+  private async initializeTelemetry(tabId: number): Promise<void> {
+    await browser.tabs.executeScript(tabId, {
+      file: '/telemetry.js',
+      allFrames: false,
+      runAt: 'document_start',
+    });
+    requireSuccessfulCommandResult(
+      await browser.tabs.sendMessage(tabId, { type: 'ping' }, { frameId: 0 }),
+      'Telemetry did not become ready.',
+    );
+  }
+
+  private async stopTelemetry(sessionId: string, tabId: number, operation: string): Promise<void> {
+    try {
+      await browser.tabs.sendMessage(tabId, { type: 'stopTelemetry' }, { frameId: 0 });
+    } catch (error) {
+      console.warn('[PartyBrowser] Telemetry cleanup failed.', {
+        operation, sessionId, tabId, error,
+        errorCode: error instanceof CodedError ? error.errorCode : undefined,
+      });
     }
   }
 
@@ -558,6 +645,7 @@ export class SessionManager {
     this.releasingSessions.add(sessionId);
     const group = this.takeoverGroups.get(sessionId);
     this.takeoverGroups.delete(sessionId);
+    await this.stopTelemetry(sessionId, lease.tabId, 'lease_release');
     if (group) {
       await group.restore();
     }

@@ -62,7 +62,11 @@ export const joinSession: Tool = {
     const request = JoinSessionTool.shape.arguments.parse(params);
     const sessionId = await context.joinSession(request);
     try {
-      return await captureAriaSnapshot(context, `Session approved: ${sessionId}`, requestId);
+      return await captureAriaSnapshot(
+        context,
+        `Session approved: ${sessionId}\nTelemetry and console capture start when this approved session activates them and stop when the session ends. Page logs emitted before activation are unavailable. Reload the target page to maximize capture for the replacement document; events before activation still cannot be recovered.`,
+        requestId,
+      );
     } catch (error) {
       errorLog(`[MCP] Initial snapshot failed after session approval (sessionId=${sessionId}):`, error);
       throw error;

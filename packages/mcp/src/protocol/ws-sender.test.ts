@@ -311,3 +311,34 @@ test("session command rejects a duplicate pending request id without overwriting
     });
   }
 });
+
+test("join setup failure preserves actual error and code rather than operator rejection", async () => {
+  const port = await getAvailablePort();
+  const server = new WebSocketServer({ host: "127.0.0.1", port });
+  const connection = new WebSocketHubConnection(`ws://127.0.0.1:${port}`);
+  server.once("connection", (socket) => {
+    socket.once("message", () => {
+      socket.send(JSON.stringify({
+        type: "join_decision", decision: "setup_failed",
+        error: "Cannot take over about:addons", errorCode: "TAKEOVER_TAB_UNAVAILABLE",
+      }));
+    });
+  });
+  try {
+    await assert.rejects(
+      connection.joinSession({ name: "Agent", reason: "Help", leaseKind: "takeover" }, { timeoutMs: 1000 }),
+      { message: "Cannot take over about:addons", errorCode: "TAKEOVER_TAB_UNAVAILABLE" },
+    );
+  } finally {
+    await connection.close();
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve();
+      });
+    });
+  }
+});
