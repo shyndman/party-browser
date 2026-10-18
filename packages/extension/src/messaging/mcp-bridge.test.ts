@@ -6,8 +6,9 @@ import { ControlEvents, WaitingRoomDecisions, WsMessageKinds } from '@/types/mes
 import { SessionLeaseKinds, SessionLeaseOwnerships } from '@/types/session';
 import type { SessionManager, SessionLease } from '@/session/session-manager';
 import type { CommandHandler } from '@/commands/command-handler';
+import { CodedError, ErrorCodes } from '@/utils/errors';
 
-function createBridgeHarness() {
+function createBridgeHarness(setupError?: Error) {
   const leases = new Map<string, SessionLease>();
   const createWorkspaceLeaseCalls: Array<{ sessionId: string; url: string }> = [];
   const createTakeoverLeaseCalls: string[] = [];
@@ -32,6 +33,9 @@ function createBridgeHarness() {
     },
     async createTakeoverLease(sessionId: string) {
       createTakeoverLeaseCalls.push(sessionId);
+      if (setupError) {
+        throw setupError;
+      }
       const lease = {
         windowId: 42,
         tabId: 84,
@@ -238,4 +242,34 @@ test('hub decision failure revokes locally created lease', async () => {
   assert.deepEqual(revokeLeaseCalls, [
     { sessionId: 'session-abc', reason: 'hub_decision_failed' },
   ]);
+});
+
+test('setup failure terminates waiting request and preserves actual error for operator and agent', async () => {
+  const setupError = new CodedError('Cannot take over about:addons', ErrorCodes.TAKEOVER_TAB_UNAVAILABLE);
+  const { bridge, sentMessages } = createBridgeHarness(setupError);
+  // Exercise the established inbound-message seam without opening a transport.
+  const inbound = bridge as unknown as { handleInboundMessage(message: unknown): Promise<void> };
+  await inbound.handleInboundMessage({
+    type: WsMessageKinds.CONTROL_EVENT,
+    event: ControlEvents.WAITING_ROOM_SYNC,
+    payload: { entries: [{
+      sessionId: 'failed-takeover', name: 'Agent', reason: 'Help here',
+      leaseKind: SessionLeaseKinds.TAKEOVER, joinRequestTime: Date.now(),
+    }] },
+  });
+  const responsePromise = bridge.submitWaitingRoomDecision('failed-takeover', WaitingRoomDecisions.JOIN);
+  await flushBridgeApproval();
+  assert.deepEqual(bridge.getWaitingRoomEntries(), []);
+  const command = sentMessages[0] as { requestId: string; payload: unknown };
+  assert.deepEqual(command.payload, {
+    sessionId: 'failed-takeover', decision: 'setup_failed',
+    error: setupError.message, errorCode: setupError.errorCode,
+  });
+  await inbound.handleInboundMessage({
+    type: WsMessageKinds.CONTROL_RESPONSE, requestId: command.requestId, success: true,
+  });
+  const response = await responsePromise;
+  assert.equal(response.success, false);
+  assert.equal(response.error, setupError.message);
+  assert.equal(response.errorCode, setupError.errorCode);
 });

@@ -80,6 +80,12 @@ export type JoinDecisionMessage =
       type: typeof HUB_CONTROL_MESSAGE_TYPES.JOIN_DECISION;
       decision: typeof HUB_JOIN_DECISIONS.REJECT;
       rejectReason?: string;
+    }
+  | {
+      type: typeof HUB_CONTROL_MESSAGE_TYPES.JOIN_DECISION;
+      decision: typeof HUB_JOIN_DECISIONS.SETUP_FAILED;
+      error: string;
+      errorCode: string;
     };
 
 export type SessionCommandEnvelope<K extends keyof SocketMessageMap = keyof SocketMessageMap> = {

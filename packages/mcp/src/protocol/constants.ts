@@ -6,6 +6,7 @@ export const HUB_CONTROL_MESSAGE_TYPES = {
 export const HUB_JOIN_DECISIONS = {
   JOIN: "join",
   REJECT: "reject",
+  SETUP_FAILED: "setup_failed",
 } as const;
 
 export const MCP_ERROR_CODES = {

@@ -12,6 +12,7 @@ export const HUB_CONTROL_MESSAGE_TYPES = {
 export const HUB_JOIN_DECISIONS = {
   JOIN: "join",
   REJECT: "reject",
+  SETUP_FAILED: "setup_failed",
 } as const;
 
 export const SESSION_LEASE_KINDS = {
@@ -62,6 +63,12 @@ export type JoinDecisionMessage =
       type: typeof HUB_CONTROL_MESSAGE_TYPES.JOIN_DECISION;
       decision: typeof HUB_JOIN_DECISIONS.REJECT;
       rejectReason?: string;
+    }
+  | {
+      type: typeof HUB_CONTROL_MESSAGE_TYPES.JOIN_DECISION;
+      decision: typeof HUB_JOIN_DECISIONS.SETUP_FAILED;
+      error: string;
+      errorCode: string;
     };
 
 export type McpSessionCommandEnvelope = {

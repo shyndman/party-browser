@@ -64,6 +64,14 @@ export class SessionStore {
     return this.sessions.get(sessionId);
   }
 
+  discardPendingSession(sessionId: string): void {
+    const record = this.requireSession(sessionId);
+    if (record.state !== SESSION_LIFECYCLE_STATES.PENDING) {
+      throw new HubError("Only pending sessions can be discarded.", HUB_ERROR_CODES.PROTOCOL_INVALID_MESSAGE);
+    }
+    this.sessions.delete(sessionId);
+  }
+
   assertSessionConnection(sessionId: string, connectionId: string): SessionRecord {
     const record = this.requireSession(sessionId);
     if (record.connectionId !== connectionId) {

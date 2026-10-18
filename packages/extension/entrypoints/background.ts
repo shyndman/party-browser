@@ -191,6 +191,7 @@ export default defineBackground({
 
     browser.webNavigation.onCommitted.addListener((details) => {
       logWebNavigationEvent('onCommitted', details);
+      void sessionManager.handleNavigationCommitted(details);
     });
 
     browser.webNavigation.onDOMContentLoaded.addListener((details) => {

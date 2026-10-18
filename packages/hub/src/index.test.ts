@@ -425,6 +425,66 @@ test("operator reject returns explicit reject decision", async () => {
   }
 });
 
+test("setup failure delivers actual cause and discards waiting session", async () => {
+  const harness = await createHarness();
+  try {
+    const registered = waitForMessage(harness.extension, (message) => message.requestId === "register-failure-test");
+    harness.extension.send(JSON.stringify({
+      type: HUB_EXTENSION_MESSAGE_TYPES.CONTROL_COMMAND, requestId: "register-failure-test",
+      command: HUB_CONTROL_COMMANDS.WAITING_ROOM_LIST, payload: {},
+    }));
+    await registered;
+    const waitingPromise = waitForMessage(harness.extension, (message) =>
+      message.type === HUB_EXTENSION_MESSAGE_TYPES.CONTROL_EVENT &&
+      message.event === HUB_CONTROL_EVENTS.WAITING_ROOM_SYNC &&
+      typeof message.payload === "object" && message.payload !== null &&
+      "entries" in message.payload && Array.isArray(message.payload.entries) &&
+      message.payload.entries.length === 1);
+    const decisionPromise = waitForMessage(harness.mcp, (message) =>
+      message.type === HUB_CONTROL_MESSAGE_TYPES.JOIN_DECISION);
+    harness.mcp.send(JSON.stringify({
+      type: HUB_CONTROL_MESSAGE_TYPES.JOIN_REQUEST,
+      name: "Agent", reason: "Help here", leaseKind: SESSION_LEASE_KINDS.TAKEOVER,
+    }));
+    const waiting = await waitingPromise;
+    const payload = waiting.payload;
+    if (typeof payload !== "object" || payload === null || !("entries" in payload) ||
+        !Array.isArray(payload.entries)) {
+      throw new Error("Expected waiting-room entries");
+    }
+    const entry: unknown = payload.entries[0];
+    if (typeof entry !== "object" || entry === null || !("sessionId" in entry) ||
+        typeof entry.sessionId !== "string") {
+      throw new Error("Expected waiting session ID");
+    }
+    const sessionId = entry.sessionId;
+    const clearedPromise = waitForMessage(harness.extension, (message) =>
+      message.type === HUB_EXTENSION_MESSAGE_TYPES.CONTROL_EVENT &&
+      message.event === HUB_CONTROL_EVENTS.WAITING_ROOM_SYNC &&
+      typeof message.payload === "object" && message.payload !== null &&
+      "entries" in message.payload && Array.isArray(message.payload.entries) &&
+      message.payload.entries.length === 0);
+    harness.extension.send(JSON.stringify({
+      type: HUB_EXTENSION_MESSAGE_TYPES.CONTROL_COMMAND,
+      requestId: "failed-setup", command: HUB_CONTROL_COMMANDS.WAITING_ROOM_DECIDE,
+      payload: { sessionId, decision: HUB_JOIN_DECISIONS.SETUP_FAILED,
+        error: "Cannot take over about:addons", errorCode: "TAKEOVER_TAB_UNAVAILABLE" },
+    }));
+    assert.deepEqual(await decisionPromise, {
+      type: HUB_CONTROL_MESSAGE_TYPES.JOIN_DECISION, decision: HUB_JOIN_DECISIONS.SETUP_FAILED,
+      error: "Cannot take over about:addons", errorCode: "TAKEOVER_TAB_UNAVAILABLE",
+    });
+    await clearedPromise;
+    const commandResult = waitForMessage(harness.mcp, (message) => message.requestId === "after-failure");
+    harness.mcp.send(JSON.stringify({
+      requestId: "after-failure", sessionId, type: "navigate", payload: { url: "https://example.com" },
+    }));
+    assert.equal((await commandResult).errorCode, HUB_ERROR_CODES.SESSION_NOT_FOUND);
+  } finally {
+    await destroyHarness(harness);
+  }
+});
+
 test("kill switch revoke wins over in-flight command", async () => {
   const harness = await createHarness();
 

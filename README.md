@@ -166,6 +166,16 @@ Session targeting:
 - If an original group disappears later, release leaves the tab ungrouped instead of recreating that group.
 - Tab groups require Firefox 139 or later.
 - Per-call `tabId` overrides are not supported.
+- Telemetry and console capture run only during approved sessions. Earlier page logs are unavailable; reload the target page to maximize capture after activation.
+- Approval setup failures (including restricted takeover targets) return the actual error and code to the agent and remove the failed request, rather than treating it as operator rejection.
+
+Telemetry and console capture:
+- Ordinary tabs receive no PartyBrowser content script. The background activates telemetry only in the top-level document of a session's target tab.
+- Workspace and takeover approval wait for telemetry initialization on the initial page. If initialization fails, setup rolls back rather than reporting a usable session.
+- Top-level navigation commits activate replacement documents only when the tab already has a lease. Workspace setup explicitly initializes its initial document before publishing the lease.
+- Capture starts at injection time. Earlier page logs are unavailable; reload the target page to maximize collection, without a guarantee of capturing every early-load event.
+- Release invokes the same cleanup as extension invalidation, stopping console capture and page observers even when the hijacked tab stays open. Other sessions are unaffected.
+
 
 ### Keep Hub Running with systemd (user service)
 

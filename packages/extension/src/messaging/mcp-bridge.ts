@@ -16,7 +16,7 @@ import {
   WaitingRoomDecisions,
   WsMessageKinds,
 } from '../types/messages';
-import { ErrorCodes, type ErrorCode } from '../utils/errors';
+import { CodedError, ErrorCodes, type ErrorCode } from '../utils/errors';
 import type { SessionManager } from '../session/session-manager';
 import type { CommandHandler } from '../commands/command-handler';
 import { SessionLeaseKinds, type SessionLeaseKind } from '../types/session';
@@ -230,10 +230,35 @@ export class McpBridge {
         await this.sessionManager.revokeLease(sessionId, 'hub_decision_failed');
       }
 
-      return this.createLocalControlFailure(
-        (error as Error).message,
-        (error as { errorCode?: ErrorCode }).errorCode ?? ErrorCodes.COMMAND_FAILED,
-      );
+      const message = error instanceof Error ? error.message : String(error);
+      const errorCode = error instanceof CodedError ? error.errorCode : ErrorCodes.COMMAND_FAILED;
+      console.error('[PartyBrowser] Session approval setup failed.', {
+        operation: 'approval_setup',
+        sessionId,
+        error: message,
+        errorCode,
+      });
+      if (!leaseCreated) {
+        this.waitingRoom.delete(sessionId);
+        this.notifyWaitingRoomChanged();
+        try {
+          const response = await this.sendControlCommand(
+            ControlCommands.WAITING_ROOM_DECIDE,
+            { sessionId, decision: 'setup_failed', error: message, errorCode },
+            true,
+          );
+          if (!response.success) {
+            console.error('[PartyBrowser] Failed to report approval setup failure to hub.', {
+              sessionId, error: response.error, errorCode: response.errorCode,
+            });
+          }
+        } catch (reportError) {
+          console.error('[PartyBrowser] Failed to report approval setup failure to hub.', {
+            sessionId, error: reportError instanceof Error ? reportError.message : String(reportError),
+          });
+        }
+      }
+      return this.createLocalControlFailure(message, errorCode);
     }
   }
 

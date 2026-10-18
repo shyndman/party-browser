@@ -870,7 +870,7 @@ export class HubRuntime {
       return;
     }
 
-    if (decision !== HUB_JOIN_DECISIONS.JOIN && decision !== HUB_JOIN_DECISIONS.REJECT) {
+    if (decision !== HUB_JOIN_DECISIONS.JOIN && decision !== HUB_JOIN_DECISIONS.REJECT && decision !== HUB_JOIN_DECISIONS.SETUP_FAILED) {
       this.logger.error("Waiting-room decision has invalid decision value.", {
         event: "error.protocol",
         connectionId,
@@ -883,7 +883,20 @@ export class HubRuntime {
         type: HUB_EXTENSION_MESSAGE_TYPES.CONTROL_RESPONSE,
         requestId: message.requestId,
         success: false,
-        error: "Waiting-room decision must be join or reject.",
+        error: "Waiting-room decision must be join, reject, or setup_failed.",
+        errorCode: HUB_ERROR_CODES.PROTOCOL_INVALID_MESSAGE,
+      });
+      return;
+    }
+
+    if (decision === HUB_JOIN_DECISIONS.SETUP_FAILED &&
+        (typeof message.payload.error !== "string" || !message.payload.error ||
+         typeof message.payload.errorCode !== "string" || !message.payload.errorCode)) {
+      this.sendControlResponse(connectionId, {
+        type: HUB_EXTENSION_MESSAGE_TYPES.CONTROL_RESPONSE,
+        requestId: message.requestId,
+        success: false,
+        error: "Setup failure requires an error and errorCode.",
         errorCode: HUB_ERROR_CODES.PROTOCOL_INVALID_MESSAGE,
       });
       return;
@@ -938,6 +951,22 @@ export class HubRuntime {
             ? { url: waitingEntry.url }
             : {}),
         },
+      });
+    } else if (decision === HUB_JOIN_DECISIONS.SETUP_FAILED) {
+      const error = message.payload.error as string;
+      const errorCode = message.payload.errorCode as string;
+      this.sessionStore.discardPendingSession(sessionId);
+      this.logger.error("Session approval setup failed.", {
+        operation: "approval_setup",
+        sessionId,
+        error,
+        errorCode,
+      });
+      this.sendJoinDecision(waitingEntry.connectionId, {
+        type: HUB_CONTROL_MESSAGE_TYPES.JOIN_DECISION,
+        decision: HUB_JOIN_DECISIONS.SETUP_FAILED,
+        error,
+        errorCode,
       });
     } else {
       const revokeResult = this.sessionStore.revokeSession(sessionId, "operator_reject");

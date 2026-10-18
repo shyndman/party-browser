@@ -5,45 +5,69 @@
 
 /// <reference path="../src/types/global.d.ts" />
 
-import { defineContentScript } from 'wxt/utils/define-content-script';
-import type { ContentScriptContext } from 'wxt/utils/content-script-context';
+import { defineUnlistedScript } from 'wxt/utils/define-unlisted-script';
+import { ContentScriptContext } from 'wxt/utils/content-script-context';
+import type BrowserNamespace from 'webextension-polyfill';
 
 import { createCommandHandlers } from '../src/content/command-handlers';
 import { createRuntimeMessageListener } from '../src/content/message-router';
 import { ConsoleCapture } from '../src/session/console-capture';
 
 type TelemetryFields = Record<string, unknown>;
+type TelemetryControlMessage = { type?: string };
 
-export default defineContentScript({
-  matches: ['<all_urls>'],
-  main(ctx: ContentScriptContext) {
-    const consoleCapture = new ConsoleCapture();
-    const stopPageTelemetry = installPageTelemetry();
-
-    logPageTelemetry('content_script_attached');
-    const commandHandlers = createCommandHandlers();
-    const messageListener = createRuntimeMessageListener(
-      commandHandlers,
-      consoleCapture,
-    );
-
-    browser.runtime.onMessage.addListener(messageListener);
-
-    ctx.onInvalidated(() => {
-      logPageTelemetry('content_script_invalidated');
-      browser.runtime.onMessage.removeListener(messageListener);
-      stopPageTelemetry();
-      consoleCapture.dispose();
-    });
-
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', () => {
-        logPageTelemetry('content_script_ready');
-      });
+export default defineUnlistedScript({
+  main() {
+    const state = globalThis as typeof globalThis & { __partyBrowserTelemetryCleanup?: () => void };
+    if (state.__partyBrowserTelemetryCleanup) {
       return;
     }
-
-    logPageTelemetry('content_script_ready_immediate');
+    // Check before constructing WXT's context: construction invalidates older contexts.
+    const ctx = new ContentScriptContext('telemetry');
+    let consoleCapture: ConsoleCapture | undefined;
+    let stopPageTelemetry: (() => void) | undefined;
+    let messageListener: BrowserNamespace.Runtime.OnMessageListener | undefined;
+    const stopListener = (message: unknown) => {
+      const controlMessage = message as TelemetryControlMessage;
+      if (controlMessage.type !== 'stopTelemetry') {
+        return undefined;
+      }
+      cleanup();
+      return Promise.resolve({ success: true });
+    };
+    const onReady = () => logPageTelemetry('content_script_ready');
+    const cleanup = () => {
+      if (state.__partyBrowserTelemetryCleanup !== cleanup) {
+        return;
+      }
+      delete state.__partyBrowserTelemetryCleanup;
+      logPageTelemetry('content_script_invalidated');
+      if (messageListener) {
+        browser.runtime.onMessage.removeListener(messageListener);
+      }
+      browser.runtime.onMessage.removeListener(stopListener);
+      document.removeEventListener('DOMContentLoaded', onReady);
+      stopPageTelemetry?.();
+      consoleCapture?.dispose();
+    };
+    state.__partyBrowserTelemetryCleanup = cleanup;
+    ctx.onInvalidated(cleanup);
+    try {
+      consoleCapture = new ConsoleCapture();
+      stopPageTelemetry = installPageTelemetry();
+      logPageTelemetry('content_script_attached');
+      messageListener = createRuntimeMessageListener(createCommandHandlers(), consoleCapture);
+      browser.runtime.onMessage.addListener(stopListener);
+      browser.runtime.onMessage.addListener(messageListener);
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', onReady, { once: true });
+      } else {
+        logPageTelemetry('content_script_ready_immediate');
+      }
+    } catch (error) {
+      cleanup();
+      throw error;
+    }
   },
 });
 
