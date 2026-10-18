@@ -50,7 +50,7 @@ export interface SessionLease {
   closeOnRevoke: boolean;
 }
 
-interface PendingTakeover {
+interface PendingLeaseSetup {
   lease?: SessionLease;
   resolvedTabId?: number;
   cancelled: boolean;
@@ -67,7 +67,7 @@ export class SessionManager {
   private readonly tabLifecycle = new TabLifecycle();
   private readonly takeoverGroups = new Map<string, TakeoverGroup>();
   private readonly tabClaims = new Map<number, string>();
-  private readonly pendingTakeovers = new Map<string, PendingTakeover>();
+  private readonly pendingSetups = new Map<string, PendingLeaseSetup>();
   private readonly releasingSessions = new Set<string>();
   private onLeaseCreatedCallbacks: Array<
     (sessionId: string, lease: SessionLease) => void
@@ -93,11 +93,12 @@ export class SessionManager {
    */
   private setupTabRemovedListener(): void {
     this.onTabRemovedListener = (removedTabId: number, removeInfo?: unknown) => {
-      for (const pending of this.pendingTakeovers.values()) {
+      for (const pending of this.pendingSetups.values()) {
         if (pending.lease?.tabId === removedTabId) {
           pending.cancelled = true;
         }
       }
+
       for (const [sessionId, lease] of this.leases.entries()) {
         if (lease.tabId !== removedTabId) {
           continue;
@@ -119,11 +120,12 @@ export class SessionManager {
    */
   private setupWindowRemovedListener(): void {
     this.onWindowRemovedListener = (removedWindowId: number) => {
-      for (const pending of this.pendingTakeovers.values()) {
+      for (const pending of this.pendingSetups.values()) {
         if (pending.lease?.windowId === removedWindowId) {
           pending.cancelled = true;
         }
       }
+
       for (const [sessionId, lease] of this.leases.entries()) {
         if (lease.windowId !== removedWindowId) {
           continue;
@@ -183,9 +185,16 @@ export class SessionManager {
   /**
    * Create a dedicated window for a lease.
    */
-  private async createLeaseWindow(url: string): Promise<SessionLease> {
+  private async createLeaseWindow(
+    sessionId: string,
+    url: string,
+    pending: PendingLeaseSetup,
+  ): Promise<SessionLease> {
     const geometry = await this.calculateLeaseWindowGeometry();
+    this.assertLeaseSetupActive(pending);
+
     let windowId: number | undefined;
+    let tabId: number | undefined;
 
     try {
       const createdWindow = await browser.windows.create({
@@ -205,7 +214,7 @@ export class SessionManager {
         );
       }
 
-      let tabId = createdWindow.tabs?.[0]?.id;
+      tabId = createdWindow.tabs?.[0]?.id;
       if (tabId === undefined) {
         const tabs = await browser.tabs.query({ windowId });
         tabId = tabs[0]?.id;
@@ -218,21 +227,24 @@ export class SessionManager {
         );
       }
 
-      await this.tabLifecycle.waitForTabToSettle({
-        command: 'lease_setup',
-        sessionId: 'lease_setup',
-        tabId,
-      });
+      pending.resolvedTabId = tabId;
+      this.assertTabNotAlreadyLeased(tabId, sessionId);
 
-      return {
+      this.tabClaims.set(tabId, sessionId);
+      const lease: SessionLease = {
         windowId,
         tabId,
         leaseKind: SessionLeaseKinds.WORKSPACE,
         ownership: SessionLeaseOwnerships.OWNED,
         closeOnRevoke: true,
       };
+      pending.lease = lease;
+
+      return lease;
     } catch (error) {
-      if (windowId !== undefined) {
+      const claimant = tabId === undefined ? undefined : this.tabClaims.get(tabId);
+
+      if (windowId !== undefined && (claimant === undefined || claimant === sessionId)) {
         try {
           await browser.windows.remove(windowId);
         } catch (cleanupError) {
@@ -245,6 +257,19 @@ export class SessionManager {
 
       throw error;
     }
+  }
+
+  private beginLeaseSetup(sessionId: string): PendingLeaseSetup {
+    let finish!: () => void;
+    const pending: PendingLeaseSetup = {
+      cancelled: false,
+      finished: new Promise<void>((resolve) => { finish = resolve; }),
+      finish: () => finish(),
+    };
+
+    this.pendingSetups.set(sessionId, pending);
+
+    return pending;
   }
 
   /**
@@ -265,42 +290,73 @@ export class SessionManager {
       );
     }
 
-    if (this.leases.has(sessionId) || this.pendingTakeovers.has(sessionId) || this.releasingSessions.has(sessionId)) {
+    if (this.leases.has(sessionId) || this.pendingSetups.has(sessionId) || this.releasingSessions.has(sessionId)) {
       throw new CodedError(
         `Lease already exists for sessionId ${sessionId}.`,
         ErrorCodes.COMMAND_FAILED,
       );
     }
 
-    const lease = await this.createLeaseWindow(url);
-    this.assertTabNotAlreadyLeased(lease.tabId, sessionId);
-    this.tabClaims.set(lease.tabId, sessionId);
+    const pending = this.beginLeaseSetup(sessionId);
+
     try {
+      const lease = await this.createLeaseWindow(sessionId, url, pending);
+      this.assertLeaseSetupActive(pending);
+
+      await this.tabLifecycle.waitForTabToSettle({
+        command: 'lease_setup',
+        sessionId,
+        tabId: lease.tabId,
+      });
+      this.assertLeaseSetupActive(pending);
+
       await this.initializeTelemetry(lease.tabId);
+      this.assertLeaseSetupActive(pending);
+
+      this.leases.set(sessionId, lease);
+      this.leaseCreatedAtMs.set(sessionId, Date.now());
+      this.pendingSetups.delete(sessionId);
+      this.onLeaseCreatedCallbacks.forEach((callback) => callback(sessionId, { ...lease }));
+
+      console.log(
+        `[PartyBrowser] Workspace lease created: ${sessionId} -> window ${lease.windowId}, tab ${lease.tabId}, url=${url}`,
+      );
+
+      return lease;
     } catch (error) {
-      await this.stopTelemetry(sessionId, lease.tabId, 'workspace_setup_cleanup');
-      try {
-        await browser.windows.remove(lease.windowId);
-      } catch (cleanupError) {
-        console.warn('[PartyBrowser] Workspace setup cleanup failed.', {
-          operation: 'workspace_setup_cleanup', sessionId, tabId: lease.tabId,
-          error: cleanupError,
-          errorCode: cleanupError instanceof CodedError ? cleanupError.errorCode : undefined,
-        });
-      } finally {
-        this.tabClaims.delete(lease.tabId);
+      console.warn('[PartyBrowser] Workspace setup failed.', {
+        operation: 'workspace_setup',
+        sessionId,
+        tabId: pending.resolvedTabId,
+        error: error instanceof Error ? error.message : String(error),
+        errorCode: error instanceof CodedError ? error.errorCode : undefined,
+      });
+
+      const lease = pending.lease;
+
+      if (lease) {
+        await this.stopTelemetry(sessionId, lease.tabId, 'workspace_setup_cleanup');
+
+        try {
+          await browser.windows.remove(lease.windowId);
+        } catch (cleanupError) {
+          console.warn('[PartyBrowser] Workspace setup cleanup failed.', {
+            operation: 'workspace_setup_cleanup',
+            sessionId,
+            tabId: lease.tabId,
+            error: cleanupError,
+            errorCode: cleanupError instanceof CodedError ? cleanupError.errorCode : undefined,
+          });
+        } finally {
+          this.tabClaims.delete(lease.tabId);
+        }
       }
+
       throw error;
+    } finally {
+      this.pendingSetups.delete(sessionId);
+      pending.finish();
     }
-    this.leases.set(sessionId, lease);
-    this.leaseCreatedAtMs.set(sessionId, Date.now());
-    this.onLeaseCreatedCallbacks.forEach((callback) => callback(sessionId, { ...lease }));
-
-    console.log(
-      `[PartyBrowser] Workspace lease created: ${sessionId} -> window ${lease.windowId}, tab ${lease.tabId}, url=${url}`,
-    );
-
-    return lease;
   }
 
   /**
@@ -314,25 +370,21 @@ export class SessionManager {
       );
     }
 
-    if (this.leases.has(sessionId) || this.pendingTakeovers.has(sessionId) || this.releasingSessions.has(sessionId)) {
+    if (this.leases.has(sessionId) || this.pendingSetups.has(sessionId) || this.releasingSessions.has(sessionId)) {
       throw new CodedError(
         `Lease already exists for sessionId ${sessionId}.`,
         ErrorCodes.COMMAND_FAILED,
       );
     }
 
-    let finish!: () => void;
-    const pending: PendingTakeover = {
-      cancelled: false,
-      finished: new Promise<void>((resolve) => { finish = resolve; }),
-      finish: () => finish(),
-    };
-    this.pendingTakeovers.set(sessionId, pending);
+    const pending = this.beginLeaseSetup(sessionId);
+
     let group: TakeoverGroup | undefined;
     let claimedTabId: number | undefined;
+
     try {
       const lease = await this.resolveFocusedNormalTabLease(pending);
-      this.assertTakeoverSetupActive(pending);
+      this.assertLeaseSetupActive(pending);
       this.assertTabNotAlreadyLeased(lease.tabId, sessionId);
       this.tabClaims.set(lease.tabId, sessionId);
       claimedTabId = lease.tabId;
@@ -343,22 +395,27 @@ export class SessionManager {
         sessionId,
         tabId: lease.tabId,
       });
-      this.assertTakeoverSetupActive(pending);
+
+      this.assertLeaseSetupActive(pending);
+
       group = new TakeoverGroup(lease.tabId);
       await group.setup();
       await browser.tabs.get(lease.tabId);
-      this.assertTakeoverSetupActive(pending);
+      this.assertLeaseSetupActive(pending);
+
       await this.initializeTelemetry(lease.tabId);
-      this.assertTakeoverSetupActive(pending);
+      this.assertLeaseSetupActive(pending);
 
       this.takeoverGroups.set(sessionId, group);
       this.leases.set(sessionId, lease);
       this.leaseCreatedAtMs.set(sessionId, Date.now());
-      this.pendingTakeovers.delete(sessionId);
+      this.pendingSetups.delete(sessionId);
       this.onLeaseCreatedCallbacks.forEach((callback) => callback(sessionId, { ...lease }));
+
       console.log(
         `[PartyBrowser] Takeover lease created: ${sessionId} -> window ${lease.windowId}, tab ${lease.tabId}`,
       );
+
       return lease;
     } catch (error) {
       console.warn('[PartyBrowser] Takeover setup failed.', {
@@ -368,30 +425,34 @@ export class SessionManager {
         error: error instanceof Error ? error.message : String(error),
         errorCode: error instanceof CodedError ? error.errorCode : undefined,
       });
+
       if (claimedTabId !== undefined) {
         await this.stopTelemetry(sessionId, claimedTabId, 'takeover_setup_cleanup');
       }
+
       this.leases.delete(sessionId);
       this.leaseCreatedAtMs.delete(sessionId);
       this.takeoverGroups.delete(sessionId);
       await group?.restore();
+
       if (claimedTabId !== undefined) {
         this.tabClaims.delete(claimedTabId);
       }
+
       throw error;
     } finally {
-      this.pendingTakeovers.delete(sessionId);
+      this.pendingSetups.delete(sessionId);
       pending.finish();
     }
   }
 
-  private assertTakeoverSetupActive(pending: PendingTakeover): void {
+  private assertLeaseSetupActive(pending: PendingLeaseSetup): void {
     if (pending.cancelled) {
-      throw new CodedError('Takeover lease setup was cancelled.', ErrorCodes.COMMAND_FAILED);
+      throw new CodedError('Lease setup was cancelled.', ErrorCodes.COMMAND_FAILED);
     }
   }
 
-  private async resolveFocusedNormalTabLease(pending: PendingTakeover): Promise<SessionLease> {
+  private async resolveFocusedNormalTabLease(pending: PendingLeaseSetup): Promise<SessionLease> {
     const focusedWindow = await browser.windows.getLastFocused();
     const normalWindow =
       focusedWindow.type === 'normal'
@@ -483,10 +544,12 @@ export class SessionManager {
     if (details.frameId !== 0) {
       return;
     }
+
     for (const [sessionId, lease] of this.leases) {
       if (lease.tabId !== details.tabId) {
         continue;
       }
+
       try {
         await this.initializeTelemetry(details.tabId);
       } catch (error) {
@@ -499,11 +562,13 @@ export class SessionManager {
         });
       } finally {
         const claimant = this.tabClaims.get(details.tabId);
+
         if (this.leases.get(sessionId) !== lease &&
             (claimant === undefined || claimant === sessionId)) {
           await this.stopTelemetry(sessionId, details.tabId, 'navigation_release_cleanup');
         }
       }
+
       return;
     }
   }
@@ -515,6 +580,7 @@ export class SessionManager {
       allFrames: false,
       runAt: 'document_start',
     });
+
     requireSuccessfulCommandResult(
       await browser.tabs.sendMessage(tabId, { type: 'ping' }, { frameId: 0 }),
       'Telemetry did not become ready.',
@@ -627,13 +693,17 @@ export class SessionManager {
     reason: string,
     closeOwnedBrowserTarget: boolean,
   ): Promise<boolean> {
-    const pending = this.pendingTakeovers.get(sessionId);
+    const pending = this.pendingSetups.get(sessionId);
+
     if (pending) {
       const alreadyCancelled = pending.cancelled;
       pending.cancelled = true;
+
       await pending.finished;
+
       return !alreadyCancelled;
     }
+
     const lease = this.leases.get(sessionId);
     if (lease === undefined) {
       return false;
@@ -661,12 +731,14 @@ export class SessionManager {
     console.log(
       `[PartyBrowser] Lease revoked: ${sessionId} (kind=${lease.leaseKind}, ownership=${lease.ownership}, window ${lease.windowId}, tab ${lease.tabId}, reason: ${reason}, ageMs=${leaseAgeMs ?? 'unknown'}, closeOnRevoke=${lease.closeOnRevoke}, closeOwnedBrowserTarget=${closeOwnedBrowserTarget})`,
     );
+
     try {
       this.onLeaseRevokedCallbacks.forEach((cb) => cb(sessionId, { ...lease }, reason));
     } finally {
       this.tabClaims.delete(lease.tabId);
       this.releasingSessions.delete(sessionId);
     }
+
     return true;
   }
 
@@ -687,7 +759,12 @@ export class SessionManager {
    * Revoke all active leases
    */
   async revokeAllLeases(reason: string): Promise<void> {
-    const sessionIds = new Set([...this.leases.keys(), ...this.pendingTakeovers.keys()]);
+    const sessionIds = new Set([...this.leases.keys(), ...this.pendingSetups.keys()]);
+
+    for (const pending of this.pendingSetups.values()) {
+      pending.cancelled = true;
+    }
+
     for (const sessionId of sessionIds) {
       await this.revokeLease(sessionId, reason);
     }

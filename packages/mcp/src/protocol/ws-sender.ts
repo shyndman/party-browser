@@ -315,6 +315,7 @@ export class WebSocketHubConnection implements HubConnection {
       pending.resolve(message.sessionId);
       return;
     }
+
     if (message.decision === HUB_JOIN_DECISIONS.SETUP_FAILED) {
       pending.reject(new CodedError(message.error, message.errorCode));
       return;

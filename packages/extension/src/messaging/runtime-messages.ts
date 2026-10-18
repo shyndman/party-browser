@@ -60,7 +60,7 @@ export function handleRuntimeMessage(
   if (!envelope.success) {
     console.warn('[PartyBrowser] Invalid runtime message:', envelope.error);
     return false;
-  }npm i -g @open-pencil/mcp@0.16.0
+  }
 
   switch (envelope.data.type) {
     case RuntimeMessageKinds.MCP_COMMAND: {

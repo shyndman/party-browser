@@ -33,9 +33,11 @@ function createBridgeHarness(setupError?: Error) {
     },
     async createTakeoverLease(sessionId: string) {
       createTakeoverLeaseCalls.push(sessionId);
+
       if (setupError) {
         throw setupError;
       }
+
       const lease = {
         windowId: 42,
         tabId: 84,
@@ -247,8 +249,10 @@ test('hub decision failure revokes locally created lease', async () => {
 test('setup failure terminates waiting request and preserves actual error for operator and agent', async () => {
   const setupError = new CodedError('Cannot take over about:addons', ErrorCodes.TAKEOVER_TAB_UNAVAILABLE);
   const { bridge, sentMessages } = createBridgeHarness(setupError);
+
   // Exercise the established inbound-message seam without opening a transport.
   const inbound = bridge as unknown as { handleInboundMessage(message: unknown): Promise<void> };
+
   await inbound.handleInboundMessage({
     type: WsMessageKinds.CONTROL_EVENT,
     event: ControlEvents.WAITING_ROOM_SYNC,
@@ -257,18 +261,25 @@ test('setup failure terminates waiting request and preserves actual error for op
       leaseKind: SessionLeaseKinds.TAKEOVER, joinRequestTime: Date.now(),
     }] },
   });
+
   const responsePromise = bridge.submitWaitingRoomDecision('failed-takeover', WaitingRoomDecisions.JOIN);
   await flushBridgeApproval();
+
   assert.deepEqual(bridge.getWaitingRoomEntries(), []);
+
   const command = sentMessages[0] as { requestId: string; payload: unknown };
+
   assert.deepEqual(command.payload, {
     sessionId: 'failed-takeover', decision: 'setup_failed',
     error: setupError.message, errorCode: setupError.errorCode,
   });
+
   await inbound.handleInboundMessage({
     type: WsMessageKinds.CONTROL_RESPONSE, requestId: command.requestId, success: true,
   });
+
   const response = await responsePromise;
+
   assert.equal(response.success, false);
   assert.equal(response.error, setupError.message);
   assert.equal(response.errorCode, setupError.errorCode);
